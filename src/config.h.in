@@ -1,0 +1,20 @@
+#ifndef _CONFIG_H
+#define _CONFIG_H
+
+#cmakedefine WITH_SOAPYSDR
+#cmakedefine WITH_PROFILING
+#cmakedefine DATADUMPS
+#ifdef DATADUMPS
+#define COSTAS_DEBUG
+#define SYMSYNC_DEBUG
+#define CHAN_DEBUG
+#define MF_DEBUG
+#define AGC_DEBUG
+#define EQ_DEBUG
+#define CORR_DEBUG
+#define DUMP_CONST
+#undef DUMP_FFT
+#undef FASTDDC_DEBUG
+#endif
+
+#endif // !_CONFIG_H

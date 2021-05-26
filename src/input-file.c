@@ -1,0 +1,85 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>         // usleep
+#include <errno.h>          // errno
+#include <liquid/liquid.h>  // cbuffercf_*
+#include "block.h"          // block_*
+#include "input-common.h"   // input, sample_format, input_vtable
+#include "input-helpers.h"  // get_sample_full_scale_value, get_sample_size
+#include "util.h"	        // debug_print, ASSERT, XCALLOC
+#include "globals.h"        // do_exit
+
+#define FILE_BUFSIZE 320000U
+
+struct file_input {
+	struct input input;
+	FILE *fh;
+};
+
+void *file_input_thread(void *ctx) {
+	ASSERT(ctx);
+	struct block *block = ctx;
+	struct input *input = container_of(block, struct input, block);
+	struct file_input *file_input = container_of(input, struct file_input, input);
+	struct circ_buffer *circ_buffer = &block->producer.out->circ_buffer;
+
+	ASSERT(file_input->fh != NULL);
+
+	uint8_t *buf = XCALLOC(FILE_BUFSIZE, sizeof(uint8_t));
+	size_t space_available, len;
+	do {
+		len = fread(buf, 1, FILE_BUFSIZE, file_input->fh);
+		while(true) {
+			pthread_mutex_lock(circ_buffer->mutex);
+			space_available = cbuffercf_space_available(circ_buffer->buf);
+			pthread_mutex_unlock(circ_buffer->mutex);
+			if(space_available * input->bytes_per_sample >= len) {
+				break;
+			}
+			//fprintf(stderr, "%zu < %zu, sleeping\n", space_available * bytes_per_complex_sample, len);
+			usleep(100000);
+		}
+		input->convert_sample_buffer(input, buf, len);
+	} while(len == FILE_BUFSIZE && do_exit == 0);
+	fclose(file_input->fh);
+	file_input->fh = NULL;
+	fprintf(stderr, "file: Shutdown ordered, signaling consumer shutdown\n");
+	block_connection_one2one_shutdown(block->producer.out);
+	do_exit = 1;
+	block->running = false;
+	XFREE(buf);
+	return NULL;
+}
+
+int file_input_init(struct input *input) {
+	ASSERT(input != NULL);
+	struct file_input *file_input = container_of(input, struct file_input, input);
+
+	if(input->config->sfmt == SFMT_UNDEF) {
+		fprintf(stderr, "Sample format must be specified for file inputs\n");
+		return -1;
+	}
+	file_input->fh = fopen(input->config->device_string, "rb");
+	if(file_input->fh == NULL) {
+		fprintf(stderr, "Failed to open input file %s: %s\n",
+				input->config->device_string, strerror(errno));
+		return -1;
+	}
+
+	input->full_scale = get_sample_full_scale_value(input->config->sfmt);
+	input->bytes_per_sample = get_sample_size(input->config->sfmt);
+	ASSERT(input->bytes_per_sample > 0);
+	input->block.producer.max_tu = FILE_BUFSIZE / input->bytes_per_sample;
+	fprintf(stderr, "File input %s initialized, max_tu=%zu\n",
+			input->config->device_string, input->block.producer.max_tu);
+	return 0;
+}
+
+struct input_vtable const file_input_vtable = {
+	.init = file_input_init,
+	.rx_thread_routine = file_input_thread
+};
+
