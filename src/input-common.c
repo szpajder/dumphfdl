@@ -5,11 +5,11 @@
 #include "input-common.h"
 #include "input-helpers.h"      // get_sample_converter
 #include "input-file.h"         // file_input_vtable
-//#include "input-soapysdr.h"     // soapysdr_input_vtable
+#include "input-soapysdr.h"     // soapysdr_input_vtable
 
 static struct input_vtable *input_vtables[] = {
 	[INPUT_TYPE_FILE] = &file_input_vtable,
-//	[INPUT_SOAPYSDR] = &input_DEF_soapysdr,
+	[INPUT_TYPE_SOAPYSDR] = &soapysdr_input_vtable,
 	[INPUT_TYPE_UNDEF] = NULL
 };
 
@@ -26,6 +26,7 @@ struct input_cfg *input_cfg_create() {
 	cfg->centerfreq= -1;
 	cfg->sample_rate = -1;
 	cfg->sfmt = SFMT_UNDEF;
+	cfg->gain = AUTO_GAIN;
 	return cfg;
 }
 

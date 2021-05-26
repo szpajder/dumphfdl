@@ -11,6 +11,7 @@
 #ifdef PROFILING
 #include <gperftools/profiler.h>
 #endif
+#include "config.h"
 #include "globals.h"            // do_exit
 #include "block.h"              // block_*
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
@@ -66,7 +67,7 @@ void usage() {
 			IND(1), "");
 #endif
 	fprintf(stderr, "\nRead I/Q samples from file:\n\n"
-			"%*sdumpvdl2 [output_options] --iq-file <input_file> [file_options] [<freq_1> [<freq_2> [...]]]\n",
+			"%*sdumphfdl [output_options] --iq-file <input_file> [file_options] [<freq_1> [<freq_2> [...]]]\n",
 			IND(1), "");
 	fprintf(stderr, "\nGeneral options:\n");
 	describe_option("--help", "Displays this text", 1);
@@ -75,11 +76,11 @@ void usage() {
 	describe_option("--debug <filter_spec>", "Debug message classes to display (default: none) (\"--debug help\" for details)", 1);
 #endif
 	fprintf(stderr, "common options:\n");
-	describe_option("<freq_1> [<freq_2> [...]]", "VDL2 channel frequencies, in Hz", 1);
+	describe_option("<freq_1> [<freq_2> [...]]", "HFDL channel frequencies, in Hz", 1);
 #ifdef WITH_SOAPYSDR
 	fprintf(stderr, "\nsoapysdr_options:\n");
-	describe_option("--soapysdr <device_string>", "Use SoapySDR compatible device identified with the given string (default: ID=0)", 1);
-	describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
+	describe_option("--soapysdr <device_string>", "Use SoapySDR compatible device identified with the given string", 1);
+	//describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
 	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
 	describe_option("--centerfreq <center_frequency>", "Center frequency of the receiver, in Hz (default: 0)", 1);
 	describe_option("--gain <gain>", "Set end-to-end gain (decibels)", 1);

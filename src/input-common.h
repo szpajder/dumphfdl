@@ -4,6 +4,8 @@
 #include <stddef.h>         // size_t
 #include "block.h"          // struct block, struct producer
 
+#define AUTO_GAIN -100
+
 typedef enum {
 	INPUT_TYPE_UNDEF,
 	INPUT_TYPE_SOAPYSDR,
@@ -18,26 +20,14 @@ typedef enum {
 	SFMT_CS16,
 	SFMT_MAX
 } sample_format;
-/*
-typedef enum {
-	INPUT_STATE_UNKNOWN = 0,
-	INPUT_STATE_INITIALIZED,
-	INPUT_STATE_RUNNING,
-	INPUT_STATE_FAILED,
-	INPUT_STATE_STOPPED,
-	INPUT_STATE_DISABLED,
-	INPUT_STATE_MAX
-} input_state;
-*/
-//typedef struct input_ctx_s* input_ctx;
-//typedef struct input_s* input;
 
 struct input_cfg {
 	char *device_string;
 	char *gain_elements;
-	float *gain;
+	float gain;
 	int32_t sample_rate;
 	int32_t centerfreq;
+	int32_t correction;
 	input_type type;
 	sample_format sfmt;
 };
@@ -46,9 +36,7 @@ struct input;   // forward declaration
 
 struct input_vtable {
 	int32_t (*init)(struct input *);
-//	void* (*configure)(input_cfg);
 	void* (*rx_thread_routine)(void *);
-//	int (*stop)(input);
 };
 
 typedef void (*convert_sample_buffer_fun)(struct input *, void *, size_t);
@@ -57,10 +45,8 @@ struct input {
 	struct block block;
 	struct input_vtable *vtable;
 	struct input_cfg *config;
-	//void *dev_data;
 	convert_sample_buffer_fun convert_sample_buffer;
 	size_t overflow_count;          // TODO: replace with statsd
-	//input_state state;
 	float full_scale;
 	int32_t bytes_per_sample;
 };
