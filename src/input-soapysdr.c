@@ -74,7 +74,7 @@ int soapysdr_input_init(struct input *input) {
 		}
 		for(size_t i = 0; i < gains.size; i++) {
 			SoapySDRDevice_setGainElement(sdr, SOAPY_SDR_RX, 0, gains.keys[i], atof(gains.vals[i]));
-			//debug_print(D_SDR, "Set gain %s to %.2f\n", gains.keys[i], atof(gains.vals[i]));
+			debug_print(D_SDR, "Set gain %s to %.2f\n", gains.keys[i], atof(gains.vals[i]));
 			double gain_value = SoapySDRDevice_getGainElement(sdr, SOAPY_SDR_RX, 0, gains.keys[i]);
 			fprintf(stderr, "Gain element %s set to %.2f dB\n", gains.keys[i], gain_value);
 
@@ -94,7 +94,7 @@ int soapysdr_input_init(struct input *input) {
 			fprintf(stderr, "%s: auto gain enabled\n", cfg->device_string);
 		} else {
 			if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, 0, cfg->gain) != 0) {
-				fprintf(stderr, "Could not set gain: %s\n", SoapySDRDevice_lastError());
+				fprintf(stderr, "%s: could not set gain: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 				return -1;
 			}
 			fprintf(stderr, "%s: gain set to %.2f dB\n", cfg->device_string, cfg->gain);
@@ -176,11 +176,10 @@ void *soapysdr_input_thread(void *ctx) {
 				input->config->device_string, SoapySDR_errToStr(samples_read));
 			continue;
 		}
-		//fprintf(stderr, "samples_read: %d buf_size: %zu\n", samples_read, samples_read * octets_per_complex_sample);
 		input->convert_sample_buffer(input, buf, samples_read * input->bytes_per_sample);
 	}
 shutdown:
-	fprintf(stderr, "soapysdr: Shutdown ordered, signaling consumer shutdown\n");
+	debug_print(D_MISC, "Shutdown ordered, signaling consumer shutdown\n");
 	SoapySDRDevice_deactivateStream(soapysdr_input->sdr, soapysdr_input->stream, 0, 0);
 	SoapySDRDevice_closeStream(soapysdr_input->sdr, soapysdr_input->stream);
 	SoapySDRDevice_unmake(soapysdr_input->sdr);

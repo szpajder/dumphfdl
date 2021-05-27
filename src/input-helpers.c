@@ -11,7 +11,7 @@ static void convert_cs16(struct input *input, void *buf, size_t len) {
 	ASSERT(input);
 	ASSERT(buf);
 	if(UNLIKELY(len % input->bytes_per_sample != 0)) {
-		debug_print(D_SDR, "Warning: buf len %zu is not a multiple of %zu, truncating\n",
+		debug_print(D_SDR, "Warning: buf len %zu is not a multiple of %d, truncating\n",
 				len, input->bytes_per_sample);
 		len -= (len % input->bytes_per_sample);
 	}

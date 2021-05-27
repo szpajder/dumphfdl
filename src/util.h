@@ -5,6 +5,7 @@
 #include <stdio.h>                  // fprintf, stderr
 #include <pthread.h>                // pthread_t, pthread_barrier_t
 #include <stdlib.h>                 // calloc, realloc
+#include "globals.h"                // Config
 
 // debug message classes
 #define D_ALL                       (~0)

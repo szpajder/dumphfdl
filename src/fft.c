@@ -28,7 +28,6 @@ void *fft_thread(void *ctx) {
 	// is created by block_connect_one2many() which is called after fft_create().
 	FFT_PLAN_T *fwd_plan = csdr_make_fft_c2c(ddc->fft_size, fft_input, output->buf, 1, 0);
 
-	fprintf(stderr, "fft: waiting for consumers to initialize\n");
 	pthread_barrier_wait(output->consumers_ready);         // Wait for all consumers to initialize
 	while(true) {
 		pthread_mutex_lock(circ_buffer->mutex);
@@ -36,7 +35,7 @@ void *fft_thread(void *ctx) {
 		// This causes all the data to be processed and flushed to consumers before shutdown is done.
 		while(cbuffercf_size(circ_buffer->buf) < (uint32_t)ddc->input_size) {
 			if(block_connection_is_shutdown_signaled(block->consumer.in)) {
-				fprintf(stderr, "fft: Exiting (ordered shutdown)\n");
+				debug_print(D_MISC, "Exiting (ordered shutdown)\n");
 				pthread_mutex_unlock(circ_buffer->mutex);
 				goto shutdown;
 			}
@@ -66,7 +65,7 @@ struct block *fft_create(int32_t decimation, float transition_bw) {
 	NEW(struct fft, fft);
 	NEW(fastddc_t, ddc);
 	if(fastddc_init(ddc, transition_bw, decimation, 0)) {
-		fprintf(stderr, "error in fastddc_init()");
+		fprintf(stderr, "Error in fastddc_init()");
 		return NULL;
 	}
 	fastddc_print(ddc,"fastddc_fwd_cc");

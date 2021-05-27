@@ -6,7 +6,7 @@
 #include <pthread.h>            // pthread_*
 #include <liquid/liquid.h>      // cbuffercf_*
 #include "block.h"
-#include "util.h"               // XCALLOC, pthread_*_initialize,
+#include "util.h"               // XCALLOC, pthread_*_initialize, debug_print
 
 #define BUF_SIZE_PROD_MTU_MULTIPLIER 8
 #define BUF_SIZE_CONS_MRU_MULTIPLIER 2
@@ -40,7 +40,7 @@ int32_t block_connect_one2one(struct block *source, struct block *sink) {
 	size_t buf_size_by_producer_mtu = BUF_SIZE_PROD_MTU_MULTIPLIER * source->producer.max_tu;
 	size_t buf_size_by_consumer_mru = BUF_SIZE_CONS_MRU_MULTIPLIER * sink->consumer.min_ru;
 	size_t buf_size = max(buf_size_by_producer_mtu, buf_size_by_consumer_mru);
-	fprintf(stderr, "producer MTU: %zu consumer MRU: %zu buf_size: %zu\n",
+	debug_print(D_MISC, "producer MTU: %zu consumer MRU: %zu buf_size: %zu\n",
 			source->producer.max_tu, sink->consumer.min_ru, buf_size);
 	NEW(struct block_connection, connection);
 	int32_t ret = 0;
@@ -67,7 +67,7 @@ int32_t block_connect_one2many(struct block *source, size_t sink_count, struct b
 	size_t buf_size_by_producer_mtu = BUF_SIZE_PROD_MTU_MULTIPLIER * source->producer.max_tu;
 	size_t buf_size_by_consumer_mru = BUF_SIZE_CONS_MRU_MULTIPLIER * max_consumer_mru;
 	size_t buf_size = max(buf_size_by_producer_mtu, buf_size_by_consumer_mru);
-	fprintf(stderr, "producer MTU: %zu max consumer MRU: %zu buf_size: %zu\n",
+	debug_print(D_MISC, "producer MTU: %zu max consumer MRU: %zu buf_size: %zu\n",
 			source->producer.max_tu, max_consumer_mru, buf_size);
 
 	NEW(struct block_connection, connection);

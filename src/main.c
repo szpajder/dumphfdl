@@ -59,6 +59,90 @@ void describe_option(char const *name, char const *description, int indent) {
 	fprintf(stderr, "%*s%s%*s%s\n", IND(indent), "", name, descr_shiftwidth, "", description);
 }
 
+#ifdef DEBUG
+typedef struct {
+	char *token;
+	uint32_t value;
+	char *description;
+} msg_filterspec_t;
+
+void print_msg_filterspec_list(msg_filterspec_t const *filters) {
+	for(msg_filterspec_t const *ptr = filters; ptr->token != NULL; ptr++) {
+		describe_option(ptr->token, ptr->description, 2);
+	}
+}
+
+static msg_filterspec_t const debug_filters[] = {
+	{ "none",               D_NONE,                         "No messages" },
+	{ "all",                D_ALL,                          "All messages" },
+	{ "sdr",                D_SDR,                          "SDR device handling" },
+	{ "demod",              D_DEMOD,                        "DSP and demodulation" },
+	{ "demod_detail",       D_DEMOD_DETAIL,                 "DSP and demodulation - details with raw data dumps" },
+	{ "burst",              D_BURST,                        "HFDL burst decoding" },
+	{ "burst_detail",       D_BURST_DETAIL,                 "HFDL burst decoding - details with raw data dumps" },
+	{ "proto",              D_PROTO,                        "Frame payload decoding" },
+	{ "proto_detail",       D_PROTO_DETAIL,                 "Frame payload decoding - details with raw data dumps" },
+	{ "stats",              D_STATS,                        "Statistics generation" },
+	{ "output",             D_OUTPUT,                       "Data output operations" },
+	{ "misc",               D_MISC,                         "Messages not falling into other categories" },
+	{ 0,                    0,                              0 }
+};
+
+static void debug_filter_usage() {
+	fprintf(stderr,
+			"<filter_spec> is a comma-separated list of words specifying debug classes which should\n"
+			"be printed.\n\nSupported debug classes:\n\n"
+		   );
+
+	print_msg_filterspec_list(debug_filters);
+
+	fprintf(stderr,
+			"\nBy default, no debug messages are printed.\n"
+		   );
+}
+
+static void update_filtermask(msg_filterspec_t const *filters, char *token, uint32_t *fmask) {
+	bool negate = false;
+	if(token[0] == '-') {
+		negate = true;
+		token++;
+		if(token[0] == '\0') {
+			fprintf(stderr, "Invalid filtermask: no token after '-'\n");
+			_exit(1);
+		}
+	}
+	for(msg_filterspec_t const *ptr = filters; ptr->token != NULL; ptr++) {
+		if(!strcmp(token, ptr->token)) {
+			if(negate)
+				*fmask &= ~ptr->value;
+			else
+				*fmask |= ptr->value;
+			return;
+		}
+	}
+	fprintf(stderr, "Unknown filter specifier: %s\n", token);
+	_exit(1);
+}
+
+static uint32_t parse_msg_filterspec(msg_filterspec_t const *filters, void (*help)(), char *filterspec) {
+	if(!strcmp(filterspec, "help")) {
+		help();
+		_exit(0);
+	}
+	uint32_t fmask = 0;
+	char *token = strtok(filterspec, ",");
+	if(token == NULL) {
+		fprintf(stderr, "Invalid filter specification\n");
+		_exit(1);
+	}
+	update_filtermask(filters, token, &fmask);
+	while((token = strtok(NULL, ",")) != NULL) {
+		update_filtermask(filters, token, &fmask);
+	}
+	return fmask;
+}
+#endif      // DEBUG
+
 void usage() {
 	fprintf(stderr, "Usage:\n");
 #ifdef WITH_SOAPYSDR
@@ -102,16 +186,18 @@ int32_t main(int32_t argc, char **argv) {
 
 #define OPT_VERSION 1
 #define OPT_HELP 2
-#define OPT_IQ_FILE 3
-#ifdef WITH_SOAPYSDR
-#define OPT_SOAPYSDR 4
+#ifdef DEBUG
+#define OPT_DEBUG 3
 #endif
-
-#define OPT_SAMPLE_FORMAT 10
-#define OPT_SAMPLE_RATE 11
-#define OPT_CENTERFREQ 12
-#define OPT_GAIN 13
-#define OPT_GAIN_ELEMENTS 14
+#define OPT_IQ_FILE 10
+#ifdef WITH_SOAPYSDR
+#define OPT_SOAPYSDR 11
+#endif
+#define OPT_SAMPLE_FORMAT 20
+#define OPT_SAMPLE_RATE 21
+#define OPT_CENTERFREQ 22
+#define OPT_GAIN 23
+#define OPT_GAIN_ELEMENTS 24
 
 	static struct option opts[] = {
 		{ "iq-file",            required_argument,  NULL,   OPT_IQ_FILE },
@@ -167,7 +253,8 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 #ifdef DEBUG
 			case OPT_DEBUG:
-				// TODO
+				Config.debug_filter = parse_msg_filterspec(debug_filters, debug_filter_usage, optarg);
+				debug_print(D_MISC, "debug filtermask: 0x%x\n", Config.debug_filter);
 				break;
 #endif
 			case OPT_VERSION:
@@ -215,7 +302,7 @@ int32_t main(int32_t argc, char **argv) {
 	ASSERT(fft_decimation_rate > 0);
 	int sample_rate_post_fft = roundf((float)input_cfg->sample_rate / (float)fft_decimation_rate);
 	float fftfilt_transition_bw = compute_filter_relative_transition_bw(input_cfg->sample_rate, HFDL_CHANNEL_TRANSITION_BW_HZ);
-	fprintf(stderr, "fft_decimation_rate: %d sample_rate_post_fft: %d transition_bw: %.f\n",
+	debug_print(D_DEMOD, "fft_decimation_rate: %d sample_rate_post_fft: %d transition_bw: %.f\n",
 			fft_decimation_rate, sample_rate_post_fft, fftfilt_transition_bw);
 
 	struct block *fft = fft_create(fft_decimation_rate, fftfilt_transition_bw);
@@ -247,7 +334,6 @@ int32_t main(int32_t argc, char **argv) {
 	ProfilerStart("dumphfdl.prof");
 #endif
 
-	fprintf(stderr, "Starting blocks\n");
 	if(block_set_start(channel_cnt, channels) != channel_cnt ||
 		block_start(fft) != 1 ||
 		block_start(input) != 1) {
@@ -256,7 +342,6 @@ int32_t main(int32_t argc, char **argv) {
 	while(!do_exit) {
 		sleep(1);
 	}
-	fprintf(stderr, "Waiting for threads to finish\n");
 	while(do_exit < 2 && (
 			block_is_running(input) ||
 			block_is_running(fft) ||
@@ -271,7 +356,6 @@ int32_t main(int32_t argc, char **argv) {
 
 	hfdl_print_summary();
 
-	fprintf(stderr, "Exiting\n");
 	return 0;
 }
 

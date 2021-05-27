@@ -30,11 +30,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdio.h>
 #include <complex.h>
-#include "config.h"     // FASTDDC_DEBUG
+#include "config.h"             // FASTDDC_DEBUG
 #include "fastddc.h"
 #include "fft.h"
 #include "libcsdr.h"
 #include "libcsdr_gpl.h"
+#include "util.h"               // debug_print
 
 //DDC implementation based on:
 //http://www.3db-labs.com/01598092_MultibandFilterbank.pdf
@@ -79,8 +80,8 @@ int fastddc_init(fastddc_t* ddc, float transition_bw, int decimation, float shif
 
 void fastddc_print(fastddc_t* ddc, char* source)
 {
-	fprintf(stderr,
-		"%s: fastddc_print_sizes(): (fft_size = %d) = (taps_length = %d) + (input_size = %d) - 1\n"
+	debug_print(D_DEMOD,
+		"%s: (fft_size = %d) = (taps_length = %d) + (input_size = %d) - 1\n"
 		"  overlap     ::  (overlap_length = %d) = taps_length - 1, taps_min_length = %d\n"
 		"  decimation  ::  decimation = (pre_decimation = %d) * (post_decimation = %d), fft_inv_size = %d\n"
 		"  shift       ::  startbin = %d, offsetbin = %d, v = %d, pre_shift = %g, post_shift = %g\n"
@@ -150,7 +151,7 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 		inv_input[output_index] += input[i] * taps_fft[i];
 #ifdef FASTDDC_DEBUG
 		if(first) {
-			fprintf(stderr, "%d -> %d: %f, %f\n", i, output_index, crealf(inv_input[output_index]), cimagf(inv_input[output_index]));
+			debug_print(D_DEMOD, "%d -> %d: %f, %f\n", i, output_index, crealf(inv_input[output_index]), cimagf(inv_input[output_index]));
 		}
 #endif
 		//iof(inv_input,output_index) += iof(input,i); //no filter

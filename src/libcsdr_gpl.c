@@ -20,7 +20,6 @@ This file is part of libcsdr.
 
 */
 
-#include <stdio.h>              // printf
 #include <math.h>               // M_PI
 #include "libcsdr_gpl.h"
 

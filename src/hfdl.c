@@ -242,7 +242,7 @@ fft_channelizer fft_channelizer_create(int decimation, float transition_bw, floa
 
 	//make the filter
 	float filter_half_bw = 0.5f / decimation;
-	fprintf(stderr, "preparing a bandpass filter of [%g, %g] cutoff rates. Real transition bandwidth is: %g\n",
+	debug_print(D_DEMOD, "preparing a bandpass filter of [%g, %g] cutoff rates. Real transition bandwidth is: %g\n",
 			(-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, 4.0 / c->ddc->taps_length);
 	firdes_bandpass_c(taps, c->ddc->taps_length, (-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, window);
 	csdr_fft_execute(filter_taps_plan);
@@ -348,7 +348,7 @@ struct block *hfdl_channel_create(int sample_rate, int pre_decimation_rate,
 
 	c->chan_freq = frequency;
 	float freq_shift = (float)(centerfreq - frequency) / (float)sample_rate;
-	fprintf(stderr, "create: centerfreq=%d frequency=%d freq_shift=%f\n",
+	debug_print(D_DEMOD, "create: centerfreq=%d frequency=%d freq_shift=%f\n",
 			centerfreq, frequency, freq_shift);
 
 	c->channelizer = fft_channelizer_create(pre_decimation_rate, transition_bw, freq_shift);
@@ -417,7 +417,7 @@ void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 		T_seq = (T_seq << 1) | bit;
 	}
 	int error_cnt = count_bit_errors(T, T_seq);
-	//fprintf(stderr, "T[%d]: val: %x err_cnt: %d\n", c->eq_train_seq_cnt, T_seq, error_cnt);
+	//debug_print(D_DEMOD, "T[%d]: val: %x err_cnt: %d\n", c->eq_train_seq_cnt, T_seq, error_cnt);
 	S.train_bits_total += T_LEN;
 	S.train_bits_bad += error_cnt;
 	c->train_bits_total += T_LEN;
@@ -439,7 +439,7 @@ void demodulate_user_data(struct hfdl_channel *c, int M1) {
 }
 
 #define chan_debug(fmt, ...) { \
-	fprintf(stderr, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
+	debug_print(D_DEMOD, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
 }
 #define fopen_datfile(file, suffix) \
 	FILE *(file) = fopen(#file "." suffix, "w"); \
@@ -525,7 +525,7 @@ void *hfdl_decoder_thread(void *ctx) {
 		pthread_barrier_wait(input->consumers_ready);
 		pthread_barrier_wait(input->data_ready);
 		if(block_connection_is_shutdown_signaled(block->consumer.in)) {
-			fprintf(stderr, "hfdl %d: Exiting (ordered shutdown)\n", c->chan_freq);
+			debug_print(D_MISC, "channel %d: Exiting (ordered shutdown)\n", c->chan_freq);
 			break;
 		}
 #ifdef DUMP_FFT
@@ -540,7 +540,7 @@ void *hfdl_decoder_thread(void *ctx) {
 		msresamp_crcf_execute(c->resampler, channelizer_output, c->channelizer->shift_status.output_size,
 				resampled, &resampled_cnt);
 		if(resampled_cnt < 1) {
-			fprintf(stderr, "ERROR: resampled_cnt is 0\n");
+			debug_print(D_DEMOD, "ERROR: resampled_cnt is 0\n");
 			continue;
 		}
 		for(size_t k = 0; k < resampled_cnt; k++, c->sample_cnt++) {
@@ -587,11 +587,11 @@ void *hfdl_decoder_thread(void *ctx) {
 				// fr_state == TRAIN && eq_train_seq_cnt == 1  -> Costas is now in DATA_1 (use current_mod_arity)
 				// fr_state == other -> Costas is now in A1_SEARCH, A2_SEARCH or M1_SEARCH or TRAIN (use BPSK)
 				if((c->fr_state == FRAMER_EQ_TRAIN && c->eq_train_seq_cnt == 1) || c->fr_state == FRAMER_DATA_1) {
-					//fprintf(stderr, "costas adjust: M=%d\n", c->data_mod_arity);
+					//debug_print(D_DEMOD, "costas adjust: M=%d\n", c->data_mod_arity);
 					modem_demodulate(c->m[c->data_mod_arity], symbols[i], &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->data_mod_arity]));
 				} else {
-					//fprintf(stderr, "costas adjust: M=1\n");
+					//debug_print(D_DEMOD, "costas adjust: M=1\n");
 					modem_demodulate(c->m[M_BPSK], symbols[i], &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[M_BPSK]));
 				}
@@ -606,7 +606,7 @@ void *hfdl_decoder_thread(void *ctx) {
 				eqlms_cccf_execute(c->eq, &symbols[i]);
 				if(c->fr_state == FRAMER_EQ_TRAIN) {
 					eqlms_cccf_step(c->eq, T_seq[c->bitmask & 1][c->T_idx], symbols[i]);
-					//fprintf(stderr, "train: T[%d]: %f output: %f+%f*i\n",
+					//debug_print(D_DEMOD, "train: T[%d]: %f output: %f+%f*i\n",
 					//		c->T_idx, crealf(T_seq[c->bitmask & 1][c->T_idx]), crealf(symbols[i]), cimagf(symbols[i]));
 					c->T_idx++;
 				}
@@ -619,7 +619,7 @@ void *hfdl_decoder_thread(void *ctx) {
 					modem_get_demodulator_sample(c->m[c->current_mod_arity], &d_prime);
 					float evm = crealf((d_prime - symbols[i]) * conjf(d_prime - symbols[i]));
 					evm_hat = 0.98f * evm_hat + 0.02f * evm;
-					//fprintf(stderr, "d_prime = %f+%f*i symbol=%f+%f*i rms error = %12.8f dB arity = %d\n",
+					//debug_print(D_DEMOD, "d_prime = %f+%f*i symbol=%f+%f*i rms error = %12.8f dB arity = %d\n",
 					//		crealf(d_prime), cimagf(d_prime), crealf(symbols[i]), cimagf(symbols[i]),
 					//		10*log10(evm_hat), c->current_mod_arity);
 				}

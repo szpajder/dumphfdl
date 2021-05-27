@@ -39,14 +39,13 @@ void *file_input_thread(void *ctx) {
 			if(space_available * input->bytes_per_sample >= len) {
 				break;
 			}
-			//fprintf(stderr, "%zu < %zu, sleeping\n", space_available * bytes_per_complex_sample, len);
 			usleep(100000);
 		}
 		input->convert_sample_buffer(input, buf, len);
 	} while(len == FILE_BUFSIZE && do_exit == 0);
 	fclose(file_input->fh);
 	file_input->fh = NULL;
-	fprintf(stderr, "file: Shutdown ordered, signaling consumer shutdown\n");
+	debug_print(D_MISC, "Shutdown ordered, signaling consumer shutdown\n");
 	block_connection_one2one_shutdown(block->producer.out);
 	do_exit = 1;
 	block->running = false;
@@ -73,7 +72,7 @@ int file_input_init(struct input *input) {
 	input->bytes_per_sample = get_sample_size(input->config->sfmt);
 	ASSERT(input->bytes_per_sample > 0);
 	input->block.producer.max_tu = FILE_BUFSIZE / input->bytes_per_sample;
-	fprintf(stderr, "File input %s initialized, max_tu=%zu\n",
+	debug_print(D_SDR, "%s: max_tu=%zu\n",
 			input->config->device_string, input->block.producer.max_tu);
 	return 0;
 }
