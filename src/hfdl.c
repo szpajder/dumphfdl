@@ -28,6 +28,7 @@
 #define DATA_FRAME_LEN 30
 #define CORR_THRESHOLD 0.3f
 #define MAX_SEARCH_RETRIES 3
+#define HFDL_SSB_CARRIER_OFFSET_HZ 1440
 
 typedef enum {
 	SAMPLER_EMIT_BITS = 1,
@@ -347,7 +348,7 @@ struct block *hfdl_channel_create(int sample_rate, int pre_decimation_rate,
 	c->resampler_delay = (int)ceilf(msresamp_crcf_get_delay(c->resampler));
 
 	c->chan_freq = frequency;
-	float freq_shift = (float)(centerfreq - frequency) / (float)sample_rate;
+	float freq_shift = (float)(centerfreq - (frequency + HFDL_SSB_CARRIER_OFFSET_HZ)) / (float)sample_rate;
 	debug_print(D_DEMOD, "create: centerfreq=%d frequency=%d freq_shift=%f\n",
 			centerfreq, frequency, freq_shift);
 
