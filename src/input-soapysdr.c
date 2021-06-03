@@ -21,6 +21,12 @@ struct soapysdr_input {
 	SoapySDRStream *stream;
 };
 
+struct input *soapysdr_input_create(struct input_cfg *cfg) {
+	UNUSED(cfg);
+	NEW(struct soapysdr_input, soapysdr_input);
+	return &soapysdr_input->input;
+}
+
 static void soapysdr_verbose_device_search() {
 	size_t length;
 	// enumerate devices
@@ -190,6 +196,7 @@ shutdown:
 }
 
 struct input_vtable const soapysdr_input_vtable = {
+	.create = soapysdr_input_create,
 	.init = soapysdr_input_init,
 	.rx_thread_routine = soapysdr_input_thread
 };

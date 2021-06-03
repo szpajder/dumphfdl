@@ -38,7 +38,10 @@ struct block *input_create(struct input_cfg *cfg) {
 	if(vtable == NULL) {
 		return NULL;
 	}
-	NEW(struct input, input);
+	struct input *input = vtable->create(cfg);
+	if(input == NULL) {
+		return NULL;
+	}
 	struct producer producer = { .type = PRODUCER_SINGLE, .max_tu = 0 };
 	struct consumer consumer = { .type = CONSUMER_NONE };
 	input->block.producer = producer;

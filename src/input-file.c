@@ -19,6 +19,12 @@ struct file_input {
 	FILE *fh;
 };
 
+struct input *file_input_create(struct input_cfg *cfg) {
+	UNUSED(cfg);
+	NEW(struct file_input, file_input);
+	return &file_input->input;
+}
+
 void *file_input_thread(void *ctx) {
 	ASSERT(ctx);
 	struct block *block = ctx;
@@ -78,6 +84,7 @@ int file_input_init(struct input *input) {
 }
 
 struct input_vtable const file_input_vtable = {
+	.create = file_input_create,
 	.init = file_input_init,
 	.rx_thread_routine = file_input_thread
 };
