@@ -18,6 +18,7 @@
 #include "fft.h"                // csdr_fft_init, fft_create
 #include "util.h"               // ASSERT
 #include "input-common.h"       // sample_format_t, input_create
+#include "input-helpers.h"      // sample_format_from_string
 #include "hfdl.h"               // hfdl_channel_create
 
 void sighandler(int sig) {
@@ -218,7 +219,7 @@ int32_t main(int32_t argc, char **argv) {
 	};
 
 	struct input_cfg *input_cfg = input_cfg_create();
-	input_cfg->sfmt = SFMT_CS16;     // TEMP
+	input_cfg->sfmt = SFMT_UNDEF;
 	input_cfg->type = INPUT_TYPE_UNDEF;
 
 	print_version();
@@ -237,7 +238,15 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 #endif
 			case OPT_SAMPLE_FORMAT:
-				// TODO
+				input_cfg->sfmt = sample_format_from_string(optarg);
+				// Validate the result only when the sample format
+				// has been supplied by the user. Otherwise it is left
+				// to the input driver to guess the correct value. Before
+				// this happens, the value of SFMT_UNDEF is not an error.
+				if(input_cfg->sfmt == SFMT_UNDEF) {
+					fprintf(stderr, "Sample format '%s' is unknown\n", optarg);
+					return 1;
+				}
 				break;
 			case OPT_SAMPLE_RATE:
 				input_cfg->sample_rate = atoi(optarg);

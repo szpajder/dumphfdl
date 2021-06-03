@@ -18,6 +18,7 @@ typedef enum {
 	//SFMT_CU8,
 	//SFMT_CS8,
 	SFMT_CS16,
+	SFMT_CF32,
 	SFMT_MAX
 } sample_format;
 

@@ -7,3 +7,4 @@
 size_t get_sample_size(sample_format format);
 float get_sample_full_scale_value(sample_format format);
 convert_sample_buffer_fun get_sample_converter(sample_format format);
+sample_format sample_format_from_string(char const *str);
