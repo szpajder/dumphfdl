@@ -24,7 +24,17 @@ typedef struct fastddc_s
 	shift_addition_data_t dsadata;
 } fastddc_t;
 
+typedef struct {
+	fastddc_t *ddc;
+	FFT_PLAN_T *inv_plan;
+	float complex *inv_input, *inv_output;
+	float complex *filtertaps_fft;
+	decimating_shift_addition_status_t shift_status;
+} fft_channelizer_s;
+typedef fft_channelizer_s *fft_channelizer;
+
 int fastddc_init(fastddc_t *ddc, float transition_bw, int decimation, float shift_rate);
 decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float complex *output, fastddc_t *ddc, FFT_PLAN_T *plan_inverse, float complex *taps_fft, decimating_shift_addition_status_t shift_stat);
 void fastddc_print(fastddc_t *ddc, char *source);
 void fft_swap_sides(float complex *io, int fft_size);
+fft_channelizer fft_channelizer_create(int decimation, float transition_bw, float freq_shift);

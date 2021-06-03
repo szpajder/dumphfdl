@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "fft.h"
 #include "libcsdr.h"
 #include "libcsdr_gpl.h"
-#include "util.h"               // debug_print
+#include "util.h"               // debug_print, XCALLOC, NEW, XFREE
 
 //DDC implementation based on:
 //http://www.3db-labs.com/01598092_MultibandFilterbank.pdf
@@ -202,4 +202,40 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	//shift_stat.output_size = ddc->post_input_size; //bypass shift correction
 	//memcpy(output, inv_output+ddc->scrap, sizeof(float complex)*ddc->post_input_size);
 	return shift_stat;
+}
+
+fft_channelizer fft_channelizer_create(int decimation, float transition_bw, float freq_shift) {
+	window_t window = WINDOW_HAMMING;
+
+	NEW(fft_channelizer_s, c);
+	NEW(fastddc_t, ddc);
+	c->ddc = ddc;
+	if(fastddc_init(c->ddc, transition_bw, decimation, freq_shift)) {
+		goto fail;
+	}
+	fastddc_print(c->ddc,"fastddc_inv_cc");
+
+	//prepare making the filter and doing FFT on it
+	float complex *taps = XCALLOC(c->ddc->fft_size, sizeof(float complex));
+	c->filtertaps_fft = XCALLOC(c->ddc->fft_size, sizeof(float complex));
+	FFT_PLAN_T *filter_taps_plan = csdr_make_fft_c2c(c->ddc->fft_size, taps, c->filtertaps_fft, 1, 0);
+
+	//make the filter
+	float filter_half_bw = 0.5f / decimation;
+	debug_print(D_DEMOD, "preparing a bandpass filter of [%g, %g] cutoff rates. Real transition bandwidth is: %g\n",
+			(-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, 4.0 / c->ddc->taps_length);
+	firdes_bandpass_c(taps, c->ddc->taps_length, (-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, window);
+	csdr_fft_execute(filter_taps_plan);
+	fft_swap_sides(c->filtertaps_fft, c->ddc->fft_size);
+	XFREE(taps);
+
+	//make FFT plan
+	c->inv_input = XCALLOC(c->ddc->fft_size, sizeof(float complex));
+	c->inv_output = XCALLOC(c->ddc->fft_size, sizeof(float complex));
+	c->inv_plan = csdr_make_fft_c2c(c->ddc->fft_inv_size, c->inv_input, c->inv_output, 0, 0);
+
+	return c;
+fail:
+	XFREE(c);
+	return NULL;
 }
