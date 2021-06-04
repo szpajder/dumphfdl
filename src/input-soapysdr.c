@@ -7,7 +7,7 @@
 #include <SoapySDR/Version.h>   // SOAPY_SDR_API_VERSION
 #include <SoapySDR/Types.h>     // SoapySDRKwargs_*
 #include <SoapySDR/Device.h>    // SoapySDRStream, SoapySDRDevice_*
-#include <SoapySDR/Formats.h>   // SOAPY_SDR_CS16, SoapySDR_formatToSize()
+#include <SoapySDR/Formats.h>   // SoapySDR_formatToSize()
 #include <liquid/liquid.h>      // cbuffercf_create
 #include "globals.h"            // do_exit
 #include "block.h"              // block_*
@@ -38,6 +38,49 @@ static void soapysdr_verbose_device_search() {
 		}
 	}
 	SoapySDRKwargsList_clear(results, length);
+}
+
+struct sample_format_search_result {
+	sample_format sfmt;
+	char *soapy_sfmt;
+	float full_scale;
+	size_t sample_size;
+};
+
+struct sample_format_search_result soapysdr_choose_sample_format(SoapySDRDevice *sdr, char const *device_string) {
+	struct sample_format_search_result result = {0};
+	result.sfmt = SFMT_UNDEF;
+// First try device's native format to avoid extra conversion
+	double fullscale = 0.0;
+	char *fmt = SoapySDRDevice_getNativeStreamFormat(sdr, SOAPY_SDR_RX, 0, &fullscale);
+
+	if((result.sfmt = sample_format_from_string(fmt)) != SFMT_UNDEF &&
+			(result.sample_size = SoapySDR_formatToSize(fmt)) == get_sample_size(result.sfmt) &&
+			(result.full_scale = fullscale) > 0.0) {
+		fprintf(stderr, "%s: Using native sample format %s (full_scale: %.3f)\n", device_string, fmt,
+				result.full_scale);
+		result.soapy_sfmt = fmt;
+		return result;
+	}
+// Native format is not supported directly; find out if there is anything else.
+	size_t len = 0;
+	char **formats = SoapySDRDevice_getStreamFormats(sdr, SOAPY_SDR_RX, 0, &len);
+	if(formats == NULL || len == 0) {
+		fprintf(stderr, "%s: failed to read supported sample formats\n", device_string);
+		result.sfmt = SFMT_UNDEF;
+		return result;
+	}
+	for(size_t i = 0; i < len; i++) {
+		if((result.sfmt = sample_format_from_string(formats[i])) != SFMT_UNDEF &&
+			(result.sample_size = SoapySDR_formatToSize(formats[i])) == get_sample_size(result.sfmt)) {
+			result.full_scale = get_sample_full_scale_value(result.sfmt);
+			result.soapy_sfmt = formats[i];
+			fprintf(stderr, "%s: Using non-native sample format %s (assuming full_scale=%.3f)\n",
+				device_string, formats[i], result.full_scale);
+			break;
+		}
+	}
+	return result;
 }
 
 int soapysdr_input_init(struct input *input) {
@@ -134,13 +177,23 @@ int soapysdr_input_init(struct input *input) {
 		XFREE(settings);
 	}
 */
-	// TODO: look up and use native format
-	cfg->sfmt = SFMT_CS16;
+	struct sample_format_search_result chosen = soapysdr_choose_sample_format(sdr, cfg->device_string);
+	if(chosen.sfmt == SFMT_UNDEF) {
+		fprintf(stderr, "%s: Could not find a suitable sample format; unable to use this device\n",
+				cfg->device_string);
+		return -1;
+	}
+	cfg->sfmt = chosen.sfmt;
+	input->full_scale = chosen.full_scale;
+	input->bytes_per_sample = chosen.sample_size;
+	debug_print(D_SDR, "sfmt: %d soapy_sfmt: %s full_scale: %.3f sample_size: %zu\n",
+			cfg->sfmt, chosen.soapy_sfmt, input->full_scale, input->bytes_per_sample);
+
 	SoapySDRStream *stream = NULL;
 #if SOAPY_SDR_API_VERSION < 0x00080000
-	if(SoapySDRDevice_setupStream(sdr, &stream, SOAPY_SDR_RX, SOAPY_SDR_CS16, NULL, 0, NULL) != 0)
+	if(SoapySDRDevice_setupStream(sdr, &stream, SOAPY_SDR_RX, chosen.soapy_sfmt, NULL, 0, NULL) != 0)
 #else
-	if((stream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, SOAPY_SDR_CS16, NULL, 0, NULL)) == NULL)
+	if((stream = SoapySDRDevice_setupStream(sdr, SOAPY_SDR_RX, chosen.soapy_sfmt, NULL, 0, NULL)) == NULL)
 #endif
 	{
 		fprintf(stderr, "%s: could not set up stream: %s\n", cfg->device_string, SoapySDRDevice_lastError());
@@ -148,8 +201,6 @@ int soapysdr_input_init(struct input *input) {
 	}
 
 	input->block.producer.max_tu = SoapySDRDevice_getStreamMTU(sdr, stream);
-	input->full_scale = get_sample_full_scale_value(cfg->sfmt);
-	input->bytes_per_sample = get_sample_size(cfg->sfmt);
 	soapysdr_input->sdr = sdr;
 	soapysdr_input->stream = stream;
 	return 0;
