@@ -186,7 +186,7 @@ int soapysdr_input_init(struct input *input) {
 	cfg->sfmt = chosen.sfmt;
 	input->full_scale = chosen.full_scale;
 	input->bytes_per_sample = chosen.sample_size;
-	debug_print(D_SDR, "sfmt: %d soapy_sfmt: %s full_scale: %.3f sample_size: %zu\n",
+	debug_print(D_SDR, "sfmt: %d soapy_sfmt: %s full_scale: %.3f sample_size: %d\n",
 			cfg->sfmt, chosen.soapy_sfmt, input->full_scale, input->bytes_per_sample);
 
 	SoapySDRStream *stream = NULL;
