@@ -84,6 +84,45 @@ static void convert_cs16(struct input *input, void *buf, size_t len) {
 	pthread_cond_signal(circ_buffer->cond);
 }
 
+static void convert_cu8(struct input *input, void *buf, size_t len) {
+	ASSERT(input);
+	ASSERT(buf);
+	if(UNLIKELY(len % input->bytes_per_sample != 0)) {
+		debug_print(D_SDR, "Warning: buf len %zu is not a multiple of %d, truncating\n",
+				len, input->bytes_per_sample);
+		len -= (len % input->bytes_per_sample);
+	}
+	if(UNLIKELY(len == 0)) {
+		return;
+	}
+	uint8_t *bytebuf = (uint8_t *)buf;
+	size_t bytebuf_len = len / sizeof(uint8_t);
+	size_t complex_sample_cnt = len / input->bytes_per_sample;
+	float complex cf32_buf[complex_sample_cnt];
+	size_t cf32_buf_idx = 0;
+	float re = 0.f, im = 0.f;
+	float const full_scale = input->full_scale;
+	ASSERT(full_scale > 0.f);
+	float const shift = input->full_scale / 2.0f;
+	for(size_t i = 0; i < bytebuf_len;) {
+		re = (bytebuf[i++] - shift) / full_scale;
+		im = (bytebuf[i++] - shift) / full_scale;
+		cf32_buf[cf32_buf_idx++] = CMPLXF(re, im);
+	}
+	// TODO: conversion function shall not deal with producing output
+	struct circ_buffer *circ_buffer = &input->block.producer.out->circ_buffer;
+	pthread_mutex_lock(circ_buffer->mutex);
+	size_t cbuf_available = cbuffercf_space_available(circ_buffer->buf);
+	if(cbuf_available < complex_sample_cnt) {
+		fprintf(stderr, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
+				complex_sample_cnt, cbuf_available, complex_sample_cnt - cbuf_available);
+		complex_sample_cnt = cbuf_available;
+	}
+	cbuffercf_write(circ_buffer->buf, cf32_buf, complex_sample_cnt);
+	pthread_mutex_unlock(circ_buffer->mutex);
+	pthread_cond_signal(circ_buffer->cond);
+}
+
 struct sample_format_params {
 	char const *name;
 	size_t sample_size;                         // octets per complex sample
@@ -97,6 +136,12 @@ static struct sample_format_params const sample_format_params[] = {
 		.sample_size = 0,
 		.full_scale = 0.f,
 		.convert_fun = NULL
+	},
+	[SFMT_CU8] = {
+		.name = "CU8",
+		.sample_size = 2 * sizeof(uint8_t),
+		.full_scale = (float)SCHAR_MAX,
+		.convert_fun = convert_cu8
 	},
 	[SFMT_CS16] = {
 		.name = "CS16",
