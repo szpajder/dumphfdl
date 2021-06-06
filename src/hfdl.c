@@ -13,7 +13,6 @@
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS
 
-#define SYMBUFFER_SIZE 30
 #define A_LEN 127
 #define M1_LEN 127
 #define M2_LEN 15
@@ -21,6 +20,9 @@
 #define T_LEN 15
 #define EQ_LEN 15
 #define DATA_FRAME_LEN 30
+#define DATA_FRAME_CNT_SINGLE_SLOT 72
+#define DATA_FRAME_CNT_DOUBLE_SLOT 168
+#define DATA_SYMBOLS_CNT_MAX (DATA_FRAME_CNT_DOUBLE_SLOT * DATA_FRAME_LEN)
 #define CORR_THRESHOLD 0.3f
 #define MAX_SEARCH_RETRIES 3
 #define HFDL_SSB_CARRIER_OFFSET_HZ 1440
@@ -41,11 +43,6 @@ typedef enum {
 	FRAMER_DATA_2 = 7       // second half
 } framer_state;
 
-struct costas_s {
-	float alpha, beta, phi, dphi, err;
-};
-typedef struct costas_s *costas;
-
 // values correspond to numbers of bits per symbol (arity)
 typedef enum {
 	M_UNKNOWN = 0,
@@ -53,93 +50,72 @@ typedef enum {
 	M_PSK4 = 2,
 	M_PSK8 = 3
 } mod_arity;
+#define MOD_ARITY_MAX M_PSK8
 #define MODULATION_CNT 4
 
 void *hfdl_decoder_thread(void *ctx);
 
-struct hfdl_channel {
-	struct block block;
-	fft_channelizer channelizer;
-	msresamp_crcf resampler;
-	agc_crcf agc;
-	costas loop;
-	firfilt_crcf mf;
-	eqlms_cccf eq;
-	modem m[MODULATION_CNT];
-	symsync_crcf ss;
-	bsequence bits;
-	bsequence user_data[M_SHIFT_CNT];
-	cbuffercf symbols;
-	uint64_t symbol_cnt, sample_cnt;
-	float resamp_rate;
-	sampler_state s_state;
-	framer_state fr_state;
-	mod_arity data_mod_arity;
-	mod_arity current_mod_arity;
-	int chan_freq;
-	int resampler_delay;
-	int symbols_wanted;
-	int search_retries;
-	int eq_train_seq_cnt;
-	int data_segment_cnt;
-	int train_bits_total;
-	int train_bits_bad;
-	int T_idx;
-	uint32_t bitmask;
-};
-
-struct {
+static struct {
 	mod_arity scheme;
-	int data_segment_cnt;
-	int code_rate;
-} hfdl_frame_params[M_SHIFT_CNT] = {
+	int32_t data_segment_cnt;
+	int32_t code_rate;
+	int32_t deinterleaver_push_column_shift;
+} const hfdl_frame_params[M_SHIFT_CNT] = {
 	// 300 bps, single slot
 	[0] = {
 		.scheme = M_BPSK,
-		.data_segment_cnt = 72,
-		.code_rate = 4
+		.data_segment_cnt = DATA_FRAME_CNT_SINGLE_SLOT,
+		.code_rate = 4,
+		.deinterleaver_push_column_shift = 17
 	},
 	// 600 bps, single slot
 	[1] = {
 		.scheme = M_BPSK,
-		.data_segment_cnt = 72,
-		.code_rate = 2
+		.data_segment_cnt = DATA_FRAME_CNT_SINGLE_SLOT,
+		.code_rate = 2,
+		.deinterleaver_push_column_shift = 17
 	},
 	// 1200 bps, single slot
 	[2] = {
 		.scheme = M_PSK4,
-		.data_segment_cnt = 72,
-		.code_rate = 2
+		.data_segment_cnt = DATA_FRAME_CNT_SINGLE_SLOT,
+		.code_rate = 2,
+		.deinterleaver_push_column_shift = 17
 	},
 	// 1800 bps, single slot
 	[3] = {
 		.scheme = M_PSK8,
-		.data_segment_cnt = 72,
-		.code_rate = 2
+		.data_segment_cnt = DATA_FRAME_CNT_SINGLE_SLOT,
+		.code_rate = 2,
+		.deinterleaver_push_column_shift = 17
 	},
-	// 300 bps, dual slot
+	// 300 bps, double slot
 	[4] = {
 		.scheme = M_BPSK,
-		.data_segment_cnt = 168,
-		.code_rate = 4
+		.data_segment_cnt = DATA_FRAME_CNT_DOUBLE_SLOT,
+		.code_rate = 4,
+		.deinterleaver_push_column_shift = 23
 	},
-	// 600 bps, dual slot
+	// 600 bps, double slot
 	[5] = {
 		.scheme = M_BPSK,
-		.data_segment_cnt = 168,
-		.code_rate = 2
+		.data_segment_cnt = DATA_FRAME_CNT_DOUBLE_SLOT,
+		.code_rate = 2,
+		.deinterleaver_push_column_shift = 23
 	},
-	// 1200 bps, dual slot
+	// 1200 bps, double slot
 	[6] = {
 		.scheme = M_PSK4,
-		.data_segment_cnt = 168,
-		.code_rate = 2
+		.data_segment_cnt = DATA_FRAME_CNT_DOUBLE_SLOT,
+		.code_rate = 2,
+		.deinterleaver_push_column_shift = 23
 	},
-	// 1800 bps, dual slot
+	// 1800 bps, double slot
 	[7] = {
 		.scheme = M_PSK8,
-		.data_segment_cnt = 168,
-		.code_rate = 2
+		.data_segment_cnt = DATA_FRAME_CNT_DOUBLE_SLOT,
+		.code_rate = 2,
+		.deinterleaver_push_column_shift = 23
 	}
 };
 
@@ -178,8 +154,18 @@ static uint32_t T = 0x9AF;      // training sequence
 
 bsequence A_bs, M1[M_SHIFT_CNT], M2[M_SHIFT_CNT];
 
+/**********************************
+ * Costas loop
+ **********************************/
+
+struct costas {
+	float alpha, beta, phi, dphi, err;
+};
+
+typedef struct costas *costas;
+
 costas costas_cccf_create() {
-	NEW(struct costas_s, c);
+	NEW(struct costas, c);
 	c->alpha = 0.10f;
 	c->beta = 0.2f * c->alpha * c->alpha;
 	return c;
@@ -207,6 +193,104 @@ void costas_cccf_step(costas c) {
 	} else if(c->phi < -M_PI) {
 		c->phi += 2.0 * M_PI;
 	}
+}
+
+/**********************************
+ * Descrambler
+ **********************************/
+
+#define LFSR_LEN 15
+#define LFSR_GENPOLY 0x8003u
+#define LFSR_INIT 0x6959u
+#define DESCRAMBLER_LEN 120
+
+struct descrambler {
+	msequence ms;
+	uint32_t len;
+	uint32_t pos;
+};
+
+typedef struct descrambler *descrambler;
+
+descrambler descrambler_create(uint32_t numbits, uint32_t genpoly, uint32_t init, uint32_t seq_len) {
+	NEW(struct descrambler, d);
+	d->ms = msequence_create(numbits, genpoly, init);
+	d->len = seq_len;
+	d->pos = 0;
+	return d;
+}
+
+uint32_t descrambler_advance(descrambler d) {
+	ASSERT(d);
+	if(d->pos == d->len) {
+		d->pos = 0;
+		msequence_reset(d->ms);
+	}
+	d->pos++;
+	return msequence_advance(d->ms);
+}
+
+/**********************************
+ * Deinterleaver
+ **********************************/
+
+struct deinterleaver {
+	uint32_t **table;
+	int32_t row, col;
+	int32_t column_cnt;
+	int32_t push_column_shift;
+};
+
+typedef struct deinterleaver *deinterleaver;
+
+#define DEINTERLEAVER_ROW_CNT 40
+#define DEINTERLEAVER_POP_ROW_SHIFT 9
+
+deinterleaver deinterleaver_create(int32_t M1) {
+	deinterleaver d = calloc(DEINTERLEAVER_ROW_CNT, sizeof(struct deinterleaver));
+	d->column_cnt = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN
+		* hfdl_frame_params[M1].scheme / DEINTERLEAVER_ROW_CNT;
+	d->table = calloc(DEINTERLEAVER_ROW_CNT, sizeof(uint32_t *));
+	for(int32_t i = 0; i < DEINTERLEAVER_ROW_CNT; i++) {
+		d->table[i] = calloc(d->column_cnt, sizeof(uint32_t));
+	}
+	d->push_column_shift = hfdl_frame_params[M1].deinterleaver_push_column_shift;
+	debug_print(D_BURST, "M1: %d column_cnt: %d total_size: %d column_shift: %d\n",
+			M1, d->column_cnt, d->column_cnt * DEINTERLEAVER_ROW_CNT, d->push_column_shift);
+	return d;
+}
+
+void deinterleaver_push(deinterleaver d, uint32_t val) {
+	debug_print(D_BURST_DETAIL, "push:%d:%d:%u\n", d->row, d->col, val);
+	d->table[d->row][d->col] = val;
+	d->row++;
+	if(d->row == DEINTERLEAVER_ROW_CNT) {
+		d->row = 0;
+		d->col++;
+	}
+	d->col -= d->push_column_shift;
+	if(d->col < 0) {
+		d->col += d->column_cnt;
+	}
+}
+
+uint32_t deinterleaver_pop(deinterleaver d) {
+	uint32_t ret = d->table[d->row][d->col];
+	debug_print(D_BURST_DETAIL, "pop:%d:%d:%u\n", d->row, d->col, ret);
+	d->row = (d->row + DEINTERLEAVER_POP_ROW_SHIFT) % DEINTERLEAVER_ROW_CNT;
+	if(d->row == 0) {
+		d->col++;
+	}
+	return ret;
+}
+
+uint32_t deinterleaver_table_size(deinterleaver d) {
+	ASSERT(d);
+	return d->column_cnt * DEINTERLEAVER_ROW_CNT;
+}
+
+void deinterleaver_reset(deinterleaver d) {
+	d->row = d->col = 0;
 }
 
 void hfdl_print_summary() {
@@ -267,6 +351,42 @@ void hfdl_init_globals() {
 	}
 }
 
+struct hfdl_channel {
+	struct block block;
+	fft_channelizer channelizer;
+	msresamp_crcf resampler;
+	agc_crcf agc;
+	costas loop;
+	firfilt_crcf mf;
+	eqlms_cccf eq;
+	modem m[MODULATION_CNT];
+	symsync_crcf ss;
+	bsequence bits;
+	bsequence user_data;
+	cbuffercf training_symbols;
+	cbuffercf data_symbols;
+	cbuffercf current_buffer;
+	descrambler descrambler;
+	deinterleaver deinterleaver[M_SHIFT_CNT];
+	uint64_t symbol_cnt, sample_cnt;
+	float resamp_rate;
+	sampler_state s_state;
+	framer_state fr_state;
+	mod_arity data_mod_arity;
+	mod_arity current_mod_arity;
+	int chan_freq;
+	int resampler_delay;
+	int symbols_wanted;
+	int search_retries;
+	int eq_train_seq_cnt;
+	int data_segment_cnt;
+	int train_bits_total;
+	int train_bits_bad;
+	int T_idx;
+	uint32_t bitmask;
+};
+
+
 static void sampler_reset(struct hfdl_channel *c) {
 	symsync_crcf_reset(c->ss);
 	c->s_state = SAMPLER_EMIT_BITS;
@@ -280,10 +400,14 @@ static void framer_reset(struct hfdl_channel *c) {
 	c->current_mod_arity = M_BPSK;
 	c->train_bits_total = c->train_bits_bad = 0;
 	c->T_idx = 0;
+	c->current_buffer = c->training_symbols;
 	agc_crcf_unlock(c->agc);
 	eqlms_cccf_reset(c->eq);
-	for(int i = 0; i < M_SHIFT_CNT; i++) {
-		bsequence_reset(c->user_data[i]);
+	cbuffercf_reset(c->data_symbols);
+	cbuffercf_reset(c->training_symbols);
+	bsequence_reset(c->user_data);
+	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
+		deinterleaver_reset(c->deinterleaver[i]);
 	}
 	sampler_reset(c);
 }
@@ -321,11 +445,14 @@ struct block *hfdl_channel_create(int sample_rate, int pre_decimation_rate,
 	c->ss = symsync_crcf_create(SPS, 1, hfdl_matched_filter_interp, HFDL_MF_TAPS_CNT);
 
 	c->bits = bsequence_create(M1_LEN);
-	c->symbols = cbuffercf_create(SYMBUFFER_SIZE);
-
-	for(int i = 0; i < M_SHIFT_CNT; i++) {
-		c->user_data[i] = bsequence_create(hfdl_frame_params[i].data_segment_cnt * DATA_FRAME_LEN * hfdl_frame_params[i].scheme);
+	c->training_symbols = cbuffercf_create(T_LEN);
+	c->data_symbols = cbuffercf_create(DATA_SYMBOLS_CNT_MAX);
+	c->descrambler = descrambler_create(LFSR_LEN, LFSR_GENPOLY, LFSR_INIT, DESCRAMBLER_LEN);
+	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
+		c->deinterleaver[i] = deinterleaver_create(i);
 	}
+
+	c->user_data = bsequence_create(DATA_SYMBOLS_CNT_MAX * MOD_ARITY_MAX);
 
 	framer_reset(c);
 
@@ -339,6 +466,10 @@ struct block *hfdl_channel_create(int sample_rate, int pre_decimation_rate,
 fail:
 	XFREE(c);
 	return NULL;
+}
+
+#define chan_debug(fmt, ...) { \
+	debug_print(D_DEMOD, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
 }
 
 int match_sequence(bsequence *templates, size_t template_cnt, bsequence bits, float *result_corr) {
@@ -360,7 +491,7 @@ void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 	uint32_t T_seq = 0, bit = 0;
 	float complex s;
 	for(int i = 0; i < T_LEN; i++) {
-		cbuffercf_pop(c->symbols, &s);
+		cbuffercf_pop(c->training_symbols, &s);
 		modem_demodulate(c->m[M_BPSK], s, &bit);
 		bit ^= (c->bitmask & 1);
 		T_seq = (T_seq << 1) | bit;
@@ -374,22 +505,33 @@ void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 }
 
 void demodulate_user_data(struct hfdl_channel *c, int M1) {
-	bsequence bs = c->user_data[M1];
+	static float const phase_flip[2] = { [0] = 1.0f, [1] = -1.0f };
+	uint32_t num_symbols = cbuffercf_size(c->data_symbols);
+	uint32_t num_bits = num_symbols * c->data_mod_arity;
+	chan_debug("got %d user data symbols, deinterleaver table size: %u\n", num_symbols,
+			deinterleaver_table_size(c->deinterleaver[M1]));
+	ASSERT(num_bits == deinterleaver_table_size(c->deinterleaver[M1]));
 	uint32_t bits = 0;
-	float complex s;
-	for(int i = 0; i < DATA_FRAME_LEN; i++) {
-		cbuffercf_pop(c->symbols, &s);
-		modem_demodulate(c->m[c->data_mod_arity], s, &bits);
+	uint32_t descrambler_bit = 0;
+	float complex symbol;
+	modem data_modem = c->m[c->data_mod_arity];
+	for(uint32_t i = 0; i < num_symbols; i++) {
+		cbuffercf_pop(c->data_symbols, &symbol);
+		descrambler_bit = descrambler_advance(c->descrambler);
+		// Flip symbol phase by M_PI when descrambler outputs 1
+		modem_demodulate(data_modem, symbol * phase_flip[descrambler_bit], &bits);
 		bits ^= c->bitmask;
-		for(int j = c->data_mod_arity - 1; j >= 0; j--) {
-			bsequence_push(bs, bits >> j);
+		for(uint32_t j = 0; j < c->data_mod_arity; j++) {
+			deinterleaver_push(c->deinterleaver[M1], (bits >> j) & 1);
 		}
 	}
+	for(uint32_t i = 0; i < num_bits; i++) {
+		bsequence_push(c->user_data, deinterleaver_pop(c->deinterleaver[M1]));
+	}
+	chan_debug("data len after demod: %u\n", bsequence_get_length(c->user_data));
+	bsequence_print(c->user_data);
 }
 
-#define chan_debug(fmt, ...) { \
-	debug_print(D_DEMOD, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
-}
 #define fopen_datfile(file, suffix) \
 	FILE *(file) = fopen(#file "." suffix, "w"); \
 	assert(file)
@@ -599,8 +741,8 @@ void *hfdl_decoder_thread(void *ctx) {
 						bsequence_push(c->bits, bits);
 					}
 				} else if(c->s_state == SAMPLER_EMIT_SYMBOLS) {
-					ASSERT(cbuffercf_space_available(c->symbols) != 0);
-					cbuffercf_push(c->symbols, symbols[i]);
+					ASSERT(cbuffercf_space_available(c->current_buffer) != 0);
+					cbuffercf_push(c->current_buffer, symbols[i]);
 				} else {    // SKIP
 							// NOOP
 				}
@@ -657,7 +799,7 @@ void *hfdl_decoder_thread(void *ctx) {
 					}
 					break;
 				case FRAMER_M2_SKIP:
-					cbuffercf_reset(c->symbols);
+					cbuffercf_reset(c->training_symbols);
 					c->symbols_wanted = T_LEN;
 					c->eq_train_seq_cnt = 9;
 					c->fr_state = FRAMER_EQ_TRAIN;
@@ -667,9 +809,9 @@ void *hfdl_decoder_thread(void *ctx) {
 #endif
 					break;
 				case FRAMER_EQ_TRAIN:
-					ASSERT(cbuffercf_size(c->symbols) == T_LEN);
+					ASSERT(cbuffercf_size(c->training_symbols) == T_LEN);
 					compute_train_bit_error_cnt(c);
-					cbuffercf_reset(c->symbols);
+					cbuffercf_reset(c->training_symbols);
 					if(c->eq_train_seq_cnt > 1) {               // next frame is training sequence
 						c->eq_train_seq_cnt--;
 						c->symbols_wanted = T_LEN;
@@ -678,10 +820,12 @@ void *hfdl_decoder_thread(void *ctx) {
 						c->symbols_wanted = DATA_FRAME_LEN / 2;
 						c->fr_state = FRAMER_DATA_1;
 						c->current_mod_arity = c->data_mod_arity;
+						c->current_buffer = c->data_symbols;
 					} else {                                    // end of frame
 						chan_debug("train_bits_bad: %d/%d (%f%%)\n",
 								c->train_bits_bad, c->train_bits_total,
 								(float)c->train_bits_bad / (float)c->train_bits_total * 100.f);
+						demodulate_user_data(c, M1_match);
 						framer_reset(c);
 					}
 					break;
@@ -690,14 +834,13 @@ void *hfdl_decoder_thread(void *ctx) {
 					c->fr_state = FRAMER_DATA_2;
 					break;
 				case FRAMER_DATA_2:
-					demodulate_user_data(c, M1_match);
 					c->data_segment_cnt--;
 					c->current_mod_arity = M_BPSK;
+					c->current_buffer = c->training_symbols;
 					c->fr_state = FRAMER_EQ_TRAIN;
 					c->eq_train_seq_cnt = 1;
 					c->symbols_wanted = T_LEN;
 					c->T_idx = 0;
-					cbuffercf_reset(c->symbols);
 					break;
 				}
 			}
