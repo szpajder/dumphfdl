@@ -11,6 +11,7 @@
 #include "block.h"                  // block_*
 #include "util.h"                   // NEW, XCALLOC
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc
+#include "libfec/fec.h"             // viterbi27
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS
 
 #define A_LEN 127
@@ -55,12 +56,14 @@ typedef enum {
 
 void *hfdl_decoder_thread(void *ctx);
 
-static struct {
+struct hfdl_params {
 	mod_arity scheme;
 	int32_t data_segment_cnt;
 	int32_t code_rate;
 	int32_t deinterleaver_push_column_shift;
-} const hfdl_frame_params[M_SHIFT_CNT] = {
+};
+
+static struct hfdl_params const hfdl_frame_params[M_SHIFT_CNT] = {
 	// 300 bps, single slot
 	[0] = {
 		.scheme = M_BPSK,
@@ -368,6 +371,7 @@ struct hfdl_channel {
 	cbuffercf current_buffer;
 	descrambler descrambler;
 	deinterleaver deinterleaver[M_SHIFT_CNT];
+	void *viterbi_ctx[M_SHIFT_CNT];
 	uint64_t symbol_cnt, sample_cnt;
 	float resamp_rate;
 	sampler_state s_state;
@@ -450,6 +454,10 @@ struct block *hfdl_channel_create(int sample_rate, int pre_decimation_rate,
 	c->descrambler = descrambler_create(LFSR_LEN, LFSR_GENPOLY, LFSR_INIT, DESCRAMBLER_LEN);
 	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
 		c->deinterleaver[i] = deinterleaver_create(i);
+		struct hfdl_params const p = hfdl_frame_params[i];
+		int user_data_bits_cnt = p.data_segment_cnt * DATA_FRAME_LEN * p.scheme / p.code_rate;
+		debug_print(D_DEMOD, "user_data_bits_cnt[%d]: %d\n", i, user_data_bits_cnt);
+		c->viterbi_ctx[i] = create_viterbi27(user_data_bits_cnt);
 	}
 
 	c->user_data = bsequence_create(DATA_SYMBOLS_CNT_MAX * MOD_ARITY_MAX);
@@ -506,11 +514,12 @@ void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 
 void demodulate_user_data(struct hfdl_channel *c, int M1) {
 	static float const phase_flip[2] = { [0] = 1.0f, [1] = -1.0f };
-	uint32_t num_symbols = cbuffercf_size(c->data_symbols);
-	uint32_t num_bits = num_symbols * c->data_mod_arity;
+	uint32_t num_symbols = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN;
+	ASSERT(num_symbols == cbuffercf_size(c->data_symbols));
+	uint32_t num_encoded_bits = num_symbols * c->data_mod_arity;
 	chan_debug("got %d user data symbols, deinterleaver table size: %u\n", num_symbols,
 			deinterleaver_table_size(c->deinterleaver[M1]));
-	ASSERT(num_bits == deinterleaver_table_size(c->deinterleaver[M1]));
+	ASSERT(num_encoded_bits == deinterleaver_table_size(c->deinterleaver[M1]));
 	uint32_t bits = 0;
 	uint32_t descrambler_bit = 0;
 	float complex symbol;
@@ -525,11 +534,36 @@ void demodulate_user_data(struct hfdl_channel *c, int M1) {
 			deinterleaver_push(c->deinterleaver[M1], (bits >> j) & 1);
 		}
 	}
-	for(uint32_t i = 0; i < num_bits; i++) {
-		bsequence_push(c->user_data, deinterleaver_pop(c->deinterleaver[M1]));
+#define CONV_CODE_RATE 2
+	uint32_t step_shift = 0;
+	uint32_t viterbi_input_len = num_encoded_bits;
+	// When FEC rate is 1/4, every chip is transmitted twice.
+	// Take every other chip from the interleaver in this case.
+	if(hfdl_frame_params[M1].code_rate == 4) {
+		step_shift = 1;
+		viterbi_input_len /= 2;
 	}
-	chan_debug("data len after demod: %u\n", bsequence_get_length(c->user_data));
-	bsequence_print(c->user_data);
+	uint8_t viterbi_input[viterbi_input_len];
+	for(uint32_t i = 0; i < num_encoded_bits; i++) {
+		viterbi_input[i >> step_shift] = deinterleaver_pop(c->deinterleaver[M1]) ? 255 : 0;
+	}
+	debug_print_buf_hex(D_BURST_DETAIL, viterbi_input, viterbi_input_len, "viterbi_input:\n");
+
+	void *v = c->viterbi_ctx[M1];
+	uint32_t viterbi_output_len = viterbi_input_len / CONV_CODE_RATE;
+	uint32_t viterbi_output_len_octets = viterbi_output_len / 8 + (viterbi_output_len % 8 != 0 ? 1 : 0);
+	uint8_t viterbi_output[viterbi_output_len_octets];
+	init_viterbi27(v, 0);
+	update_viterbi27_blk(v, viterbi_input, viterbi_output_len);
+	chainback_viterbi27(v, viterbi_output, viterbi_output_len, 0);
+	debug_print(D_BURST, "code_rate: 1/%d num_encoded_bits: %u viterbi_input_len: %u viterbi_output_len: %u, viterbi_output_len_octets: %u\n",
+			hfdl_frame_params[M1].code_rate, num_encoded_bits, viterbi_input_len, viterbi_output_len, viterbi_output_len_octets);
+	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output:\n");
+	for(uint32_t i = 0; i < viterbi_output_len_octets; i++) {
+		// Reverse bit order (http://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits)
+		viterbi_output[i] = ((viterbi_output[i] * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32;
+	}
+	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output (reversed):\n");
 }
 
 #define fopen_datfile(file, suffix) \

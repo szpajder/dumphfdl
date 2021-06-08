@@ -212,7 +212,7 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -DDUMPHFDL_VERSION=${DUMPHFDL_VERSION} -P ${CMAKE_CURRENT_SOURCE_DIR}/version.cmake
 )
 
-#add_subdirectory (libfec)
+add_subdirectory (libfec)
 
 add_library (dumphfdl_base OBJECT
 	block.c
@@ -240,6 +240,7 @@ link_directories(${link_dirs})
 
 set(dumphfdl_obj_files
 	$<TARGET_OBJECTS:dumphfdl_base>
+	$<TARGET_OBJECTS:fec>
 )
 
 add_executable (dumphfdl ${dumphfdl_obj_files})
