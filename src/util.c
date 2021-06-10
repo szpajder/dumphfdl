@@ -5,6 +5,7 @@
 #include <errno.h>              // errno
 #include <string.h>             // strerror
 #include <unistd.h>             // _exit
+#include "util.h"               // octet_string
 
 void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const *func) {
 	void *ptr = calloc(nmemb, size);
@@ -70,3 +71,17 @@ int pthread_mutex_initialize(pthread_mutex_t *mutex) {
 	return ret;
 }
 
+struct octet_string *octet_string_new(void *buf, size_t len) {
+	NEW(struct octet_string, ostring);
+	ostring->buf = buf;
+	ostring->len = len;
+	return ostring;
+}
+
+void octet_string_destroy(struct octet_string *ostring) {
+	if(ostring == NULL) {
+		return;
+	}
+	XFREE(ostring->buf);
+	XFREE(ostring);
+}

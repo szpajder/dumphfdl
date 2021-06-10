@@ -337,6 +337,12 @@ int32_t main(int32_t argc, char **argv) {
 		return 1;
 	}
 
+	hfdl_mpdu_decoder_init();
+	if(hfdl_mpdu_decoder_start() != 0) {
+	    fprintf(stderr, "Failed to start decoder thread, aborting\n");
+	    return 1;
+	}
+
 	setup_signals();
 
 #ifdef PROFILING
@@ -351,10 +357,12 @@ int32_t main(int32_t argc, char **argv) {
 	while(!do_exit) {
 		sleep(1);
 	}
+	hfdl_mpdu_decoder_stop();
 	while(do_exit < 2 && (
 			block_is_running(input) ||
 			block_is_running(fft) ||
-			block_set_is_any_running(channel_cnt, channels)
+			block_set_is_any_running(channel_cnt, channels) ||
+			hfdl_mpdu_decoder_is_running()
 			)) {
 		usleep(500000);
 	}

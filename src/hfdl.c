@@ -6,13 +6,17 @@
 #include <unistd.h>
 #include <complex.h>
 #include <math.h>
+#include <string.h>                 // memcpy
 #include <liquid/liquid.h>
+#include <glib.h>                   // GAsyncQueue, g_async_queue_*
 #include "config.h"                 // *_DEBUG
 #include "block.h"                  // block_*
-#include "util.h"                   // NEW, XCALLOC
+#include "util.h"                   // NEW, XCALLOC, octet_string_*
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc
 #include "libfec/fec.h"             // viterbi27
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS
+#include "mpdu.h"                   // struct hfdl_mpdu_qentry
+#include "output-common.h"          // hfdl_msg_metadata
 
 #define A_LEN 127
 #define M1_LEN 127
@@ -155,6 +159,9 @@ static uint32_t T = 0x9AF;      // training sequence
 
 static bsequence A_bs, M1[M_SHIFT_CNT], M2[M_SHIFT_CNT];
 
+static GAsyncQueue *mpdu_decoder_queue;
+static bool mpdu_decoder_thread_active = false;
+
 /**********************************
  * Forward declarations
  **********************************/
@@ -165,9 +172,12 @@ typedef struct descrambler *descrambler;
 struct hfdl_channel;
 
 static void *hfdl_decoder_thread(void *ctx);
+static void *mpdu_decoder_thread(void *ctx);
 static int32_t match_sequence(bsequence *templates, size_t template_cnt, bsequence bits, float *result_corr);
 static void compute_train_bit_error_cnt(struct hfdl_channel *c);
 static void decode_user_data(struct hfdl_channel *c, int32_t M1);
+static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
+static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *frame, uint32_t flags);
 static void sampler_reset(struct hfdl_channel *c);
 static void framer_reset(struct hfdl_channel *c);
 
@@ -344,7 +354,7 @@ static void deinterleaver_reset(deinterleaver d) {
  * HFDL public routines
  **********************************/
 
-void hfdl_init_globals() {
+void hfdl_init_globals(void) {
 	uint8_t A_octets[] = {
 		0b01011011,
 		0b10111100,
@@ -450,9 +460,31 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 fail:
 	XFREE(c);
 	return NULL;
+
 }
 
-void hfdl_print_summary() {
+void hfdl_mpdu_decoder_init(void) {
+	mpdu_decoder_queue = g_async_queue_new();
+}
+
+int32_t hfdl_mpdu_decoder_start(void) {
+	pthread_t mpdu_th;
+	int32_t ret = start_thread(&mpdu_th, mpdu_decoder_thread, NULL);
+	if(ret == 0) {
+		mpdu_decoder_thread_active = true;
+	}
+	return ret;
+}
+
+void hfdl_mpdu_decoder_stop(void) {
+	mpdu_decoder_queue_push(NULL, NULL, OUT_FLAG_ORDERED_SHUTDOWN);
+}
+
+bool hfdl_mpdu_decoder_is_running(void) {
+	return mpdu_decoder_thread_active;
+}
+
+void hfdl_print_summary(void) {
 	fprintf(stderr, "A1_found:\t\t%d\nA2_found:\t\t%d\nM1_found:\t\t%d\n",
 			S.A1_found, S.A2_found, S.M1_found);
 	fprintf(stderr, "A1_corr_avg:\t\t%4.3f\n", S.A1_found > 0 ? S.A1_corr_total / (float)S.A1_found : 0);
@@ -822,6 +854,31 @@ static void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 	c->train_bits_bad += error_cnt;
 }
 
+static void sampler_reset(struct hfdl_channel *c) {
+	symsync_crcf_reset(c->ss);
+	c->s_state = SAMPLER_EMIT_BITS;
+	c->bitmask = 0;
+}
+
+static void framer_reset(struct hfdl_channel *c) {
+	c->fr_state = FRAMER_A1_SEARCH;
+	c->symbols_wanted = 1;
+	c->search_retries = 0;
+	c->current_mod_arity = M_BPSK;
+	c->train_bits_total = c->train_bits_bad = 0;
+	c->T_idx = 0;
+	c->current_buffer = c->training_symbols;
+	agc_crcf_unlock(c->agc);
+	eqlms_cccf_reset(c->eq);
+	cbuffercf_reset(c->data_symbols);
+	cbuffercf_reset(c->training_symbols);
+	bsequence_reset(c->user_data);
+	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
+		deinterleaver_reset(c->deinterleaver[i]);
+	}
+	sampler_reset(c);
+}
+
 static void decode_user_data(struct hfdl_channel *c, int32_t M1) {
 	static float const phase_flip[2] = { [0] = 1.0f, [1] = -1.0f };
 	uint32_t num_symbols = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN;
@@ -874,30 +931,48 @@ static void decode_user_data(struct hfdl_channel *c, int32_t M1) {
 		viterbi_output[i] = ((viterbi_output[i] * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32;
 	}
 	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output (reversed):\n");
+	dispatch_mpdu(c, viterbi_output, viterbi_output_len_octets);
 }
 
-static void sampler_reset(struct hfdl_channel *c) {
-	symsync_crcf_reset(c->ss);
-	c->s_state = SAMPLER_EMIT_BITS;
-	c->bitmask = 0;
+static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
+	NEW(struct hfdl_msg_metadata, metadata);
+	metadata->version = 1;
+	//metadata->station_id = Config.station_id;
+	metadata->freq = c->chan_freq;
+	//metadata->ppm_error = v->ppm_error;
+	//metadata->burst_timestamp.tv_sec = v->burst_timestamp.tv_sec;
+	//metadata->burst_timestamp.tv_usec = v->burst_timestamp.tv_usec;
+	uint32_t flags = 0;
+
+	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));
+	memcpy(copy, buf, len);
+	mpdu_decoder_queue_push(metadata, octet_string_new(copy, len), flags);
 }
 
-static void framer_reset(struct hfdl_channel *c) {
-	c->fr_state = FRAMER_A1_SEARCH;
-	c->symbols_wanted = 1;
-	c->search_retries = 0;
-	c->current_mod_arity = M_BPSK;
-	c->train_bits_total = c->train_bits_bad = 0;
-	c->T_idx = 0;
-	c->current_buffer = c->training_symbols;
-	agc_crcf_unlock(c->agc);
-	eqlms_cccf_reset(c->eq);
-	cbuffercf_reset(c->data_symbols);
-	cbuffercf_reset(c->training_symbols);
-	bsequence_reset(c->user_data);
-	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
-		deinterleaver_reset(c->deinterleaver[i]);
+static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *frame, uint32_t flags) {
+	NEW(struct hfdl_mpdu_qentry, qentry);
+	qentry->metadata = metadata;
+	qentry->frame = frame;
+	qentry->flags = flags;
+	g_async_queue_push(mpdu_decoder_queue, qentry);
+}
+
+static void *mpdu_decoder_thread(void *ctx) {
+	UNUSED(ctx);
+	struct hfdl_mpdu_qentry *q = NULL;
+	while(true) {
+		q = g_async_queue_pop(mpdu_decoder_queue);
+		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
+			fprintf(stderr, "Shutting down decoder thread\n");
+			//shutdown_outputs(fmtr_list);
+			mpdu_decoder_thread_active = false;
+			break;
+		}
+		debug_print(D_PROTO, "Got message at channel %d\n", q->metadata->freq);
+		debug_print_buf_hex(D_PROTO_DETAIL, q->frame->buf, q->frame->len, "contents:\n");
+		octet_string_destroy(q->frame);
+		XFREE(q);
 	}
-	sampler_reset(c);
+	return NULL;
 }
 

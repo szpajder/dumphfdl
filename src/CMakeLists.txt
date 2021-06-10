@@ -86,11 +86,11 @@ else()
 	message(FATAL_ERROR "Unknown FFT library: ${FFT_LIBRARY}")
 endif()
 
-#pkg_check_modules(GLIB2 REQUIRED glib-2.0)
-#list(APPEND dumphfdl_extra_libs ${GLIB2_LIBRARIES})
-#list(APPEND dumphfdl_include_dirs ${GLIB2_INCLUDE_DIRS})
-#list(APPEND link_dirs ${GLIB2_LIBRARY_DIRS})
-#
+pkg_check_modules(GLIB2 REQUIRED glib-2.0)
+list(APPEND dumphfdl_extra_libs ${GLIB2_LIBRARIES})
+list(APPEND dumphfdl_include_dirs ${GLIB2_INCLUDE_DIRS})
+list(APPEND link_dirs ${GLIB2_LIBRARY_DIRS})
+
 #pkg_check_modules(ACARS REQUIRED libacars-2>=2.1.0)
 #list(APPEND dumphfdl_extra_libs ${ACARS_LIBRARIES})
 #list(APPEND dumphfdl_include_dirs ${ACARS_INCLUDE_DIRS})

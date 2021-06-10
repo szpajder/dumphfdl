@@ -94,3 +94,10 @@ void stop_thread(pthread_t pth);
 int pthread_barrier_create(pthread_barrier_t *barrier, unsigned count);
 int pthread_cond_initialize(pthread_cond_t *cond);
 int pthread_mutex_initialize(pthread_mutex_t *mutex);
+
+struct octet_string {
+	uint8_t *buf;
+	size_t len;
+};
+struct octet_string *octet_string_new(void *buf, size_t len);
+void octet_string_destroy(struct octet_string *ostring);
