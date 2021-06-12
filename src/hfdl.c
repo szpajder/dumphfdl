@@ -8,6 +8,9 @@
 #include <math.h>
 #include <string.h>                 // memcpy
 #include <liquid/liquid.h>
+#include <libacars/list.h>          // la_list_*
+#include <libacars/libacars.h>      // la_proto_node, la_proto_tree_destroy()
+#include <libacars/reassembly.h>    // la_reasm_ctx, la_reasm_ctx_new()
 #include <glib.h>                   // GAsyncQueue, g_async_queue_*
 #include "config.h"                 // *_DEBUG
 #include "block.h"                  // block_*
@@ -16,7 +19,7 @@
 #include "libfec/fec.h"             // viterbi27
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS
 #include "mpdu.h"                   // struct hfdl_mpdu_qentry
-#include "output-common.h"          // hfdl_msg_metadata
+#include "output-common.h"          // hfdl_msg_metadata, output_queue_push, shutdown_outputs
 
 #define A_LEN 127
 #define M1_LEN 127
@@ -177,7 +180,7 @@ static int32_t match_sequence(bsequence *templates, size_t template_cnt, bsequen
 static void compute_train_bit_error_cnt(struct hfdl_channel *c);
 static void decode_user_data(struct hfdl_channel *c, int32_t M1);
 static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
-static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *frame, uint32_t flags);
+static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *mpdu, uint32_t flags);
 static void sampler_reset(struct hfdl_channel *c);
 static void framer_reset(struct hfdl_channel *c);
 
@@ -467,9 +470,9 @@ void hfdl_mpdu_decoder_init(void) {
 	mpdu_decoder_queue = g_async_queue_new();
 }
 
-int32_t hfdl_mpdu_decoder_start(void) {
+int32_t hfdl_mpdu_decoder_start(void *ctx) {
 	pthread_t mpdu_th;
-	int32_t ret = start_thread(&mpdu_th, mpdu_decoder_thread, NULL);
+	int32_t ret = start_thread(&mpdu_th, mpdu_decoder_thread, ctx);
 	if(ret == 0) {
 		mpdu_decoder_thread_active = true;
 	}
@@ -949,30 +952,88 @@ static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	mpdu_decoder_queue_push(metadata, octet_string_new(copy, len), flags);
 }
 
-static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *frame, uint32_t flags) {
+static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *mpdu, uint32_t flags) {
 	NEW(struct hfdl_mpdu_qentry, qentry);
 	qentry->metadata = metadata;
-	qentry->frame = frame;
+	qentry->pdu = mpdu;
 	qentry->flags = flags;
 	g_async_queue_push(mpdu_decoder_queue, qentry);
 }
 
 static void *mpdu_decoder_thread(void *ctx) {
-	UNUSED(ctx);
+	ASSERT(ctx != NULL);
+	la_list *fmtr_list = ctx;
 	struct hfdl_mpdu_qentry *q = NULL;
+	la_proto_node *root = NULL;
+	la_reasm_ctx *reasm_ctx = la_reasm_ctx_new();
+	enum {
+		DECODING_NOT_DONE,
+		DECODING_SUCCESS,
+		DECODING_FAILURE
+	} decoding_status;
 	while(true) {
 		q = g_async_queue_pop(mpdu_decoder_queue);
 		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
 			fprintf(stderr, "Shutting down decoder thread\n");
-			//shutdown_outputs(fmtr_list);
+			shutdown_outputs(fmtr_list);
 			mpdu_decoder_thread_active = false;
 			break;
 		}
-		debug_print(D_PROTO, "Got message at channel %d\n", q->metadata->freq);
-		debug_print_buf_hex(D_PROTO_DETAIL, q->frame->buf, q->frame->len, "contents:\n");
-		octet_string_destroy(q->frame);
+		ASSERT(q->metadata != NULL);
+		//statsd_increment_per_channel(q->metadata->freq, "avlc.frames.processed");
+
+		fmtr_instance_t *fmtr = NULL;
+		decoding_status = DECODING_NOT_DONE;
+		for(la_list *p = fmtr_list; p != NULL; p = la_list_next(p)) {
+			fmtr = p->data;
+			if(fmtr->intype == FMTR_INTYPE_DECODED_FRAME) {
+				// Decode the MPDU unless we've done it before
+				if(decoding_status == DECODING_NOT_DONE) {
+					root = mpdu_parse(q, reasm_ctx);
+					if(root != NULL) {
+						decoding_status = DECODING_SUCCESS;
+					} else {
+						decoding_status = DECODING_FAILURE;
+						la_proto_tree_destroy(root);
+						root = NULL;
+					}
+				}
+				if(decoding_status == DECODING_SUCCESS) {
+					struct octet_string *serialized_msg = fmtr->td->format_decoded_msg(q->metadata, root);
+					// First check if the formatter actually returned something.
+					// A formatter might be suitable only for a particular message type. If this is the case.
+					// it will return NULL for all messages it cannot handle.
+					// An example is pp_acars which only deals with ACARS messages.
+					if(serialized_msg != NULL) {
+						output_qentry_t qentry = {
+							.msg = serialized_msg,
+							.metadata = q->metadata,
+							.format = fmtr->td->output_format
+						};
+						la_list_foreach(fmtr->outputs, output_queue_push, &qentry);
+						// output_queue_push makes a copy of serialized_msg, so it's safe to free it now
+						octet_string_destroy(serialized_msg);
+					}
+				}
+			} else if(fmtr->intype == FMTR_INTYPE_RAW_FRAME) {
+				struct octet_string *serialized_msg = fmtr->td->format_raw_msg(q->metadata, q->pdu);
+				if(serialized_msg != NULL) {
+					output_qentry_t qentry = {
+						.msg = serialized_msg,
+						.metadata = q->metadata,
+						.format = fmtr->td->output_format
+					};
+					la_list_foreach(fmtr->outputs, output_queue_push, &qentry);
+					// output_queue_push makes a copy of serialized_msg, so it's safe to free it now
+					octet_string_destroy(serialized_msg);
+				}
+			}
+		}
+		la_proto_tree_destroy(root);
+		root = NULL;
+		octet_string_destroy(q->pdu);
+		XFREE(q->metadata);
 		XFREE(q);
 	}
 	return NULL;
 }
-

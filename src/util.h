@@ -5,6 +5,7 @@
 #include <stdio.h>                  // fprintf, stderr
 #include <pthread.h>                // pthread_t, pthread_barrier_t
 #include <stdlib.h>                 // calloc, realloc
+#include <libacars/vstring.h>       // la_vstring
 #include "globals.h"                // Config
 
 // debug message classes
@@ -85,7 +86,7 @@
 #define UNUSED(x) (void)(x)
 #define container_of(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
 #define max(a, b) ((a) > (b) ? (a) : (b))
-
+#define EOL(x) la_vstring_append_sprintf((x), "%s", "\n")
 
 void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const *func);
 void *xrealloc(void *ptr, size_t size, char const *file, int line, char const *func);
@@ -100,4 +101,7 @@ struct octet_string {
 	size_t len;
 };
 struct octet_string *octet_string_new(void *buf, size_t len);
+struct octet_string *octet_string_copy(struct octet_string const *ostring);
 void octet_string_destroy(struct octet_string *ostring);
+
+void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int indent);

@@ -8,13 +8,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 # strdup, pthread_barriers
 add_definitions(-D_XOPEN_SOURCE=600)
 
-# strsep on MacOS
-#if(APPLE)
-#	add_definitions(-D_DARWIN_C_SOURCE)
-#endif()
-
-# silence warnings about obsolete _BSD_SOURCE in asn_system.h
-#add_definitions(-D_DEFAULT_SOURCE)
+# strsep
+if(APPLE)
+	add_definitions(-D_DARWIN_C_SOURCE)
+elseif(UNIX)
+	add_definitions(-D_DEFAULT_SOURCE)
+endif()
 
 if(UNIX OR MINGW)
 	add_definitions(-D_FILE_OFFSET_BITS=64)
@@ -91,11 +90,10 @@ list(APPEND dumphfdl_extra_libs ${GLIB2_LIBRARIES})
 list(APPEND dumphfdl_include_dirs ${GLIB2_INCLUDE_DIRS})
 list(APPEND link_dirs ${GLIB2_LIBRARY_DIRS})
 
-#pkg_check_modules(ACARS REQUIRED libacars-2>=2.1.0)
-#list(APPEND dumphfdl_extra_libs ${ACARS_LIBRARIES})
-#list(APPEND dumphfdl_include_dirs ${ACARS_INCLUDE_DIRS})
-#list(APPEND asn1_include_dirs ${ACARS_INCLUDE_DIRS})
-#list(APPEND link_dirs ${ACARS_LIBRARY_DIRS})
+pkg_check_modules(ACARS REQUIRED libacars-2>=2.1.0)
+list(APPEND dumphfdl_extra_libs ${ACARS_LIBRARIES})
+list(APPEND dumphfdl_include_dirs ${ACARS_INCLUDE_DIRS})
+list(APPEND link_dirs ${ACARS_LIBRARY_DIRS})
 
 option(SOAPYSDR "Enable SoapySDR support" ON)
 set(WITH_SOAPYSDR FALSE)
@@ -218,14 +216,20 @@ add_library (dumphfdl_base OBJECT
 	block.c
 	fastddc.c
 	fft.c
+	fmtr-text.c
 	globals.c
 	hfdl.c
 	input-common.c
 	input-file.c
 	input-helpers.c
+	kvargs.c
 	libcsdr.c
 	libcsdr_gpl.c
 	main.c
+	mpdu.c
+	options.c
+	output-common.c
+	output-file.c
 	util.c
 	${CMAKE_CURRENT_BINARY_DIR}/version.c
 	${dumphfdl_extra_sources}

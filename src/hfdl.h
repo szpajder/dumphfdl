@@ -11,7 +11,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 		float transition_bw, int32_t centerfreq, int32_t frequency);
 
 void hfdl_mpdu_decoder_init(void);
-int32_t hfdl_mpdu_decoder_start(void);
+int32_t hfdl_mpdu_decoder_start(void *ctx);
 void hfdl_mpdu_decoder_stop(void);
 bool hfdl_mpdu_decoder_is_running(void);
 

@@ -9,7 +9,10 @@ struct dumphfdl_config {
 #ifdef DEBUG
 	uint32_t debug_filter;
 #endif
-	bool hourly, daily, utc, milliseconds;
+	int32_t output_queue_hwm;
+	bool utc;
+	bool milliseconds;
+	bool output_raw_frames;
 };
 
 extern struct dumphfdl_config Config;

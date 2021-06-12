@@ -5,13 +5,15 @@
 #define _GNU_SOURCE             // getopt_long
 #include <getopt.h>
 #include <signal.h>             // sigaction, SIG*
-#include <string.h>             // strlen
+#include <string.h>             // strlen, strsep
 #include <math.h>               // roundf
 #include <unistd.h>             // usleep
+#include <libacars/list.h>      // la_list
 #ifdef PROFILING
 #include <gperftools/profiler.h>
 #endif
 #include "config.h"
+#include "options.h"            // IND(), describe_option
 #include "globals.h"            // do_exit
 #include "block.h"              // block_*
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
@@ -19,7 +21,26 @@
 #include "util.h"               // ASSERT
 #include "input-common.h"       // sample_format_t, input_create
 #include "input-helpers.h"      // sample_format_from_string
+#include "output-common.h"      // output_*, fmtr_*
+#include "kvargs.h"             // kvargs
 #include "hfdl.h"               // hfdl_channel_create
+
+typedef struct {
+	char *output_spec_string;
+	char *intype, *outformat, *outtype;
+	kvargs *outopts;
+	char const *errstr;
+	bool err;
+} output_params;
+
+// Forward declarations
+la_list *setup_output(la_list *fmtr_list, char *output_spec);
+output_params output_params_from_string(char *output_spec);
+fmtr_instance_t *find_fmtr_instance(la_list *fmtr_list,
+		fmtr_descriptor_t *fmttd, fmtr_input_type_t intype);
+void start_all_output_threads(la_list *fmtr_list);
+void start_all_output_threads_for_fmtr(void *p, void *ctx);
+void start_output_thread(void *p, void *ctx);
 
 void sighandler(int sig) {
 	fprintf(stderr, "Got signal %d, ", sig);
@@ -43,21 +64,8 @@ static void setup_signals() {
 	sigaction(SIGTERM, &sigact, NULL);
 }
 
-// help text pretty-printing constants and macros
-#define USAGE_INDENT_STEP 4
-#define USAGE_OPT_NAME_COLWIDTH 48
-#define IND(n) (n * USAGE_INDENT_STEP)
-
 void print_version() {
 	fprintf(stderr, "dumphfdl %s\n", DUMPHFDL_VERSION);
-}
-
-void describe_option(char const *name, char const *description, int indent) {
-	int descr_shiftwidth = USAGE_OPT_NAME_COLWIDTH - (int)strlen(name) - indent * USAGE_INDENT_STEP;
-	if(descr_shiftwidth < 1) {
-		descr_shiftwidth = 1;
-	}
-	fprintf(stderr, "%*s%s%*s%s\n", IND(indent), "", name, descr_shiftwidth, "", description);
 }
 
 #ifdef DEBUG
@@ -178,9 +186,20 @@ void usage() {
 	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
 	describe_option("--centerfreq <center_frequency>", "Center frequency of the input data, in Hz (default: 0)", 1);
 	describe_option("--sample-format <sample_format>", "Input sample format. Supported formats:", 1);
-	describe_option("CU8", "8-bit unsigned (eg. recorded with rtl_sdr) (default)", 2);
-	describe_option("CS16", "16-bit signed, little-endian (eg. recorded with miri_sdr)", 2);
+	describe_option("CU8", "8-bit unsigned (eg. recorded with rtl_sdr)", 2);
+	describe_option("CS16", "16-bit signed, little-endian (eg. recorded with sdrplay)", 2);
 	describe_option("CF32", "32-bit float, little-endian", 2);
+
+	fprintf(stderr, "\nOutput options:\n");
+	describe_option("--output <output_specifier>", "Output specification (default: " DEFAULT_OUTPUT ")", 1);
+	describe_option("", "(See \"--output help\" for details)", 1);
+	describe_option("--output-queue-hwm <integer>", "High water mark value for output queues (0 = no limit)", 1);
+	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file or --raw-frames-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
+
+	fprintf(stderr, "\nText output formatting options:\n");
+	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
+	describe_option("--milliseconds", "Print milliseconds in timestamps", 1);
+	describe_option("--raw-frames", "Print raw AVLC frame as hex", 1);
 }
 
 int32_t main(int32_t argc, char **argv) {
@@ -190,17 +209,32 @@ int32_t main(int32_t argc, char **argv) {
 #ifdef DEBUG
 #define OPT_DEBUG 3
 #endif
+
 #define OPT_IQ_FILE 10
 #ifdef WITH_SOAPYSDR
 #define OPT_SOAPYSDR 11
 #endif
+
 #define OPT_SAMPLE_FORMAT 20
 #define OPT_SAMPLE_RATE 21
 #define OPT_CENTERFREQ 22
 #define OPT_GAIN 23
 #define OPT_GAIN_ELEMENTS 24
 
+#define OPT_OUTPUT 40
+#define OPT_OUTPUT_QUEUE_HWM 41
+#define OPT_UTC 44
+#define OPT_MILLISECONDS 45
+#define OPT_RAW_FRAMES 46
+
+#define DEFAULT_OUTPUT "decoded:text:file:path=-"
+
 	static struct option opts[] = {
+		{ "version",            no_argument,        NULL,   OPT_VERSION },
+		{ "help",               no_argument,        NULL,   OPT_HELP },
+#ifdef DEBUG
+		{ "debug",              required_argument,  NULL,   OPT_DEBUG },
+#endif
 		{ "iq-file",            required_argument,  NULL,   OPT_IQ_FILE },
 #ifdef WITH_SOAPYSDR
 		{ "soapysdr",           required_argument,  NULL,   OPT_SOAPYSDR },
@@ -210,17 +244,21 @@ int32_t main(int32_t argc, char **argv) {
 		{ "centerfreq",         required_argument,  NULL,   OPT_CENTERFREQ },
 		{ "gain",               required_argument,  NULL,   OPT_GAIN },
 		{ "gain-elements",      required_argument,  NULL,   OPT_GAIN_ELEMENTS },
-		{ "version",            no_argument,        NULL,   OPT_VERSION },
-		{ "help",               no_argument,        NULL,   OPT_HELP },
-#ifdef DEBUG
-		{ "debug",              required_argument,  NULL,   OPT_DEBUG },
-#endif
+		{ "output",             required_argument,  NULL,   OPT_OUTPUT },
+		{ "output-queue-hwm",   required_argument,  NULL,   OPT_OUTPUT_QUEUE_HWM },
+		{ "utc",                no_argument,        NULL,   OPT_UTC },
+		{ "milliseconds",       no_argument,        NULL,   OPT_MILLISECONDS },
+		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
 		{ 0,                    0,                  0,      0 }
 	};
+
+	// Initialize default config
+	Config.output_queue_hwm = OUTPUT_QUEUE_HWM_DEFAULT;
 
 	struct input_cfg *input_cfg = input_cfg_create();
 	input_cfg->sfmt = SFMT_UNDEF;
 	input_cfg->type = INPUT_TYPE_UNDEF;
+	la_list *fmtr_list = NULL;
 
 	print_version();
 
@@ -260,6 +298,21 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_GAIN_ELEMENTS:
 				input_cfg->gain_elements = optarg;
 				break;
+			case OPT_OUTPUT:
+				fmtr_list = setup_output(fmtr_list, optarg);
+				break;
+			case OPT_OUTPUT_QUEUE_HWM:
+				Config.output_queue_hwm = atoi(optarg);
+				break;
+			case OPT_UTC:
+				Config.utc = true;
+				break;
+			case OPT_MILLISECONDS:
+				Config.milliseconds = true;
+				break;
+			case OPT_RAW_FRAMES:
+				Config.output_raw_frames = true;
+				break;
 #ifdef DEBUG
 			case OPT_DEBUG:
 				Config.debug_filter = parse_msg_filterspec(debug_filters, debug_filter_usage, optarg);
@@ -268,7 +321,7 @@ int32_t main(int32_t argc, char **argv) {
 #endif
 			case OPT_VERSION:
 				// No-op - the version has been printed before getopt().
-				_exit(0);
+				return 0;
 			case OPT_HELP:
 				usage();
 				return 0;
@@ -293,6 +346,16 @@ int32_t main(int32_t argc, char **argv) {
 		usage();
 		return 1;
 	}
+	if(Config.output_queue_hwm < 0) {
+		fprintf(stderr, "Invalid --output-queue-hwm value: must be a non-negative integer\n");
+		return 1;
+	}
+
+	// no --output given?
+	if(fmtr_list == NULL) {
+		fmtr_list = setup_output(fmtr_list, DEFAULT_OUTPUT);
+	}
+	ASSERT(fmtr_list != NULL);
 
 	struct block *input = input_create(input_cfg);
 	if(input == NULL) {
@@ -337,8 +400,9 @@ int32_t main(int32_t argc, char **argv) {
 		return 1;
 	}
 
+	start_all_output_threads(fmtr_list);
 	hfdl_mpdu_decoder_init();
-	if(hfdl_mpdu_decoder_start() != 0) {
+	if(hfdl_mpdu_decoder_start(fmtr_list) != 0) {
 	    fprintf(stderr, "Failed to start decoder thread, aborting\n");
 	    return 1;
 	}
@@ -358,11 +422,13 @@ int32_t main(int32_t argc, char **argv) {
 		sleep(1);
 	}
 	hfdl_mpdu_decoder_stop();
+	fprintf(stderr, "Waiting for all threads to finish\n");
 	while(do_exit < 2 && (
 			block_is_running(input) ||
 			block_is_running(fft) ||
 			block_set_is_any_running(channel_cnt, channels) ||
-			hfdl_mpdu_decoder_is_running()
+			hfdl_mpdu_decoder_is_running() ||
+			output_thread_is_any_running(fmtr_list)
 			)) {
 		usleep(500000);
 	}
@@ -374,5 +440,157 @@ int32_t main(int32_t argc, char **argv) {
 	hfdl_print_summary();
 
 	return 0;
+}
+
+la_list *setup_output(la_list *fmtr_list, char *output_spec) {
+	if(!strcmp(output_spec, "help")) {
+		output_usage();
+		_exit(0);
+	}
+	output_params oparams = output_params_from_string(output_spec);
+	if(oparams.err == true) {
+		fprintf(stderr, "Could not parse output specifier '%s': %s\n", output_spec, oparams.errstr);
+		_exit(1);
+	}
+	debug_print(D_MISC, "intype: %s outformat: %s outtype: %s\n",
+			oparams.intype, oparams.outformat, oparams.outtype);
+
+	fmtr_input_type_t intype = fmtr_input_type_from_string(oparams.intype);
+	if(intype == FMTR_INTYPE_UNKNOWN) {
+		fprintf(stderr, "Data type '%s' is unknown\n", oparams.intype);
+		_exit(1);
+	}
+
+	output_format_t outfmt = output_format_from_string(oparams.outformat);
+	if(outfmt == OFMT_UNKNOWN) {
+		fprintf(stderr, "Output format '%s' is unknown\n", oparams.outformat);
+		_exit(1);
+	}
+
+	fmtr_descriptor_t *fmttd = fmtr_descriptor_get(outfmt);
+	ASSERT(fmttd != NULL);
+	fmtr_instance_t *fmtr = find_fmtr_instance(fmtr_list, fmttd, intype);
+	if(fmtr == NULL) {      // we haven't added this formatter to the list yet
+		if(!fmttd->supports_data_type(intype)) {
+			fprintf(stderr,
+					"Unsupported data_type:format combination: '%s:%s'\n",
+					oparams.intype, oparams.outformat);
+			_exit(1);
+		}
+		fmtr = fmtr_instance_new(fmttd, intype);
+		ASSERT(fmtr != NULL);
+		fmtr_list = la_list_append(fmtr_list, fmtr);
+	}
+
+	output_descriptor_t *otd = output_descriptor_get(oparams.outtype);
+	if(otd == NULL) {
+		fprintf(stderr, "Output type '%s' is unknown\n", oparams.outtype);
+		_exit(1);
+	}
+	if(!otd->supports_format(outfmt)) {
+		fprintf(stderr, "Unsupported format:output combination: '%s:%s'\n",
+				oparams.outformat, oparams.outtype);
+		_exit(1);
+	}
+
+	void *output_cfg = otd->configure(oparams.outopts);
+	if(output_cfg == NULL) {
+		fprintf(stderr, "Invalid output configuration\n");
+		_exit(1);
+	}
+
+	output_instance_t *output = output_instance_new(otd, outfmt, output_cfg);
+	ASSERT(output != NULL);
+	fmtr->outputs = la_list_append(fmtr->outputs, output);
+
+	// oparams is no longer needed after this point.
+	// No need to free intype, outformat and outtype fields, because they
+	// point into output_spec_string.
+	XFREE(oparams.output_spec_string);
+	kvargs_destroy(oparams.outopts);
+
+	return fmtr_list;
+}
+
+#define SCAN_FIELD_OR_FAIL(str, field_name, errstr) \
+	(field_name) = strsep(&(str), ":"); \
+	if((field_name)[0] == '\0') { \
+		(errstr) = "field_name is empty"; \
+		goto fail; \
+	} else if((str) == NULL) { \
+		(errstr) = "not enough fields"; \
+		goto fail; \
+	}
+
+output_params output_params_from_string(char *output_spec) {
+	output_params out_params = {
+		.intype = NULL, .outformat = NULL, .outtype = NULL, .outopts = NULL,
+		.errstr = NULL, .err = false
+	};
+
+	// We have to work on a copy of output_spec, because strsep() modifies its
+	// first argument. The copy gets stored in the returned out_params structure
+	// so that the caller can free it later.
+	debug_print(D_MISC, "output_spec: %s\n", output_spec);
+	out_params.output_spec_string = strdup(output_spec);
+	char *ptr = out_params.output_spec_string;
+
+	// output_spec format is: <input_type>:<output_format>:<output_type>:<output_options>
+	SCAN_FIELD_OR_FAIL(ptr, out_params.intype, out_params.errstr);
+	SCAN_FIELD_OR_FAIL(ptr, out_params.outformat, out_params.errstr);
+	SCAN_FIELD_OR_FAIL(ptr, out_params.outtype, out_params.errstr);
+	debug_print(D_MISC, "intype: %s outformat: %s outtype: %s\n",
+			out_params.intype, out_params.outformat, out_params.outtype);
+
+	debug_print(D_MISC, "kvargs input string: %s\n", ptr);
+	kvargs_parse_result outopts = kvargs_from_string(ptr);
+	if(outopts.err == 0) {
+		out_params.outopts = outopts.result;
+	} else {
+		out_params.errstr = kvargs_get_errstr(outopts.err);
+		goto fail;
+	}
+
+	out_params.outopts = outopts.result;
+	debug_print(D_MISC, "intype: %s outformat: %s outtype: %s\n",
+			out_params.intype, out_params.outformat, out_params.outtype);
+	goto end;
+fail:
+	XFREE(out_params.output_spec_string);
+	out_params.err = true;
+end:
+	return out_params;
+}
+
+fmtr_instance_t *find_fmtr_instance(la_list *fmtr_list, fmtr_descriptor_t *fmttd, fmtr_input_type_t intype) {
+	if(fmtr_list == NULL) {
+		return NULL;
+	}
+	for(la_list *p = fmtr_list; p != NULL; p = la_list_next(p)) {
+		fmtr_instance_t *fmtr = p->data;
+		if(fmtr->td == fmttd && fmtr->intype == intype) {
+			return fmtr;
+		}
+	}
+	return NULL;
+}
+
+void start_all_output_threads(la_list *fmtr_list) {
+	la_list_foreach(fmtr_list, start_all_output_threads_for_fmtr, NULL);
+}
+
+void start_all_output_threads_for_fmtr(void *p, void *ctx) {
+	UNUSED(ctx);
+	ASSERT(p != NULL);
+	fmtr_instance_t *fmtr = p;
+	la_list_foreach(fmtr->outputs, start_output_thread, NULL);
+}
+
+void start_output_thread(void *p, void *ctx) {
+	UNUSED(ctx);
+	ASSERT(p != NULL);
+	output_instance_t *output = p;
+	debug_print(D_OUTPUT, "starting thread for output %s\n", output->td->name);
+	start_thread(output->output_thread, output_thread, output);
 }
 
