@@ -44,11 +44,11 @@ static struct octet_string *fmtr_text_format_decoded_msg(struct metadata *metada
 
 	struct hfdl_pdu_metadata *hm = container_of(metadata, struct hfdl_pdu_metadata,
 			metadata);
-	//la_vstring *timestamp = format_timestamp(metadata->burst_timestamp);
+	la_vstring *timestamp = format_timestamp(hm->pdu_timestamp);
 	la_vstring *vstr = la_vstring_new();
 
-	la_vstring_append_sprintf(vstr, "[%d kHz]", hm->freq / 1000);
-	//la_vstring_destroy(timestamp, true);
+	la_vstring_append_sprintf(vstr, "[%s][%d kHz]", timestamp->str, hm->freq / 1000);
+	la_vstring_destroy(timestamp, true);
 
 	EOL(vstr);
 

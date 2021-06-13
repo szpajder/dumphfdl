@@ -7,6 +7,7 @@
 #include <complex.h>
 #include <math.h>
 #include <string.h>                 // memcpy
+#include <sys/time.h>               // struct timeval
 #include <liquid/liquid.h>
 #include <libacars/list.h>          // la_list_*
 #include <libacars/libacars.h>      // la_proto_node, la_proto_tree_destroy()
@@ -22,6 +23,7 @@
 #include "mpdu.h"                   // mpdu_parse
 #include "output-common.h"          // output_queue_push, shutdown_outputs
 
+#define PREKEY_LEN 448
 #define A_LEN 127
 #define M1_LEN 127
 #define M2_LEN 15
@@ -221,6 +223,7 @@ struct hfdl_channel {
 	int32_t train_bits_bad;
 	int32_t T_idx;
 	uint32_t bitmask;
+	struct timeval pdu_timestamp;
 };
 
 /**********************************
@@ -589,6 +592,10 @@ static void *hfdl_decoder_thread(void *ctx) {
 	float evm_hat = 0.03f;
 	float complex d_prime;
 	struct shared_buffer *input = &block->consumer.in->shared_buffer;
+	static struct timeval ts_correction = {
+		.tv_sec = 0,
+		.tv_usec = (PREKEY_LEN + 2 * A_LEN) * 1000000UL / HFDL_SYMBOL_RATE
+	};
 
 	while(true) {
 		pthread_barrier_wait(input->consumers_ready);
@@ -748,6 +755,11 @@ static void *hfdl_decoder_thread(void *ctx) {
 				case FRAMER_A2_SEARCH:
 					corr_A2 = 2.0f * (float)bsequence_correlate(A_bs, c->bits) / (float)A_LEN - 1.0f;
 					if(fabsf(corr_A2) > CORR_THRESHOLD) {
+						// Save the current timestamp and go back by the length
+						// of the prekey and two A sequences, so that the timestamp
+						// points at the start of the frame.
+						gettimeofday(&c->pdu_timestamp, NULL);
+						timersub(&c->pdu_timestamp, &ts_correction, &c->pdu_timestamp);
 						chan_debug("A2 sequence found at sample %" PRIu64 " (corr=%f retry=%d costas_dphi=%f)\n",
 								c->sample_cnt, corr_A2, c->search_retries, c->loop->dphi);
 						S.A2_found++;
@@ -947,8 +959,8 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	//metadata->station_id = Config.station_id;
 	hm->freq = c->chan_freq;
 	//metadata->ppm_error = v->ppm_error;
-	//metadata->burst_timestamp.tv_sec = v->burst_timestamp.tv_sec;
-	//metadata->burst_timestamp.tv_usec = v->burst_timestamp.tv_usec;
+	hm->pdu_timestamp.tv_sec = c->pdu_timestamp.tv_sec;
+	hm->pdu_timestamp.tv_usec = c->pdu_timestamp.tv_usec;
 	uint32_t flags = 0;
 
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));

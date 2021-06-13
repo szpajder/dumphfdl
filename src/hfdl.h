@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #pragma once
+#include <sys/time.h>               // struct timeval
 #include "block.h"                  // struct block
 #include "util.h"                   // struct octet_string
 #include "metadata.h"               // struct metadata
@@ -10,6 +11,7 @@
 
 struct hfdl_pdu_metadata {
 	struct metadata metadata;
+	struct timeval pdu_timestamp;
 	char *station_id;
 	int32_t version;
 	int32_t freq;
