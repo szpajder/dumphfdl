@@ -15,7 +15,9 @@ struct hfdl_pdu_metadata {
 	char *station_id;
 	int32_t version;
 	int32_t freq;
+	int32_t bit_rate;
 	float freq_err_hz;
+	char slot;              // 'S' - single slot frame, 'D' - double slot frame
 	bool crc_ok;
 };
 

@@ -181,7 +181,7 @@ static void *hfdl_decoder_thread(void *ctx);
 static void *pdu_decoder_thread(void *ctx);
 static int32_t match_sequence(bsequence *templates, size_t template_cnt, bsequence bits, float *result_corr);
 static void compute_train_bit_error_cnt(struct hfdl_channel *c);
-static void decode_user_data(struct hfdl_channel *c, int32_t M1);
+static void decode_user_data(struct hfdl_channel *c);
 static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
 static void pdu_decoder_queue_push(struct metadata *metadata, struct octet_string *pdu, uint32_t flags);
 static void sampler_reset(struct hfdl_channel *c);
@@ -222,6 +222,7 @@ struct hfdl_channel {
 	int32_t train_bits_total;
 	int32_t train_bits_bad;
 	int32_t T_idx;
+	int32_t M1;
 	uint32_t bitmask;
 	// PDU metadata
 	struct timeval pdu_timestamp;
@@ -782,6 +783,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						S.M1_corr_total += fabsf(corr_M1);
 						c->data_segment_cnt = hfdl_frame_params[M1_match].data_segment_cnt;
 						c->data_mod_arity = hfdl_frame_params[M1_match].scheme;
+						c->M1 = M1_match;
 						c->symbols_wanted = M2_LEN;
 						c->search_retries = 0;
 						c->fr_state = FRAMER_M2_SKIP;
@@ -818,7 +820,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						chan_debug("train_bits_bad: %d/%d (%f%%)\n",
 								c->train_bits_bad, c->train_bits_total,
 								(float)c->train_bits_bad / (float)c->train_bits_total * 100.f);
-						decode_user_data(c, M1_match);
+						decode_user_data(c);
 						framer_reset(c);
 					}
 					break;
@@ -900,8 +902,9 @@ static void framer_reset(struct hfdl_channel *c) {
 	sampler_reset(c);
 }
 
-static void decode_user_data(struct hfdl_channel *c, int32_t M1) {
+static void decode_user_data(struct hfdl_channel *c) {
 	static float const phase_flip[2] = { [0] = 1.0f, [1] = -1.0f };
+	int32_t M1 = c->M1;
 	uint32_t num_symbols = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN;
 	ASSERT(num_symbols == cbuffercf_size(c->data_symbols));
 	uint32_t num_encoded_bits = num_symbols * c->data_mod_arity;
@@ -959,11 +962,18 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	struct metadata *m = hfdl_pdu_metadata_create();
 	struct hfdl_pdu_metadata *hm = container_of(m, struct hfdl_pdu_metadata, metadata);
 	hm->version = 1;
-	//metadata->station_id = Config.station_id;
 	hm->freq = c->chan_freq;
 	hm->freq_err_hz = c->freq_err_hz;
 	hm->pdu_timestamp.tv_sec = c->pdu_timestamp.tv_sec;
 	hm->pdu_timestamp.tv_usec = c->pdu_timestamp.tv_usec;
+
+	ASSERT(c->M1 >= 0);
+	ASSERT(c->M1 < M_SHIFT_CNT);
+	struct hfdl_params const *p = &hfdl_frame_params[c->M1];
+	hm->bit_rate = HFDL_SYMBOL_RATE * p->scheme / p->code_rate *
+		DATA_FRAME_LEN / (DATA_FRAME_LEN + T_LEN);
+	hm->slot = p->data_segment_cnt == DATA_FRAME_CNT_SINGLE_SLOT ? 'S' : 'D';
+
 	uint32_t flags = 0;
 
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));

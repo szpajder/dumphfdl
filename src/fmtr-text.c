@@ -47,10 +47,12 @@ static struct octet_string *fmtr_text_format_decoded_msg(struct metadata *metada
 	la_vstring *timestamp = format_timestamp(hm->pdu_timestamp);
 	la_vstring *vstr = la_vstring_new();
 
-	la_vstring_append_sprintf(vstr, "[%s] [%d kHz] [%.1f Hz]",
+	la_vstring_append_sprintf(vstr, "[%s] [%d kHz] [%.1f Hz] [%d bps] [%c]",
 			timestamp->str,
 			hm->freq / 1000,
-			hm->freq_err_hz
+			hm->freq_err_hz,
+			hm->bit_rate,
+			hm->slot
 			);
 	la_vstring_destroy(timestamp, true);
 
