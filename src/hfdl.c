@@ -313,12 +313,12 @@ struct deinterleaver {
 #define DEINTERLEAVER_POP_ROW_SHIFT 9
 
 static deinterleaver deinterleaver_create(int32_t M1) {
-	deinterleaver d = calloc(DEINTERLEAVER_ROW_CNT, sizeof(struct deinterleaver));
+	deinterleaver d = XCALLOC(DEINTERLEAVER_ROW_CNT, sizeof(struct deinterleaver));
 	d->column_cnt = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN
 		* hfdl_frame_params[M1].scheme / DEINTERLEAVER_ROW_CNT;
-	d->table = calloc(DEINTERLEAVER_ROW_CNT, sizeof(uint32_t *));
+	d->table = XCALLOC(DEINTERLEAVER_ROW_CNT, sizeof(uint32_t *));
 	for(int32_t i = 0; i < DEINTERLEAVER_ROW_CNT; i++) {
-		d->table[i] = calloc(d->column_cnt, sizeof(uint32_t));
+		d->table[i] = XCALLOC(d->column_cnt, sizeof(uint32_t));
 	}
 	d->push_column_shift = hfdl_frame_params[M1].deinterleaver_push_column_shift;
 	debug_print(D_BURST, "M1: %d column_cnt: %d total_size: %d column_shift: %d\n",
