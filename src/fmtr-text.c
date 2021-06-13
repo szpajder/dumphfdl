@@ -8,6 +8,7 @@
 #include "fmtr-text.h"
 #include "output-common.h"              // fmtr_descriptor_t
 #include "util.h"                       // struct octet_string, Config, EOL
+#include "hfdl.h"                       // struct hfdl_pdu_metadata
 
 static bool fmtr_text_supports_data_type(fmtr_input_type_t type) {
 	return(type == FMTR_INTYPE_DECODED_FRAME);
@@ -37,14 +38,16 @@ static la_vstring *format_timestamp(struct timeval tv) {
 	return vstr;
 }
 
-static struct octet_string *fmtr_text_format_decoded_msg(struct hfdl_msg_metadata *metadata, la_proto_node *root) {
+static struct octet_string *fmtr_text_format_decoded_msg(struct metadata *metadata, la_proto_node *root) {
 	ASSERT(metadata != NULL);
 	ASSERT(root != NULL);
 
+	struct hfdl_pdu_metadata *hm = container_of(metadata, struct hfdl_pdu_metadata,
+			metadata);
 	//la_vstring *timestamp = format_timestamp(metadata->burst_timestamp);
 	la_vstring *vstr = la_vstring_new();
 
-	la_vstring_append_sprintf(vstr, "[%d kHz]", metadata->freq / 1000);
+	la_vstring_append_sprintf(vstr, "[%d kHz]", hm->freq / 1000);
 	//la_vstring_destroy(timestamp, true);
 
 	EOL(vstr);

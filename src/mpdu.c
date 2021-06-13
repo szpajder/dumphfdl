@@ -3,7 +3,7 @@
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/list.h>          // la_list
-#include "hfdl.h"                   // struct hfdl_pdu_qentry
+#include "hfdl.h"                   // struct hfdl_pdu_metadata
 #include "mpdu.h"                   // mpdu_direction
 #include "util.h"                   // NEW, ASSERT, struct octet_string
 #include "crc.h"                    // crc16_ccitt
@@ -14,16 +14,19 @@ struct hfdl_mpdu {
 
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_mpdu;
-static la_list *mpdu_parse_uplink(struct hfdl_pdu_qentry *q,
-		la_reasm_ctx *reasm_ctx, la_list *lpdu_list);
-static la_list *mpdu_parse_downlink(struct hfdl_pdu_qentry *q,
-		la_reasm_ctx *reasm_ctx, la_list *lpdu_list);
+static la_list *mpdu_parse_uplink(struct octet_string *pdu,
+		struct hfdl_pdu_metadata *metadata, la_reasm_ctx *reasm_ctx,
+		la_list *lpdu_list);
+static la_list *mpdu_parse_downlink(struct octet_string *pdu,
+		struct hfdl_pdu_metadata *metadata, la_reasm_ctx *reasm_ctx,
+		la_list *lpdu_list);
 static bool mpdu_fcs_check(uint8_t *buf, uint32_t hdr_len);
 
-la_list *mpdu_parse(struct hfdl_pdu_qentry *q, la_reasm_ctx *reasm_ctx) {
-	ASSERT(q);
-	ASSERT(q->pdu->buf);
-	ASSERT(q->pdu->len > 0);
+la_list *mpdu_parse(struct octet_string *pdu, struct hfdl_pdu_metadata *metadata,
+		la_reasm_ctx *reasm_ctx) {
+	ASSERT(pdu);
+	ASSERT(pdu->buf);
+	ASSERT(pdu->len > 0);
 
 	la_list *lpdu_list = NULL;
 	// If raw frame output has been requested by the user,
@@ -32,23 +35,24 @@ la_list *mpdu_parse(struct hfdl_pdu_qentry *q, la_reasm_ctx *reasm_ctx) {
 	// If --raw-frames is disabled, then this node is omitted.
 	if(Config.output_raw_frames == true) {
 		NEW(struct hfdl_mpdu, mpdu);
-		mpdu->pdu = q->pdu;
+		mpdu->pdu = pdu;
 		la_proto_node *node = la_proto_node_new();
 		node->data = mpdu;
 		node->td = &proto_DEF_hfdl_mpdu;
 		lpdu_list = la_list_append(lpdu_list, node);
 	}
-	enum mpdu_direction direction = q->pdu->buf[0] & 0x2;
+	enum mpdu_direction direction = pdu->buf[0] & 0x2;
 	lpdu_list = (direction == UPLINK_MPDU ?
-			mpdu_parse_uplink(q, reasm_ctx, lpdu_list) :
-			mpdu_parse_downlink(q, reasm_ctx, lpdu_list));
+			mpdu_parse_uplink(pdu, metadata, reasm_ctx, lpdu_list) :
+			mpdu_parse_downlink(pdu, metadata, reasm_ctx, lpdu_list));
 	return lpdu_list;
 }
 
-static la_list *mpdu_parse_uplink(struct hfdl_pdu_qentry *q,
-		la_reasm_ctx *reasm_ctx, la_list *lpdu_list) {
-	uint8_t *buf = q->pdu->buf;
-	uint32_t len = q->pdu->len;
+static la_list *mpdu_parse_uplink(struct octet_string *pdu,
+		struct hfdl_pdu_metadata *metadata, la_reasm_ctx *reasm_ctx,
+		la_list *lpdu_list) {
+	uint8_t *buf = pdu->buf;
+	uint32_t len = pdu->len;
 
 	if(len < 4) {
 		goto end;
@@ -62,16 +66,17 @@ static la_list *mpdu_parse_uplink(struct hfdl_pdu_qentry *q,
 	if(!mpdu_fcs_check(buf, hdr_len)) {
 		goto end;
 	}
-	q->metadata->crc_ok = true;
+	metadata->crc_ok = true;
 
 end:
 	return lpdu_list;
 }
 
-static la_list *mpdu_parse_downlink(struct hfdl_pdu_qentry *q,
-		la_reasm_ctx *reasm_ctx, la_list *lpdu_list) {
-	uint8_t *buf = q->pdu->buf;
-	uint32_t len = q->pdu->len;
+static la_list *mpdu_parse_downlink(struct octet_string *pdu,
+		struct hfdl_pdu_metadata *metadata, la_reasm_ctx *reasm_ctx,
+		la_list *lpdu_list) {
+	uint8_t *buf = pdu->buf;
+	uint32_t len = pdu->len;
 
 	uint32_t lpdu_cnt = (buf[0] >> 2) & 0xF;
 	uint32_t hdr_len = 6 + lpdu_cnt;     // header length, without FCS
@@ -82,7 +87,7 @@ static la_list *mpdu_parse_downlink(struct hfdl_pdu_qentry *q,
 	if(!mpdu_fcs_check(buf, hdr_len)) {
 		goto end;
 	}
-	q->metadata->crc_ok = true;
+	metadata->crc_ok = true;
 
 end:
 	return lpdu_list;

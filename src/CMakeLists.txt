@@ -227,6 +227,7 @@ add_library (dumphfdl_base OBJECT
 	libcsdr.c
 	libcsdr_gpl.c
 	main.c
+	metadata.c
 	mpdu.c
 	options.c
 	output-common.c

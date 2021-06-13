@@ -8,6 +8,7 @@
 #include <libacars/list.h>              // la_list
 #include "kvargs.h"                     // kvargs
 #include "options.h"                    // options_descr_t
+#include "metadata.h"                   // struct metadata
 
 // default output specification - decoded text output to stdout
 #define DEFAULT_OUTPUT "decoded:text:file:path=-"
@@ -16,13 +17,6 @@
 #define OUTPUT_QUEUE_HWM_DEFAULT 1000
 // high water mark disabled
 #define OUTPUT_QUEUE_HWM_NONE 0
-
-struct hfdl_msg_metadata {
-	char *station_id;
-	int32_t version;
-	int32_t freq;
-	bool crc_ok;
-};
 
 // Data type on formatter input
 typedef enum {
@@ -37,8 +31,8 @@ typedef enum {
 	OFMT_TEXT       = 1
 } output_format_t;
 
-typedef struct octet_string* (fmt_decoded_fun_t)(struct hfdl_msg_metadata *, la_proto_node *);
-typedef struct octet_string* (fmt_raw_fun_t)(struct hfdl_msg_metadata *, struct octet_string *);
+typedef struct octet_string* (fmt_decoded_fun_t)(struct metadata *, la_proto_node *);
+typedef struct octet_string* (fmt_raw_fun_t)(struct metadata *, struct octet_string *);
 typedef bool (intype_check_fun_t)(fmtr_input_type_t);
 
 // Frame formatter descriptor
@@ -61,7 +55,7 @@ typedef struct {
 typedef bool (output_format_check_fun_t)(output_format_t);
 typedef void* (output_configure_fun_t)(kvargs *);
 typedef int (output_init_fun_t)(void *);
-typedef int (output_produce_msg_fun_t)(void *, output_format_t, struct hfdl_msg_metadata *, struct octet_string *);
+typedef int (output_produce_msg_fun_t)(void *, output_format_t, struct metadata *, struct octet_string *);
 typedef void (output_shutdown_handler_fun_t)(void *);
 typedef void (output_failure_handler_fun_t)(void *);
 
@@ -96,7 +90,7 @@ typedef struct {
 // Messages passed via output queues
 typedef struct {
 	struct octet_string *msg;               // formatted message
-	struct hfdl_msg_metadata *metadata;     // message metadata
+	struct metadata *metadata;              // opaque message metadata
 	output_format_t format;                 // format of the data stored in msg
 	uint32_t flags;                         // flags
 } output_qentry_t;
@@ -118,8 +112,5 @@ void *output_thread(void *arg);
 void output_queue_push(void *data, void *ctx);
 void shutdown_outputs(la_list *fmtr_list);
 bool output_thread_is_any_running(la_list *fmtr_list);
-
-struct hfdl_msg_metadata *hfdl_msg_metadata_copy(struct hfdl_msg_metadata const *m);
-void hfdl_msg_metadata_destroy(struct hfdl_msg_metadata *m);
 
 void output_usage();

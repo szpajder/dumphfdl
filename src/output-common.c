@@ -3,9 +3,9 @@
 #include <glib.h>               // g_async_queue_new
 #include <libacars/dict.h>      // la_dict
 #include "config.h"             // WITH_*
-#include "hfdl.h"               // hfdl_msg_metadata
 #include "util.h"               // NEW, ASSERT
 #include "options.h"            // describe_option
+#include "metadata.h"           // struct metadata, metadata_copy, metadata_destroy
 #include "output-common.h"
 
 #include "fmtr-text.h"          // fmtr_DEF_text
@@ -126,7 +126,7 @@ output_qentry_t *output_qentry_copy(output_qentry_t const *q) {
 		copy->msg = octet_string_copy(q->msg);
 	}
 	if(q->metadata != NULL) {
-		copy->metadata = hfdl_msg_metadata_copy(q->metadata);
+		copy->metadata = metadata_copy(q->metadata);
 	}
 	copy->format = q->format;
 	copy->flags = q->flags;
@@ -138,7 +138,7 @@ void output_qentry_destroy(output_qentry_t *q) {
 		return;
 	}
 	octet_string_destroy(q->msg);
-	hfdl_msg_metadata_destroy(q->metadata);
+	metadata_destroy(q->metadata);
 	XFREE(q);
 }
 
@@ -150,24 +150,6 @@ void output_queue_drain(GAsyncQueue *q) {
 		output_qentry_destroy(qentry);
 	}
 	g_async_queue_unlock(q);
-}
-
-struct hfdl_msg_metadata *hfdl_msg_metadata_copy(struct hfdl_msg_metadata const *m) {
-	ASSERT(m != NULL);
-	NEW(struct hfdl_msg_metadata, copy);
-	memcpy(copy, m, sizeof(struct hfdl_msg_metadata));
-	if(m->station_id != NULL) {
-		copy->station_id = strdup(m->station_id);
-	}
-	return copy;
-}
-
-void hfdl_msg_metadata_destroy(struct hfdl_msg_metadata *m) {
-	if(m == NULL) {
-		return;
-	}
-	XFREE(m->station_id);
-	XFREE(m);
 }
 
 void output_usage() {

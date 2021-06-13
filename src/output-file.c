@@ -147,7 +147,7 @@ static int out_file_rotate(out_file_ctx_t *self) {
 	return 0;
 }
 
-static void out_file_produce_text(out_file_ctx_t *self, struct hfdl_msg_metadata *metadata, struct octet_string *msg) {
+static void out_file_produce_text(out_file_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(msg != NULL);
 	ASSERT(self->fh != NULL);
 	UNUSED(metadata);
@@ -156,7 +156,7 @@ static void out_file_produce_text(out_file_ctx_t *self, struct hfdl_msg_metadata
 	fflush(self->fh);
 }
 
-static void out_file_produce_binary(out_file_ctx_t *self, struct hfdl_msg_metadata *metadata, struct octet_string *msg) {
+static void out_file_produce_binary(out_file_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(msg != NULL);
 	ASSERT(self->fh != NULL);
 	UNUSED(metadata);
@@ -174,7 +174,7 @@ static void out_file_produce_binary(out_file_ctx_t *self, struct hfdl_msg_metada
     fflush(self->fh);
 }
 
-static int out_file_produce(void *selfptr, output_format_t format, struct hfdl_msg_metadata *metadata, struct octet_string *msg) {
+static int out_file_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_file_ctx_t *self = selfptr;
 	if(self->rotate != ROT_NONE && out_file_rotate(self) < 0) {

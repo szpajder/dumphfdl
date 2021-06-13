@@ -18,8 +18,9 @@
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc
 #include "libfec/fec.h"             // viterbi27
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS, hfdl_pdu_qentry
+#include "metadata.h"               // struct metadata
 #include "mpdu.h"                   // mpdu_parse
-#include "output-common.h"          // hfdl_msg_metadata, output_queue_push, shutdown_outputs
+#include "output-common.h"          // output_queue_push, shutdown_outputs
 
 #define A_LEN 127
 #define M1_LEN 127
@@ -180,9 +181,11 @@ static int32_t match_sequence(bsequence *templates, size_t template_cnt, bsequen
 static void compute_train_bit_error_cnt(struct hfdl_channel *c);
 static void decode_user_data(struct hfdl_channel *c, int32_t M1);
 static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
-static void pdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *pdu, uint32_t flags);
+static void pdu_decoder_queue_push(struct metadata *metadata, struct octet_string *pdu, uint32_t flags);
 static void sampler_reset(struct hfdl_channel *c);
 static void framer_reset(struct hfdl_channel *c);
+
+struct metadata *hfdl_pdu_metadata_create();
 
 struct hfdl_channel {
 	struct block block;
@@ -938,10 +941,11 @@ static void decode_user_data(struct hfdl_channel *c, int32_t M1) {
 }
 
 static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
-	NEW(struct hfdl_msg_metadata, metadata);
-	metadata->version = 1;
+	struct metadata *m = hfdl_pdu_metadata_create();
+	struct hfdl_pdu_metadata *hm = container_of(m, struct hfdl_pdu_metadata, metadata);
+	hm->version = 1;
 	//metadata->station_id = Config.station_id;
-	metadata->freq = c->chan_freq;
+	hm->freq = c->chan_freq;
 	//metadata->ppm_error = v->ppm_error;
 	//metadata->burst_timestamp.tv_sec = v->burst_timestamp.tv_sec;
 	//metadata->burst_timestamp.tv_usec = v->burst_timestamp.tv_usec;
@@ -949,10 +953,10 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));
 	memcpy(copy, buf, len);
-	pdu_decoder_queue_push(metadata, octet_string_new(copy, len), flags);
+	pdu_decoder_queue_push(m, octet_string_new(copy, len), flags);
 }
 
-static void pdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *pdu, uint32_t flags) {
+static void pdu_decoder_queue_push(struct metadata *metadata, struct octet_string *pdu, uint32_t flags) {
 	NEW(struct hfdl_pdu_qentry, qentry);
 	qentry->metadata = metadata;
 	qentry->pdu = pdu;
@@ -992,7 +996,9 @@ static void *pdu_decoder_thread(void *ctx) {
 				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
 					if(IS_MPDU(q->pdu->buf)) {
-						lpdu_list = mpdu_parse(q, reasm_ctx);
+						struct hfdl_pdu_metadata *hm = container_of(q->metadata,
+								struct hfdl_pdu_metadata, metadata);
+						lpdu_list = mpdu_parse(q->pdu, hm, reasm_ctx);
 					}
 					if(lpdu_list != NULL) {
 						decoding_status = DECODING_SUCCESS;
@@ -1040,4 +1046,39 @@ static void *pdu_decoder_thread(void *ctx) {
 		XFREE(q);
 	}
 	return NULL;
+}
+
+/**********************************
+ * HFDL PDU metadata
+ **********************************/
+
+static struct metadata *hfdl_pdu_metadata_copy(struct metadata const *m) {
+	ASSERT(m != NULL);
+	struct hfdl_pdu_metadata *hm = container_of(m, struct hfdl_pdu_metadata, metadata);
+	NEW(struct hfdl_pdu_metadata, copy);
+	memcpy(copy, hm, sizeof(struct hfdl_pdu_metadata));
+	if(hm->station_id != NULL) {
+		copy->station_id = strdup(hm->station_id);
+	}
+	return &copy->metadata;
+}
+
+static void hfdl_pdu_metadata_destroy(struct metadata *m) {
+	if(m == NULL) {
+		return;
+	}
+	struct hfdl_pdu_metadata *hm = container_of(m, struct hfdl_pdu_metadata, metadata);
+	XFREE(hm->station_id);
+	XFREE(hm);
+}
+
+static struct metadata_vtable hfdl_pdu_metadata_vtable = {
+	.copy = hfdl_pdu_metadata_copy,
+	.destroy = hfdl_pdu_metadata_destroy
+};
+
+struct metadata *hfdl_pdu_metadata_create() {
+	NEW(struct hfdl_pdu_metadata, m);
+	m->metadata.vtable = &hfdl_pdu_metadata_vtable;
+	return &m->metadata;
 }
