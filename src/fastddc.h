@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+#pragma once
 #include <math.h>
 #include <complex.h>
 #include "fft.h"                // FFT_PLAN_T

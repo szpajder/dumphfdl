@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-
+#pragma once
 #include "output-common.h"          // output_descriptor_t
 
 // Maximum allowed length of a binary-serialized frame (including length field)
