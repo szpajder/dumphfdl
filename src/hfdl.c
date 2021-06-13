@@ -971,6 +971,8 @@ static void *pdu_decoder_thread(void *ctx) {
 		DECODING_SUCCESS,
 		DECODING_FAILURE
 	} decoding_status;
+	#define IS_MPDU(buf) ((buf)[0] & 1)
+
 	while(true) {
 		q = g_async_queue_pop(pdu_decoder_queue);
 		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
@@ -989,7 +991,9 @@ static void *pdu_decoder_thread(void *ctx) {
 			if(fmtr->intype == FMTR_INTYPE_DECODED_FRAME) {
 				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
-					root = mpdu_parse(q, reasm_ctx);
+					if(IS_MPDU(q->pdu->buf)) {
+						root = mpdu_parse(q, reasm_ctx);
+					}
 					if(root != NULL) {
 						decoding_status = DECODING_SUCCESS;
 					} else {
