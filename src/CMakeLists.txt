@@ -214,6 +214,7 @@ add_subdirectory (libfec)
 
 add_library (dumphfdl_base OBJECT
 	block.c
+	crc.c
 	fastddc.c
 	fft.c
 	fmtr-text.c

@@ -12,11 +12,18 @@ struct hfdl_mpdu {
 	struct octet_string *pdu;
 };
 
-// Forward declaration
+// Forward declarations
 la_type_descriptor const proto_DEF_hfdl_mpdu;
+static la_list *mpdu_parse_uplink(struct hfdl_pdu_qentry *q,
+		la_reasm_ctx *reasm_ctx, la_list *lpdu_list);
+static la_list *mpdu_parse_downlink(struct hfdl_pdu_qentry *q,
+		la_reasm_ctx *reasm_ctx, la_list *lpdu_list);
+static bool mpdu_fcs_check(uint8_t *buf, uint32_t hdr_len);
 
 la_list *mpdu_parse(struct hfdl_pdu_qentry *q, la_reasm_ctx *reasm_ctx) {
 	ASSERT(q);
+	ASSERT(q->pdu->buf);
+	ASSERT(q->pdu->len > 0);
 
 	la_list *lpdu_list = NULL;
 	// If raw frame output has been requested by the user,
@@ -31,7 +38,67 @@ la_list *mpdu_parse(struct hfdl_pdu_qentry *q, la_reasm_ctx *reasm_ctx) {
 		node->td = &proto_DEF_hfdl_mpdu;
 		lpdu_list = la_list_append(lpdu_list, node);
 	}
+	enum mpdu_direction direction = q->pdu->buf[0] & 0x2;
+	lpdu_list = (direction == UPLINK_MPDU ?
+			mpdu_parse_uplink(q, reasm_ctx, lpdu_list) :
+			mpdu_parse_downlink(q, reasm_ctx, lpdu_list));
 	return lpdu_list;
+}
+
+static la_list *mpdu_parse_uplink(struct hfdl_pdu_qentry *q,
+		la_reasm_ctx *reasm_ctx, la_list *lpdu_list) {
+	uint8_t *buf = q->pdu->buf;
+	uint32_t len = q->pdu->len;
+
+	if(len < 4) {
+		goto end;
+	}
+	uint32_t lpdu_cnt = (buf[3] >> 4) & 0xF;
+	uint32_t hdr_len = 4 + lpdu_cnt;    // header length, without FCS
+	if(len < hdr_len + lpdu_cnt + 2) {
+		debug_print(D_PROTO, "Too short: %u < %u\n", len, hdr_len + lpdu_cnt + 2);
+		goto end;
+	}
+	if(!mpdu_fcs_check(buf, hdr_len)) {
+		goto end;
+	}
+	q->metadata->crc_ok = true;
+
+end:
+	return lpdu_list;
+}
+
+static la_list *mpdu_parse_downlink(struct hfdl_pdu_qentry *q,
+		la_reasm_ctx *reasm_ctx, la_list *lpdu_list) {
+	uint8_t *buf = q->pdu->buf;
+	uint32_t len = q->pdu->len;
+
+	uint32_t lpdu_cnt = (buf[0] >> 2) & 0xF;
+	uint32_t hdr_len = 6 + lpdu_cnt;     // header length, without FCS
+	if(len < hdr_len + lpdu_cnt + 2) {
+		debug_print(D_PROTO, "Too short: %u < %u\n", len, hdr_len + lpdu_cnt + 2);
+		goto end;
+	}
+	if(!mpdu_fcs_check(buf, hdr_len)) {
+		goto end;
+	}
+	q->metadata->crc_ok = true;
+
+end:
+	return lpdu_list;
+}
+
+static bool mpdu_fcs_check(uint8_t *buf, uint32_t hdr_len) {
+	uint16_t fcs_check = buf[hdr_len] | (buf[hdr_len + 1] << 8);
+	uint16_t fcs_computed = crc16_ccitt(buf, hdr_len, 0xFFFFu) ^ 0xFFFFu;
+	debug_print(D_PROTO, "FCS: computed: 0x%04x check: 0x%04x\n",
+			fcs_computed, fcs_check);
+	if(fcs_check != fcs_computed) {
+		debug_print(D_PROTO, "FCS check failed\n");
+		return false;
+	}
+	debug_print(D_PROTO, "FCS check OK\n");
+	return true;
 }
 
 static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {

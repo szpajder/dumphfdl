@@ -6,4 +6,9 @@
 #include "hfdl.h"                   // struct hfdl_pdu_qentry
 #include "util.h"                   // struct octet_string
 
+enum mpdu_direction {
+	UPLINK_MPDU = 0,
+	DOWNLINK_MPDU = 2
+};
+
 la_list *mpdu_parse(struct hfdl_pdu_qentry *q, la_reasm_ctx *reasm_ctx);

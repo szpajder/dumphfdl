@@ -21,6 +21,7 @@ struct hfdl_msg_metadata {
 	char *station_id;
 	int32_t version;
 	int32_t freq;
+	bool crc_ok;
 };
 
 // Data type on formatter input
