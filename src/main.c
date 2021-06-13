@@ -401,8 +401,8 @@ int32_t main(int32_t argc, char **argv) {
 	}
 
 	start_all_output_threads(fmtr_list);
-	hfdl_mpdu_decoder_init();
-	if(hfdl_mpdu_decoder_start(fmtr_list) != 0) {
+	hfdl_pdu_decoder_init();
+	if(hfdl_pdu_decoder_start(fmtr_list) != 0) {
 	    fprintf(stderr, "Failed to start decoder thread, aborting\n");
 	    return 1;
 	}
@@ -421,13 +421,13 @@ int32_t main(int32_t argc, char **argv) {
 	while(!do_exit) {
 		sleep(1);
 	}
-	hfdl_mpdu_decoder_stop();
+	hfdl_pdu_decoder_stop();
 	fprintf(stderr, "Waiting for all threads to finish\n");
 	while(do_exit < 2 && (
 			block_is_running(input) ||
 			block_is_running(fft) ||
 			block_set_is_any_running(channel_cnt, channels) ||
-			hfdl_mpdu_decoder_is_running() ||
+			hfdl_pdu_decoder_is_running() ||
 			output_thread_is_any_running(fmtr_list)
 			)) {
 		usleep(500000);

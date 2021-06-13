@@ -17,8 +17,8 @@
 #include "util.h"                   // NEW, XCALLOC, octet_string_*
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc
 #include "libfec/fec.h"             // viterbi27
-#include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS
-#include "mpdu.h"                   // struct hfdl_mpdu_qentry
+#include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS, hfdl_pdu_qentry
+#include "mpdu.h"                   // mpdu_parse
 #include "output-common.h"          // hfdl_msg_metadata, output_queue_push, shutdown_outputs
 
 #define A_LEN 127
@@ -162,8 +162,8 @@ static uint32_t T = 0x9AF;      // training sequence
 
 static bsequence A_bs, M1[M_SHIFT_CNT], M2[M_SHIFT_CNT];
 
-static GAsyncQueue *mpdu_decoder_queue;
-static bool mpdu_decoder_thread_active = false;
+static GAsyncQueue *pdu_decoder_queue;
+static bool pdu_decoder_thread_active = false;
 
 /**********************************
  * Forward declarations
@@ -175,12 +175,12 @@ typedef struct descrambler *descrambler;
 struct hfdl_channel;
 
 static void *hfdl_decoder_thread(void *ctx);
-static void *mpdu_decoder_thread(void *ctx);
+static void *pdu_decoder_thread(void *ctx);
 static int32_t match_sequence(bsequence *templates, size_t template_cnt, bsequence bits, float *result_corr);
 static void compute_train_bit_error_cnt(struct hfdl_channel *c);
 static void decode_user_data(struct hfdl_channel *c, int32_t M1);
-static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
-static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *mpdu, uint32_t flags);
+static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
+static void pdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *pdu, uint32_t flags);
 static void sampler_reset(struct hfdl_channel *c);
 static void framer_reset(struct hfdl_channel *c);
 
@@ -466,25 +466,25 @@ fail:
 
 }
 
-void hfdl_mpdu_decoder_init(void) {
-	mpdu_decoder_queue = g_async_queue_new();
+void hfdl_pdu_decoder_init(void) {
+	pdu_decoder_queue = g_async_queue_new();
 }
 
-int32_t hfdl_mpdu_decoder_start(void *ctx) {
-	pthread_t mpdu_th;
-	int32_t ret = start_thread(&mpdu_th, mpdu_decoder_thread, ctx);
+int32_t hfdl_pdu_decoder_start(void *ctx) {
+	pthread_t pdu_th;
+	int32_t ret = start_thread(&pdu_th, pdu_decoder_thread, ctx);
 	if(ret == 0) {
-		mpdu_decoder_thread_active = true;
+		pdu_decoder_thread_active = true;
 	}
 	return ret;
 }
 
-void hfdl_mpdu_decoder_stop(void) {
-	mpdu_decoder_queue_push(NULL, NULL, OUT_FLAG_ORDERED_SHUTDOWN);
+void hfdl_pdu_decoder_stop(void) {
+	pdu_decoder_queue_push(NULL, NULL, OUT_FLAG_ORDERED_SHUTDOWN);
 }
 
-bool hfdl_mpdu_decoder_is_running(void) {
-	return mpdu_decoder_thread_active;
+bool hfdl_pdu_decoder_is_running(void) {
+	return pdu_decoder_thread_active;
 }
 
 void hfdl_print_summary(void) {
@@ -934,10 +934,10 @@ static void decode_user_data(struct hfdl_channel *c, int32_t M1) {
 		viterbi_output[i] = ((viterbi_output[i] * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32;
 	}
 	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output (reversed):\n");
-	dispatch_mpdu(c, viterbi_output, viterbi_output_len_octets);
+	dispatch_pdu(c, viterbi_output, viterbi_output_len_octets);
 }
 
-static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
+static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	NEW(struct hfdl_msg_metadata, metadata);
 	metadata->version = 1;
 	//metadata->station_id = Config.station_id;
@@ -949,21 +949,21 @@ static void dispatch_mpdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));
 	memcpy(copy, buf, len);
-	mpdu_decoder_queue_push(metadata, octet_string_new(copy, len), flags);
+	pdu_decoder_queue_push(metadata, octet_string_new(copy, len), flags);
 }
 
-static void mpdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *mpdu, uint32_t flags) {
-	NEW(struct hfdl_mpdu_qentry, qentry);
+static void pdu_decoder_queue_push(struct hfdl_msg_metadata *metadata, struct octet_string *pdu, uint32_t flags) {
+	NEW(struct hfdl_pdu_qentry, qentry);
 	qentry->metadata = metadata;
-	qentry->pdu = mpdu;
+	qentry->pdu = pdu;
 	qentry->flags = flags;
-	g_async_queue_push(mpdu_decoder_queue, qentry);
+	g_async_queue_push(pdu_decoder_queue, qentry);
 }
 
-static void *mpdu_decoder_thread(void *ctx) {
+static void *pdu_decoder_thread(void *ctx) {
 	ASSERT(ctx != NULL);
 	la_list *fmtr_list = ctx;
-	struct hfdl_mpdu_qentry *q = NULL;
+	struct hfdl_pdu_qentry *q = NULL;
 	la_proto_node *root = NULL;
 	la_reasm_ctx *reasm_ctx = la_reasm_ctx_new();
 	enum {
@@ -972,11 +972,11 @@ static void *mpdu_decoder_thread(void *ctx) {
 		DECODING_FAILURE
 	} decoding_status;
 	while(true) {
-		q = g_async_queue_pop(mpdu_decoder_queue);
+		q = g_async_queue_pop(pdu_decoder_queue);
 		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
 			fprintf(stderr, "Shutting down decoder thread\n");
 			shutdown_outputs(fmtr_list);
-			mpdu_decoder_thread_active = false;
+			pdu_decoder_thread_active = false;
 			break;
 		}
 		ASSERT(q->metadata != NULL);
@@ -987,7 +987,7 @@ static void *mpdu_decoder_thread(void *ctx) {
 		for(la_list *p = fmtr_list; p != NULL; p = la_list_next(p)) {
 			fmtr = p->data;
 			if(fmtr->intype == FMTR_INTYPE_DECODED_FRAME) {
-				// Decode the MPDU unless we've done it before
+				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
 					root = mpdu_parse(q, reasm_ctx);
 					if(root != NULL) {

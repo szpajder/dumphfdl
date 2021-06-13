@@ -2,17 +2,18 @@
 #include <stdint.h>
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/reassembly.h>    // la_reasm_ctx
-#include "mpdu.h"                   // struct hfdl_mpdu_qentry
-#include "util.h"                   // NEW
+#include "hfdl.h"                   // struct hfdl_pdu_qentry
+#include "mpdu.h"                   // mpdu_direction
+#include "util.h"                   // NEW, ASSERT
 
 struct hfdl_mpdu {
-	struct hfdl_mpdu_qentry *q;
+	struct hfdl_pdu_qentry *q;
 };
 
 // Forward declaration
 la_type_descriptor const proto_DEF_hfdl_mpdu;
 
-la_proto_node *mpdu_parse(struct hfdl_mpdu_qentry *q, la_reasm_ctx *reasm_ctx) {
+la_proto_node *mpdu_parse(struct hfdl_pdu_qentry *q, la_reasm_ctx *reasm_ctx) {
 	la_proto_node *node = la_proto_node_new();
 	node->td = &proto_DEF_hfdl_mpdu;
 	NEW(struct hfdl_mpdu, mpdu);
