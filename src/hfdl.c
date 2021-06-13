@@ -223,7 +223,9 @@ struct hfdl_channel {
 	int32_t train_bits_bad;
 	int32_t T_idx;
 	uint32_t bitmask;
+	// PDU metadata
 	struct timeval pdu_timestamp;
+	float freq_err_hz;
 };
 
 /**********************************
@@ -762,6 +764,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						timersub(&c->pdu_timestamp, &ts_correction, &c->pdu_timestamp);
 						chan_debug("A2 sequence found at sample %" PRIu64 " (corr=%f retry=%d costas_dphi=%f)\n",
 								c->sample_cnt, corr_A2, c->search_retries, c->loop->dphi);
+						c->freq_err_hz = c->loop->dphi * HFDL_SYMBOL_RATE;
 						S.A2_found++;
 						S.A2_corr_total += fabsf(corr_A2);
 						c->symbols_wanted = M1_LEN;
@@ -958,7 +961,7 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	hm->version = 1;
 	//metadata->station_id = Config.station_id;
 	hm->freq = c->chan_freq;
-	//metadata->ppm_error = v->ppm_error;
+	hm->freq_err_hz = c->freq_err_hz;
 	hm->pdu_timestamp.tv_sec = c->pdu_timestamp.tv_sec;
 	hm->pdu_timestamp.tv_usec = c->pdu_timestamp.tv_usec;
 	uint32_t flags = 0;
