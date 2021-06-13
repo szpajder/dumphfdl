@@ -964,7 +964,7 @@ static void *pdu_decoder_thread(void *ctx) {
 	ASSERT(ctx != NULL);
 	la_list *fmtr_list = ctx;
 	struct hfdl_pdu_qentry *q = NULL;
-	la_proto_node *root = NULL;
+	la_list *lpdu_list = NULL;
 	la_reasm_ctx *reasm_ctx = la_reasm_ctx_new();
 	enum {
 		DECODING_NOT_DONE,
@@ -992,31 +992,31 @@ static void *pdu_decoder_thread(void *ctx) {
 				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
 					if(IS_MPDU(q->pdu->buf)) {
-						root = mpdu_parse(q, reasm_ctx);
+						lpdu_list = mpdu_parse(q, reasm_ctx);
 					}
-					if(root != NULL) {
+					if(lpdu_list != NULL) {
 						decoding_status = DECODING_SUCCESS;
 					} else {
 						decoding_status = DECODING_FAILURE;
-						la_proto_tree_destroy(root);
-						root = NULL;
 					}
 				}
 				if(decoding_status == DECODING_SUCCESS) {
-					struct octet_string *serialized_msg = fmtr->td->format_decoded_msg(q->metadata, root);
-					// First check if the formatter actually returned something.
-					// A formatter might be suitable only for a particular message type. If this is the case.
-					// it will return NULL for all messages it cannot handle.
-					// An example is pp_acars which only deals with ACARS messages.
-					if(serialized_msg != NULL) {
-						output_qentry_t qentry = {
-							.msg = serialized_msg,
-							.metadata = q->metadata,
-							.format = fmtr->td->output_format
-						};
-						la_list_foreach(fmtr->outputs, output_queue_push, &qentry);
-						// output_queue_push makes a copy of serialized_msg, so it's safe to free it now
-						octet_string_destroy(serialized_msg);
+					for(la_list *lpdu = lpdu_list; lpdu != NULL; lpdu = la_list_next(lpdu)) {
+						struct octet_string *serialized_msg = fmtr->td->format_decoded_msg(q->metadata, lpdu->data);
+						// First check if the formatter actually returned something.
+						// A formatter might be suitable only for a particular message type. If this is the case.
+						// it will return NULL for all messages it cannot handle.
+						// An example is pp_acars which only deals with ACARS messages.
+						if(serialized_msg != NULL) {
+							output_qentry_t qentry = {
+								.msg = serialized_msg,
+								.metadata = q->metadata,
+								.format = fmtr->td->output_format
+							};
+							la_list_foreach(fmtr->outputs, output_queue_push, &qentry);
+							// output_queue_push makes a copy of serialized_msg, so it's safe to free it now
+							octet_string_destroy(serialized_msg);
+						}
 					}
 				}
 			} else if(fmtr->intype == FMTR_INTYPE_RAW_FRAME) {
@@ -1033,8 +1033,8 @@ static void *pdu_decoder_thread(void *ctx) {
 				}
 			}
 		}
-		la_proto_tree_destroy(root);
-		root = NULL;
+		la_list_free_full(lpdu_list, la_proto_tree_destroy);
+		lpdu_list = NULL;
 		octet_string_destroy(q->pdu);
 		XFREE(q->metadata);
 		XFREE(q);
