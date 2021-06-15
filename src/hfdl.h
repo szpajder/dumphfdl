@@ -9,6 +9,19 @@
 #define HFDL_SYMBOL_RATE 1800
 #define HFDL_CHANNEL_TRANSITION_BW_HZ 250
 
+enum hfdl_pdu_direction {
+	UPLINK_PDU = 0,
+	DOWNLINK_PDU = 1
+};
+
+// Useful fields extracted from MPDU/SPDU header
+struct hfdl_pdu_hdr_data {
+	uint8_t gs_id;
+	uint8_t aircraft_id;
+	enum hfdl_pdu_direction direction;
+	bool crc_ok;
+};
+
 struct hfdl_pdu_metadata {
 	struct metadata metadata;
 	struct timeval pdu_timestamp;
@@ -18,7 +31,6 @@ struct hfdl_pdu_metadata {
 	int32_t bit_rate;
 	float freq_err_hz;
 	char slot;              // 'S' - single slot frame, 'D' - double slot frame
-	bool crc_ok;
 };
 
 struct hfdl_pdu_qentry {

@@ -1021,9 +1021,7 @@ static void *pdu_decoder_thread(void *ctx) {
 				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
 					if(IS_MPDU(q->pdu->buf)) {
-						struct hfdl_pdu_metadata *hm = container_of(q->metadata,
-								struct hfdl_pdu_metadata, metadata);
-						lpdu_list = mpdu_parse(q->pdu, hm, reasm_ctx);
+						lpdu_list = mpdu_parse(q->pdu, reasm_ctx);
 					}
 					if(lpdu_list != NULL) {
 						decoding_status = DECODING_SUCCESS;
