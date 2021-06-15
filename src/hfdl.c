@@ -10,6 +10,7 @@
 #include <sys/time.h>               // struct timeval
 #include <liquid/liquid.h>
 #include <libacars/list.h>          // la_list_*
+#include <libacars/vstring.h>       // la_vstring_*
 #include <libacars/libacars.h>      // la_proto_node, la_proto_tree_destroy()
 #include <libacars/reassembly.h>    // la_reasm_ctx, la_reasm_ctx_new()
 #include <glib.h>                   // GAsyncQueue, g_async_queue_*
@@ -1104,4 +1105,23 @@ struct metadata *hfdl_pdu_metadata_create() {
 	NEW(struct hfdl_pdu_metadata, m);
 	m->metadata.vtable = &hfdl_pdu_metadata_vtable;
 	return &m->metadata;
+}
+
+void hfdl_pdu_header_format_text(la_vstring *vstr, int indent,
+		struct hfdl_pdu_hdr_data const *header) {
+	ASSERT(vstr);
+	ASSERT(header);
+	ASSERT(indent >= 0);
+
+	if(header->crc_ok == false) {
+		LA_ISPRINTF(vstr, indent, "-- CRC failed\n");
+		return;
+	}
+	if(header->direction == UPLINK_PDU) {
+		LA_ISPRINTF(vstr, indent, "Uplink: GS %hhu -> AC %hhu\n",
+				header->gs_id, header->aircraft_id);
+	} else {
+		LA_ISPRINTF(vstr, indent, "Downlink: AC %hhu -> GS %hhu\n",
+				header->aircraft_id, header->gs_id);
+	}
 }

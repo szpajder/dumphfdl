@@ -94,6 +94,7 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 
 	struct hfdl_mpdu const *mpdu = data;
 	if(Config.output_raw_frames == true && mpdu->pdu->len > 0) {
+		hfdl_pdu_header_format_text(vstr, indent, &mpdu->header);
 		append_hexdump_with_indent(vstr, mpdu->pdu->buf, mpdu->pdu->len, indent+1);
 	}
 }
