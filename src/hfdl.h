@@ -47,6 +47,7 @@ void hfdl_pdu_decoder_init(void);
 int32_t hfdl_pdu_decoder_start(void *ctx);
 void hfdl_pdu_decoder_stop(void);
 bool hfdl_pdu_decoder_is_running(void);
+bool hfdl_pdu_fcs_check(uint8_t *buf, uint32_t hdr_len);
 void hfdl_pdu_header_format_text(la_vstring *vstr, int indent,
 		struct hfdl_pdu_hdr_data const *header);
 

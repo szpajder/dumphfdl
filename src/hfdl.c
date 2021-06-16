@@ -22,6 +22,7 @@
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS, hfdl_pdu_qentry
 #include "metadata.h"               // struct metadata
 #include "mpdu.h"                   // mpdu_parse
+#include "crc.h"                    // crc16_ccitt
 #include "output-common.h"          // output_queue_push, shutdown_outputs
 
 #define PREKEY_LEN 448
@@ -1105,6 +1106,25 @@ struct metadata *hfdl_pdu_metadata_create() {
 	NEW(struct hfdl_pdu_metadata, m);
 	m->metadata.vtable = &hfdl_pdu_metadata_vtable;
 	return &m->metadata;
+}
+
+/**********************************
+ * Misc parsing & formatting routines
+ **********************************/
+
+// Compute FCS over the first hdr_len octets of buf.
+// The received FCS value is expected to be stored just after the buffer.
+bool hfdl_pdu_fcs_check(uint8_t *buf, uint32_t hdr_len) {
+	uint16_t fcs_check = buf[hdr_len] | (buf[hdr_len + 1] << 8);
+	uint16_t fcs_computed = crc16_ccitt(buf, hdr_len, 0xFFFFu) ^ 0xFFFFu;
+	debug_print(D_PROTO, "FCS: computed: 0x%04x check: 0x%04x\n",
+			fcs_computed, fcs_check);
+	if(fcs_check != fcs_computed) {
+		debug_print(D_PROTO, "FCS check failed\n");
+		return false;
+	}
+	debug_print(D_PROTO, "FCS check OK\n");
+	return true;
 }
 
 void hfdl_pdu_header_format_text(la_vstring *vstr, int indent,

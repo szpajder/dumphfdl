@@ -3,9 +3,8 @@
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/list.h>          // la_list
-#include "hfdl.h"                   // struct hfdl_pdu_metadata, struct hfdl_pdu_hdr_data, enum hfdl_pdu_direction
+#include "hfdl.h"                   // hfdl_*
 #include "util.h"                   // NEW, ASSERT, struct octet_string
-#include "crc.h"                    // crc16_ccitt
 
 struct hfdl_mpdu {
 	struct octet_string *pdu;
@@ -14,7 +13,6 @@ struct hfdl_mpdu {
 
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_mpdu;
-static bool mpdu_fcs_check(uint8_t *buf, uint32_t hdr_len);
 
 la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 	ASSERT(pdu);
@@ -57,7 +55,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		goto end;
 	}
 
-	if(mpdu_fcs_check(buf, hdr_len)) {
+	if(hfdl_pdu_fcs_check(buf, hdr_len)) {
 		mpdu_header.crc_ok = true;
 	} else {
 		goto end;
@@ -72,19 +70,6 @@ end:
 	debug_print(D_PROTO, "crc: %d ac_id: %hhu gs_id: %hhu\n",
 			mpdu->header.crc_ok, mpdu->header.aircraft_id, mpdu_header.gs_id);
 	return lpdu_list;
-}
-
-static bool mpdu_fcs_check(uint8_t *buf, uint32_t hdr_len) {
-	uint16_t fcs_check = buf[hdr_len] | (buf[hdr_len + 1] << 8);
-	uint16_t fcs_computed = crc16_ccitt(buf, hdr_len, 0xFFFFu) ^ 0xFFFFu;
-	debug_print(D_PROTO, "FCS: computed: 0x%04x check: 0x%04x\n",
-			fcs_computed, fcs_check);
-	if(fcs_check != fcs_computed) {
-		debug_print(D_PROTO, "FCS check failed\n");
-		return false;
-	}
-	debug_print(D_PROTO, "FCS check OK\n");
-	return true;
 }
 
 static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
