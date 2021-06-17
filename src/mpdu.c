@@ -63,12 +63,12 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 
 	mpdu_header.gs_id = buf[1] & 0x7f;
 	mpdu_header.aircraft_id = buf[2];
+	debug_print(D_PROTO, "crc: %d ac_id: %hhu gs_id: %hhu\n",
+			mpdu_header.crc_ok, mpdu_header.aircraft_id, mpdu_header.gs_id);
 end:
 	if(mpdu != NULL) {
 		mpdu->header = mpdu_header;
 	}
-	debug_print(D_PROTO, "crc: %d ac_id: %hhu gs_id: %hhu\n",
-			mpdu->header.crc_ok, mpdu->header.aircraft_id, mpdu_header.gs_id);
 	return lpdu_list;
 }
 
