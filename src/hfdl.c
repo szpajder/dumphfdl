@@ -22,6 +22,7 @@
 #include "hfdl.h"                   // HFDL_SYMBOL_RATE, SPS, hfdl_pdu_qentry
 #include "metadata.h"               // struct metadata
 #include "mpdu.h"                   // mpdu_parse
+#include "spdu.h"                   // spdu_parse
 #include "crc.h"                    // crc16_ccitt
 #include "output-common.h"          // output_queue_push, shutdown_outputs
 
@@ -1024,6 +1025,8 @@ static void *pdu_decoder_thread(void *ctx) {
 				if(decoding_status == DECODING_NOT_DONE) {
 					if(IS_MPDU(q->pdu->buf)) {
 						lpdu_list = mpdu_parse(q->pdu, reasm_ctx);
+					} else {
+						lpdu_list = spdu_parse(q->pdu);
 					}
 					if(lpdu_list != NULL) {
 						decoding_status = DECODING_SUCCESS;

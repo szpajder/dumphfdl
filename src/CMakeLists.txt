@@ -232,6 +232,7 @@ add_library (dumphfdl_base OBJECT
 	options.c
 	output-common.c
 	output-file.c
+	spdu.c
 	util.c
 	${CMAKE_CURRENT_BINARY_DIR}/version.c
 	${dumphfdl_extra_sources}
