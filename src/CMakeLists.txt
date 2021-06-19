@@ -226,6 +226,7 @@ add_library (dumphfdl_base OBJECT
 	kvargs.c
 	libcsdr.c
 	libcsdr_gpl.c
+	lpdu.c
 	main.c
 	metadata.c
 	mpdu.c
