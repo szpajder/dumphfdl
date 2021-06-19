@@ -13,6 +13,8 @@ struct hfdl_mpdu {
 
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_mpdu;
+static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
+		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list);
 
 la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 	ASSERT(pdu);
@@ -70,21 +72,53 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		goto end;
 	}
 
+	uint8_t *dataptr = buf + hdr_len + 2;       // First data octet of the first LPDU
 	if(mpdu_header.direction == DOWNLINK_PDU) {
 		mpdu_header.src_id = buf[2];
 		mpdu_header.dst_id = buf[1] & 0x7f;
-	} else {                            // UPLINK_PDU
+		uint8_t *hdrptr = buf + 6;              // First LPDU size octet
+		if(parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list) < 0) {
+			goto end;
+		}
+	} else {                                    // UPLINK_PDU
 		mpdu_header.src_id = buf[1] & 0x7f;
-		mpdu_header.dst_id = 0;         // See comment in mpdu_format_text()
+		mpdu_header.dst_id = 0;                 // See comment in mpdu_format_text()
+		uint8_t *hdrptr = buf + 2;              // First AC ID octet
+		int32_t consumed_octets = 0;
+		for(uint32_t i = 0; i < aircraft_cnt; i++, hdrptr++, dataptr += consumed_octets) {
+			mpdu_header.dst_id = *hdrptr++;
+			lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
+			if((consumed_octets = parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list)) < 0) {
+				goto end;
+			}
+		}
 	}
 
-	debug_print(D_PROTO, "crc: %d src_id: %hhu dst_id: %hhu\n",
-			mpdu_header.crc_ok, mpdu_header.src_id, mpdu_header.dst_id);
 end:
 	if(mpdu != NULL) {
 		mpdu->header = mpdu_header;
 	}
 	return lpdu_list;
+}
+
+static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
+		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list) {
+	int32_t consumed_octets = 0;
+	for(uint32_t j = 0; j < lpdu_cnt; j++) {
+		uint32_t lpdu_len = *lpdu_len_ptr + 1;
+		if(data_ptr + lpdu_len <= endptr) {
+			debug_print(D_PROTO, "lpdu %u/%u: lpdu_len=%u\n", j + 1, lpdu_cnt, lpdu_len);
+			//lpdu_list = lpdu_parse(data_ptr, lpdu_len, mpdu_header, lpdu_list);
+			data_ptr += lpdu_len;              // Move to the next LPDU
+			consumed_octets += lpdu_len;
+			lpdu_len_ptr++;
+		} else {
+			debug_print(D_PROTO, "lpdu %u/%u truncated: end is %td octets past buffer\n",
+					j + 1, lpdu_cnt, data_ptr + lpdu_len - endptr);
+			return -1;
+		}
+	}
+	return consumed_octets;
 }
 
 static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
