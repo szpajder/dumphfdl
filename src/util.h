@@ -5,6 +5,7 @@
 #include <stdio.h>                  // fprintf, stderr
 #include <pthread.h>                // pthread_t, pthread_barrier_t
 #include <stdlib.h>                 // calloc, realloc
+#include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
 #include "globals.h"                // Config
 
@@ -105,3 +106,5 @@ struct octet_string *octet_string_copy(struct octet_string const *ostring);
 void octet_string_destroy(struct octet_string *ostring);
 
 void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int indent);
+
+la_proto_node *unknown_proto_pdu_new(void *buf, size_t len);

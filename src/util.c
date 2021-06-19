@@ -5,8 +5,12 @@
 #include <errno.h>                  // errno
 #include <string.h>                 // strerror
 #include <unistd.h>                 // _exit
+#include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
 #include "util.h"                   // octet_string
+
+// Forward declarations
+char *hexdump(uint8_t *data, size_t len);
 
 void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const *func) {
 	void *ptr = calloc(nmemb, size);
@@ -158,4 +162,36 @@ void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int
 	char *h = hexdump(data, len);
 	la_isprintf_multiline_text(vstr, indent, h);
 	XFREE(h);
+}
+
+// la_proto_node routines for unknown protocols
+// which are to be serialized as octet string (hex dump or hex string)
+
+static void unknown_proto_format_text(la_vstring *vstr, void const *data, int indent) {
+	ASSERT(vstr != NULL);
+	ASSERT(data != NULL);
+	ASSERT(indent >= 0);
+
+	struct octet_string const *ostring = data;
+	// fmt_hexstring also checks this conditon, but when it hits, it prints "empty" or "none",
+	// which we want to avoid here
+	if(ostring->buf == NULL || ostring->len == 0) {
+		return;
+	}
+	LA_ISPRINTF(vstr, indent, "Data (%zu bytes):\n", ostring->len);
+	append_hexdump_with_indent(vstr, ostring->buf, ostring->len, indent+1);
+}
+
+static la_type_descriptor const proto_DEF_unknown = {
+	.format_text = unknown_proto_format_text,
+	.destroy = NULL
+};
+
+la_proto_node *unknown_proto_pdu_new(void *buf, size_t len) {
+	struct octet_string *ostring = octet_string_new(buf, len);
+	la_proto_node *node = la_proto_node_new();
+	node->td = &proto_DEF_unknown;
+	node->data = ostring;
+	node->next = NULL;
+	return node;
 }

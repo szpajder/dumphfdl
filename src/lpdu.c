@@ -70,6 +70,7 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 		case LOGON_REQUEST_DLS:
 			break;
 		default:
+			node->next = unknown_proto_pdu_new(buf, len);
 			break;
 	}
 	return node;
@@ -88,7 +89,7 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	if(lpdu_type != NULL) {
 		LA_ISPRINTF(vstr, indent, "%s:\n", lpdu_type);
 	} else {
-		LA_ISPRINTF(vstr, indent, "Unknown LPDU type: 0x%02x\n", lpdu->type);
+		LA_ISPRINTF(vstr, indent, "Unknown LPDU type (0x%02x):\n", lpdu->type);
 	}
 }
 
