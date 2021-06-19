@@ -22,19 +22,13 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 	ASSERT(pdu->len > 0);
 
 	la_list *lpdu_list = NULL;
-	// If raw frame output has been requested by the user,
-	// then append a hfdl_mpdu node as a first entry on the list,
-	// so that mpdu_format_text() could print it as hex.
-	// If --raw-frames is disabled, then this node is omitted.
-	struct hfdl_mpdu *mpdu = NULL;
-	if(Config.output_raw_frames == true) {
-		mpdu = XCALLOC(1, sizeof(struct hfdl_mpdu));
-		mpdu->pdu = pdu;
-		la_proto_node *node = la_proto_node_new();
-		node->data = mpdu;
-		node->td = &proto_DEF_hfdl_mpdu;
-		lpdu_list = la_list_append(lpdu_list, node);
-	}
+	NEW(struct hfdl_mpdu, mpdu);
+	mpdu->pdu = pdu;
+	la_proto_node *node = la_proto_node_new();
+	node->data = mpdu;
+	node->td = &proto_DEF_hfdl_mpdu;
+	lpdu_list = la_list_append(lpdu_list, node);
+
 	struct hfdl_pdu_hdr_data mpdu_header = {0};
 	uint32_t aircraft_cnt = 0;
 	uint32_t lpdu_cnt = 0;
@@ -95,9 +89,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 	}
 
 end:
-	if(mpdu != NULL) {
-		mpdu->header = mpdu_header;
-	}
+	mpdu->header = mpdu_header;
 	return lpdu_list;
 }
 
@@ -127,7 +119,7 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	ASSERT(indent >= 0);
 
 	struct hfdl_mpdu const *mpdu = data;
-	if(Config.output_raw_frames == true && mpdu->pdu->len > 0) {
+	if(Config.output_raw_frames == true) {
 		append_hexdump_with_indent(vstr, mpdu->pdu->buf, mpdu->pdu->len, indent+1);
 	}
 	if(!mpdu->header.crc_ok) {
