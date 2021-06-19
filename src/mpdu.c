@@ -34,6 +34,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		lpdu_list = la_list_append(lpdu_list, node);
 	}
 	struct hfdl_pdu_hdr_data mpdu_header = {0};
+	uint32_t aircraft_cnt = 0;
 	uint32_t lpdu_cnt = 0;
 	uint32_t hdr_len = 0;
 	uint8_t *buf = pdu->buf;
@@ -44,13 +45,21 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		hdr_len = 6 + lpdu_cnt;             // header length, not incl. FCS
 	} else {
 		mpdu_header.direction = UPLINK_PDU;
-		if(len < 4) {
-			goto end;
+		aircraft_cnt = ((buf[0] & 0x70) >> 4) + 1;
+		debug_print(D_PROTO, "aircraft_cnt: %u\n", aircraft_cnt);
+		hdr_len = 2;                        // P/NAC/T + UTC/GS ID
+		for(uint32_t i = 0; i < aircraft_cnt; i++) {
+			if(len < hdr_len + 2) {
+				debug_print(D_PROTO, "uplink: too short: %u < %u\n", len, hdr_len + 2);
+				goto end;
+			}
+			lpdu_cnt = (buf[hdr_len+1] >> 4) & 0xF;
+			hdr_len += 2 + lpdu_cnt;        // aircraft_id + NLP/DDR/P + LPDU size octets (one per LPDU)
+			debug_print(D_PROTO, "uplink: ac %u lpdu_cnt: %u hdr_len: %u\n", i, lpdu_cnt, hdr_len);
 		}
-		lpdu_cnt = (buf[3] >> 4) & 0xF;
-		hdr_len = 4 + lpdu_cnt;             // header length, not incl. FCS
 	}
-	if(len < hdr_len + lpdu_cnt + 2) {
+	debug_print(D_PROTO, "hdr_len: %u\n", hdr_len);
+	if(len < hdr_len + 2) {
 		debug_print(D_PROTO, "Too short: %u < %u\n", len, hdr_len + lpdu_cnt + 2);
 		goto end;
 	}
@@ -61,10 +70,16 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		goto end;
 	}
 
-	mpdu_header.gs_id = buf[1] & 0x7f;
-	mpdu_header.aircraft_id = buf[2];
-	debug_print(D_PROTO, "crc: %d ac_id: %hhu gs_id: %hhu\n",
-			mpdu_header.crc_ok, mpdu_header.aircraft_id, mpdu_header.gs_id);
+	if(mpdu_header.direction == DOWNLINK_PDU) {
+		mpdu_header.src_id = buf[2];
+		mpdu_header.dst_id = buf[1] & 0x7f;
+	} else {                            // UPLINK_PDU
+		mpdu_header.src_id = buf[1] & 0x7f;
+		mpdu_header.dst_id = 0;         // See comment in mpdu_format_text()
+	}
+
+	debug_print(D_PROTO, "crc: %d src_id: %hhu dst_id: %hhu\n",
+			mpdu_header.crc_ok, mpdu_header.src_id, mpdu_header.dst_id);
 end:
 	if(mpdu != NULL) {
 		mpdu->header = mpdu_header;
@@ -79,8 +94,24 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 
 	struct hfdl_mpdu const *mpdu = data;
 	if(Config.output_raw_frames == true && mpdu->pdu->len > 0) {
-		hfdl_pdu_header_format_text(vstr, indent, &mpdu->header);
 		append_hexdump_with_indent(vstr, mpdu->pdu->buf, mpdu->pdu->len, indent+1);
+	}
+	if(!mpdu->header.crc_ok) {
+		LA_ISPRINTF(vstr, indent, "-- CRC check failed\n");
+		return;
+	}
+	if(mpdu->header.direction == UPLINK_PDU) {
+		LA_ISPRINTF(vstr, indent, "Uplink MPDU:\n");
+			indent++;
+			LA_ISPRINTF(vstr, indent, "Src GS: %hhu\n", mpdu->header.src_id);
+			// Dst AC is meaningless here, because MPDU may contain several
+			// LPDUs and each one may have a different destination.
+			// Dst AC ID will therefore be printed in the header of each LPDU.
+	} else {
+		LA_ISPRINTF(vstr, indent, "Downlink MPDU:\n");
+			indent++;
+			LA_ISPRINTF(vstr, indent, "Src AC: %hhu\n", mpdu->header.src_id);
+			LA_ISPRINTF(vstr, indent, "Dst GS: %hhu\n", mpdu->header.dst_id);
 	}
 }
 

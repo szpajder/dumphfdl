@@ -1129,22 +1129,3 @@ bool hfdl_pdu_fcs_check(uint8_t *buf, uint32_t hdr_len) {
 	debug_print(D_PROTO, "FCS check OK\n");
 	return true;
 }
-
-void hfdl_pdu_header_format_text(la_vstring *vstr, int indent,
-		struct hfdl_pdu_hdr_data const *header) {
-	ASSERT(vstr);
-	ASSERT(header);
-	ASSERT(indent >= 0);
-
-	if(header->crc_ok == false) {
-		LA_ISPRINTF(vstr, indent, "-- CRC failed\n");
-		return;
-	}
-	if(header->direction == UPLINK_PDU) {
-		LA_ISPRINTF(vstr, indent, "Uplink: GS %hhu -> AC %hhu\n",
-				header->gs_id, header->aircraft_id);
-	} else {
-		LA_ISPRINTF(vstr, indent, "Downlink: AC %hhu -> GS %hhu\n",
-				header->aircraft_id, header->gs_id);
-	}
-}

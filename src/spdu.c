@@ -60,8 +60,7 @@ la_list *spdu_parse(struct octet_string *pdu) {
 	}
 	uint8_t *buf = pdu->buf;
 	spdu->header.direction = UPLINK_PDU;
-	spdu->header.aircraft_id = 0xFF;
-	spdu->header.gs_id = buf[1] & 0x7F;
+	spdu->header.src_id = buf[1] & 0x7F;
 
 	spdu->rls_in_use = buf[0] & 2;
 	spdu->version = (buf[0] >> 2) & 3;
@@ -74,7 +73,7 @@ la_list *spdu_parse(struct octet_string *pdu) {
 	spdu->min_priority = buf[52] & 0xF;
 	spdu->systable_version = buf[53] | ((buf[54] & 0xF) << 8);
 
-	spdu->gs_data[0].id = spdu->header.gs_id;
+	spdu->gs_data[0].id = spdu->header.src_id;
 	spdu->gs_data[0].utc_sync = buf[1] & 0x80;
 	spdu->gs_data[0].freqs_in_use = (buf[54] & 0xF0) >> 4 | buf[55] << 4 | buf[56] << 12;
 	debug_print(D_PROTO, "gs_data: id %hhu utc %d freqs_in_use 0x%05x\n",
@@ -110,13 +109,16 @@ static void spdu_format_text(la_vstring *vstr, void const *data, int indent) {
 
 	struct hfdl_spdu const *spdu = data;
 	if(Config.output_raw_frames == true && spdu->pdu->len > 0) {
-		hfdl_pdu_header_format_text(vstr, indent, &spdu->header);
 		append_hexdump_with_indent(vstr, spdu->pdu->buf, spdu->pdu->len, indent+1);
 	}
 	if(!spdu->header.crc_ok) {
+		LA_ISPRINTF(vstr, indent, "-- CRC check failed\n");
 		return;
 	}
 
+	LA_ISPRINTF(vstr, indent, "Uplink SPDU:\n");
+	indent++;
+	LA_ISPRINTF(vstr, indent, "Src GS: %d\n", spdu->header.src_id);
 	LA_ISPRINTF(vstr, indent, "Squitter: ver: %hhu rls: %d iso: %d\n",
 			spdu->version, spdu->rls_in_use, spdu->iso8208_supported);
 	indent++;
