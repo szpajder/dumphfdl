@@ -8,7 +8,13 @@
 
 struct hfdl_mpdu {
 	struct octet_string *pdu;
+	la_list *dst_aircraft;                  // List of destination aircraft (for multi-LPDU uplinks)
 	struct hfdl_pdu_hdr_data header;
+};
+
+struct mpdu_dst {
+	uint8_t dst_id;
+	uint8_t lpdu_cnt;
 };
 
 // Forward declarations
@@ -80,9 +86,11 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		uint8_t *hdrptr = buf + 2;              // First AC ID octet
 		int32_t consumed_octets = 0;
 		for(uint32_t i = 0; i < aircraft_cnt; i++, hdrptr++, dataptr += consumed_octets) {
-			mpdu_header.dst_id = *hdrptr++;
-			lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
-			if((consumed_octets = parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list)) < 0) {
+			NEW(struct mpdu_dst, dst_ac);
+			dst_ac->dst_id = *hdrptr++;
+			dst_ac->lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
+			mpdu->dst_aircraft = la_list_append(mpdu->dst_aircraft, dst_ac);
+			if((consumed_octets = parse_lpdu_list(hdrptr, dataptr, buf + len, dst_ac->lpdu_cnt, lpdu_list)) < 0) {
 				goto end;
 			}
 		}
@@ -130,9 +138,12 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		LA_ISPRINTF(vstr, indent, "Uplink MPDU:\n");
 			indent++;
 			LA_ISPRINTF(vstr, indent, "Src GS: %hhu\n", mpdu->header.src_id);
-			// Dst AC is meaningless here, because MPDU may contain several
-			// LPDUs and each one may have a different destination.
-			// Dst AC ID will therefore be printed in the header of each LPDU.
+			int32_t i = 1;
+			for(la_list *ac = mpdu->dst_aircraft; ac != NULL; ac = la_list_next(ac)) {
+				struct mpdu_dst *dst = ac->data;
+				LA_ISPRINTF(vstr, indent, "Dst AC #%d: %hhu\n", i, dst->dst_id);
+				LA_ISPRINTF(vstr, indent+1, "LPDU count: %hhu\n", dst->lpdu_cnt);
+			}
 	} else {
 		LA_ISPRINTF(vstr, indent, "Downlink MPDU:\n");
 			indent++;
@@ -141,7 +152,16 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	}
 }
 
+static void mpdu_destroy(void *data) {
+	if(data == NULL) {
+		return;
+	}
+	struct hfdl_mpdu *mpdu = data;
+	la_list_free(mpdu->dst_aircraft);
+	XFREE(mpdu);
+}
+
 la_type_descriptor const proto_DEF_hfdl_mpdu = {
 	.format_text = mpdu_format_text,
-	.destroy = NULL
+	.destroy = mpdu_destroy
 };
