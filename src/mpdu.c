@@ -135,7 +135,8 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		append_hexdump_with_indent(vstr, mpdu->pdu->buf, mpdu->pdu->len, indent+1);
 	}
 	if(!mpdu->header.crc_ok) {
-		LA_ISPRINTF(vstr, indent, "-- CRC check failed\n");
+		LA_ISPRINTF(vstr, indent, "MPDU:\n");
+		LA_ISPRINTF(vstr, indent+1, "-- CRC check failed\n");
 		return;
 	}
 	if(mpdu->header.direction == UPLINK_PDU) {
