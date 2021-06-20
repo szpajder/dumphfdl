@@ -128,6 +128,7 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 	len -= 2;           // Strip FCS
 	lpdu->crc_ok = hfdl_pdu_fcs_check(buf, len);
 	if(!lpdu->crc_ok) {
+		lpdu->err = true;
 		goto end;
 	}
 
@@ -171,9 +172,9 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	if(Config.output_raw_frames == true) {
 		append_hexdump_with_indent(vstr, lpdu->pdu->buf, lpdu->pdu->len, indent+1);
 	}
-	if(!lpdu->crc_ok) {
-		LA_ISPRINTF(vstr, indent, "LPDU:\n");
-		LA_ISPRINTF(vstr, indent+1, "-- CRC check failed");
+	if(lpdu->err) {
+		LA_ISPRINTF(vstr, indent, "-- Unparseable LPDU%s\n",
+				lpdu->crc_ok ? "" : " (CRC check failed)");
 		return;
 	}
 	// TODO: check error flag
