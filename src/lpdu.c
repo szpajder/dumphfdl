@@ -16,6 +16,10 @@
 #define LOGON_CONFIRM               0x9F
 #define LOGON_REQUEST_DLS           0xBF
 
+struct lpdu_logon_request {
+	uint32_t icao_address;
+};
+
 struct lpdu_logon_confirm {
 	uint32_t icao_address;
 	uint8_t ac_id;
@@ -28,6 +32,7 @@ struct hfdl_lpdu {
 	bool crc_ok;
 	bool err;
 	union {
+		struct lpdu_logon_request logon_request;
 		struct lpdu_logon_confirm logon_confirm;
 	} data;
 };
@@ -53,12 +58,21 @@ static int32_t logon_confirm_parse(uint8_t *buf, uint32_t len, struct lpdu_logon
 	ASSERT(buf);
 	ASSERT(result);
 
-	if(len < 8) {
+	if(len < LOGON_CONFIRM_LPDU_LEN) {
 		return -1;
 	}
 	result->icao_address = parse_icao_hex(buf + 1);
 	result->ac_id = buf[4];
 	return LOGON_CONFIRM_LPDU_LEN;
+}
+
+static int32_t logon_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logon_request *result) {
+#define LOGON_REQUEST_LPDU_LEN 4
+	if(len < LOGON_REQUEST_LPDU_LEN) {
+		return -1;
+	}
+	result->icao_address = parse_icao_hex(buf + 1);
+	return LOGON_REQUEST_LPDU_LEN;
 }
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data mpdu_header) {
@@ -98,10 +112,9 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 			consumed_len = logon_confirm_parse(buf, len, &lpdu->data.logon_confirm);
 			break;
 		case LOGON_RESUME:
-			break;
 		case LOGON_REQUEST_NORMAL:
-			break;
 		case LOGON_REQUEST_DLS:
+			consumed_len = logon_request_parse(buf, len, &lpdu->data.logon_request);
 			break;
 		default:
 			node->next = unknown_proto_pdu_new(buf, len);
@@ -141,6 +154,11 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		case LOGON_RESUME_CONFIRM:
 			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logon_confirm.icao_address);
 			LA_ISPRINTF(vstr, indent, "Assigned AC ID: %u\n", lpdu->data.logon_confirm.ac_id);
+			break;
+		case LOGON_RESUME:
+		case LOGON_REQUEST_NORMAL:
+		case LOGON_REQUEST_DLS:
+			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logon_request.icao_address);
 			break;
 		default:
 			return;
