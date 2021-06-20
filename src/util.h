@@ -89,6 +89,9 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define EOL(x) la_vstring_append_sprintf((x), "%s", "\n")
 
+// Reverse bit order in a byte (http://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits)
+#define REVERSE_BYTE(x) (uint8_t)((((x) * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32)
+
 void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const *func);
 void *xrealloc(void *ptr, size_t size, char const *file, int line, char const *func);
 int start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ctx);

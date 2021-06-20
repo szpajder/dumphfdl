@@ -954,8 +954,7 @@ static void decode_user_data(struct hfdl_channel *c) {
 			hfdl_frame_params[M1].code_rate, num_encoded_bits, viterbi_input_len, viterbi_output_len, viterbi_output_len_octets);
 	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output:\n");
 	for(uint32_t i = 0; i < viterbi_output_len_octets; i++) {
-		// Reverse bit order (http://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits)
-		viterbi_output[i] = ((viterbi_output[i] * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32;
+		viterbi_output[i] = REVERSE_BYTE(viterbi_output[i]);
 	}
 	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output (reversed):\n");
 	dispatch_pdu(c, viterbi_output, viterbi_output_len_octets);
