@@ -25,6 +25,11 @@ struct lpdu_logon_confirm {
 	uint8_t ac_id;
 };
 
+struct lpdu_logoff_request {
+	uint32_t icao_address;
+	uint8_t reason_code;
+};
+
 struct hfdl_lpdu {
 	struct octet_string *pdu;
 	struct hfdl_pdu_hdr_data mpdu_header;
@@ -34,6 +39,7 @@ struct hfdl_lpdu {
 	union {
 		struct lpdu_logon_request logon_request;
 		struct lpdu_logon_confirm logon_confirm;
+		struct lpdu_logoff_request logoff_request;
 	} data;
 };
 
@@ -48,6 +54,22 @@ la_dict const lpdu_type_descriptions[] = {
 	{ .id = LOGON_CONFIRM,              .val = "Logon confirm" },
 	{ .id = LOGON_REQUEST_DLS,          .val = "Logon request (DLS)" },
 	{ .id = 0,                          .val = 0 }
+};
+
+la_dict const logoff_request_reason_codes[] = {
+	{ .id = 0x01,   .val = "Not within slot boundaries" },
+	{ .id = 0x02,   .val = "Downlink set in uplink slot" },
+	{ .id = 0x03,   .val = "RLS protocol error" },
+	{ .id = 0x04,   .val = "Invalid aircraft ID" },
+	{ .id = 0x05,   .val = "HFDL Ground Station subsystem does not support RLS" },
+	{ .id = 0x06,   .val = "Other" },
+	{ .id = 0x00,   .val = NULL }
+};
+
+la_dict const logon_denied_reason_codes[] = {
+	{ .id = 0x01,   .val = "Aircraft ID not available" },
+	{ .id = 0x02,   .val = "HFDL Ground Station subsystem does not support RLS" },
+	{ .id = 0x00,   .val = NULL }
 };
 
 // Forward declarations
@@ -73,6 +95,19 @@ static int32_t logon_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logon
 	}
 	result->icao_address = parse_icao_hex(buf + 1);
 	return LOGON_REQUEST_LPDU_LEN;
+}
+
+static int32_t logoff_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logoff_request *result) {
+#define LOGOFF_REQUEST_LPDU_LEN 5
+	ASSERT(buf);
+	ASSERT(result);
+
+	if(len < LOGOFF_REQUEST_LPDU_LEN) {
+		return -1;
+	}
+	result->icao_address = parse_icao_hex(buf + 1);
+	result->reason_code = buf[4];
+	return LOGOFF_REQUEST_LPDU_LEN;
 }
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data mpdu_header) {
@@ -104,8 +139,8 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 		case UNNUMBERED_ACKED_DATA:
 			break;
 		case LOGON_DENIED:
-			break;
 		case LOGOFF_REQUEST:
+			consumed_len = logoff_request_parse(buf, len, &lpdu->data.logoff_request);
 			break;
 		case LOGON_CONFIRM:
 		case LOGON_RESUME_CONFIRM:
@@ -149,7 +184,17 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		LA_ISPRINTF(vstr, indent, "Unknown LPDU type (0x%02x):\n", lpdu->type);
 	}
 	indent++;
+	char *descr = NULL;
 	switch(lpdu->type) {
+		case LOGON_DENIED:
+		case LOGOFF_REQUEST:
+			descr = la_dict_search(
+					lpdu->type == LOGON_DENIED ? logon_denied_reason_codes : logoff_request_reason_codes,
+					lpdu->data.logoff_request.reason_code
+					);
+			LA_ISPRINTF(vstr, indent, "Reason: %u (%s)\n", lpdu->data.logoff_request.reason_code,
+					descr ? descr : "Reserved");
+			break;
 		case LOGON_CONFIRM:
 		case LOGON_RESUME_CONFIRM:
 			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logon_confirm.icao_address);
