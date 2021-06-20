@@ -40,7 +40,11 @@ la_type_descriptor const proto_DEF_hfdl_lpdu;
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data mpdu_header) {
 	ASSERT(buf);
-	ASSERT(len > 0);
+
+	if(len < 3) {       // Need at least LPDU type + FCS
+		debug_print(D_PROTO, "Too short: %u < 3\n", len);
+		return NULL;
+	}
 
 	NEW(struct hfdl_lpdu, lpdu);
 	lpdu->pdu = octet_string_new(buf, len);
@@ -48,6 +52,11 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 	la_proto_node *node = la_proto_node_new();
 	node->td = &proto_DEF_hfdl_lpdu;
 	node->data = lpdu;
+
+	lpdu->crc_ok = hfdl_pdu_fcs_check(buf, len - 2);
+	if(!lpdu->crc_ok) {
+		goto end;
+	}
 
 	lpdu->type = buf[0];
 	switch(lpdu->type) {
@@ -73,6 +82,7 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 			node->next = unknown_proto_pdu_new(buf, len);
 			break;
 	}
+end:
 	return node;
 }
 
@@ -84,6 +94,11 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	struct hfdl_lpdu const *lpdu = data;
 	if(Config.output_raw_frames == true) {
 		append_hexdump_with_indent(vstr, lpdu->pdu->buf, lpdu->pdu->len, indent+1);
+	}
+	if(!lpdu->crc_ok) {
+		LA_ISPRINTF(vstr, indent, "LPDU:\n");
+		LA_ISPRINTF(vstr, indent+1, "-- CRC check failed");
+		return;
 	}
 	char const *lpdu_type = la_dict_search(lpdu_type_descriptions, lpdu->type);
 	if(lpdu_type != NULL) {
