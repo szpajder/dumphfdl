@@ -195,3 +195,14 @@ la_proto_node *unknown_proto_pdu_new(void *buf, size_t len) {
 	node->next = NULL;
 	return node;
 }
+
+// Misc utility functions
+
+// Parses ICAO hex address from byte buffer to uint32_t
+uint32_t parse_icao_hex(uint8_t const buf[3]) {
+	uint32_t result = 0u;
+	for(int32_t i = 0; i < 3; i++) {
+		result |= REVERSE_BYTE(buf[i]) << (8 * (2 - i));
+	}
+	return result;
+}
