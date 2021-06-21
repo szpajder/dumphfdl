@@ -161,7 +161,7 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 	if(consumed_len < 0) {
 		lpdu->err = true;
 	} else if((uint32_t)consumed_len < len) {
-		node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len);
+		node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len, mpdu_header.direction);
 	}
 end:
 	return node;

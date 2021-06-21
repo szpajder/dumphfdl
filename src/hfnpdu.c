@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
-#include <libacars/libacars.h>      // la_type_descriptor, la_proto_node
+#include <libacars/libacars.h>      // la_type_descriptor, la_proto_node, LA_MSG_DIR_*
+#include <libacars/acars.h>         // la_acars_parse
 #include <libacars/dict.h>          // la_dict
+#include "hfdl.h"                   // enum hfdl_pdu_direction
 #include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE
 
 // HFNPDU types
@@ -30,7 +32,7 @@ la_dict const hfnpdu_type_descriptions[] = {
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_hfnpdu;
 
-la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len) {
+la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction) {
 	ASSERT(buf);
 
 	if(len == 0) {
@@ -64,6 +66,12 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len) {
 		case DELAYED_ECHO:
 			break;
 		case ENVELOPED_DATA:
+			if(len > 2 && buf[2] == 1) {        // ACARS SOH byte
+				node->next = la_acars_parse(buf + 3, len - 3,
+						direction == UPLINK_PDU ? LA_MSG_DIR_GND2AIR : LA_MSG_DIR_AIR2GND);
+			} else {
+				node->next = unknown_proto_pdu_new(buf + 3, len - 3);
+			}
 			break;
 		default:
 			break;
