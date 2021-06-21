@@ -3,6 +3,7 @@
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
+#include "hfnpdu.h"                 // hfnpdu_parse
 #include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE
 
 // LPDU types
@@ -136,8 +137,8 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 	lpdu->type = buf[0];
 	switch(lpdu->type) {
 		case UNNUMBERED_DATA:
-			break;
 		case UNNUMBERED_ACKED_DATA:
+			consumed_len = 1;       // Consume LPDU type octet only, a HFNPDU should follow next
 			break;
 		case LOGON_DENIED:
 		case LOGOFF_REQUEST:
@@ -154,10 +155,13 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 			break;
 		default:
 			node->next = unknown_proto_pdu_new(buf, len);
+			consumed_len = len;
 			break;
 	}
 	if(consumed_len < 0) {
 		lpdu->err = true;
+	} else if((uint32_t)consumed_len < len) {
+		node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len);
 	}
 end:
 	return node;
@@ -177,7 +181,6 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 				lpdu->crc_ok ? "" : " (CRC check failed)");
 		return;
 	}
-	// TODO: check error flag
 	if(lpdu->mpdu_header.direction == UPLINK_PDU) {
 		LA_ISPRINTF(vstr, indent, "Uplink LPDU:\n");
 		indent++;

@@ -220,6 +220,7 @@ add_library (dumphfdl_base OBJECT
 	fmtr-text.c
 	globals.c
 	hfdl.c
+	hfnpdu.c
 	input-common.c
 	input-file.c
 	input-helpers.c
