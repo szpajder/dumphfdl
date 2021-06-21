@@ -146,7 +146,7 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 			int32_t i = 1;
 			for(la_list *ac = mpdu->dst_aircraft; ac != NULL; ac = la_list_next(ac)) {
 				struct mpdu_dst *dst = ac->data;
-				LA_ISPRINTF(vstr, indent, "Dst AC #%d: %hhu\n", i, dst->dst_id);
+				LA_ISPRINTF(vstr, indent, "Dst AC #%d: %hhu\n", i++, dst->dst_id);
 				LA_ISPRINTF(vstr, indent+1, "LPDU count: %hhu\n", dst->lpdu_cnt);
 			}
 	} else {
