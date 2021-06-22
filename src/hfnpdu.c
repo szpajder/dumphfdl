@@ -15,7 +15,7 @@
 #define DELAYED_ECHO            0xDE
 #define ENVELOPED_DATA          0xFF
 
-#define extract_uint16_t(buf) ((buf)[0] | (buf)[1] << 8)
+#define extract_uint16_t(buf) ((uint16_t)(buf)[0] | (uint16_t)(buf)[1] << 8)
 
 struct location {
 	double lat, lon;
