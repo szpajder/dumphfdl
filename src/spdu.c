@@ -112,7 +112,9 @@ static void spdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		append_hexdump_with_indent(vstr, spdu->pdu->buf, spdu->pdu->len, indent+1);
 	}
 	if(!spdu->header.crc_ok) {
-		LA_ISPRINTF(vstr, indent, "-- CRC check failed\n");
+		// We say "PDU" rather than "SPDU", because if the CRC check failed the we are
+		// not even sure whether it's a MPDU or SPDU...
+		LA_ISPRINTF(vstr, indent, "-- Unparseable PDU (CRC check failed)\n");
 		return;
 	}
 
