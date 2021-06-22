@@ -15,7 +15,7 @@
 #define DELAYED_ECHO            0xDE
 #define ENVELOPED_DATA          0xFF
 
-#define extract_uint16_t(buf) ((uint16_t)(buf)[0] | (uint16_t)(buf)[1] << 8)
+#define extract_uint16_t(buf) ((uint16_t)((buf)[0]) | (uint16_t)((buf)[1]) << 8)
 
 struct location {
 	double lat, lon;
@@ -77,7 +77,7 @@ static double parse_coordinate(uint32_t c) {
 	return result;
 }
 
-static struct time parse_utc_time(uint16_t t) {
+static struct time parse_utc_time(uint32_t t) {
 	return (struct time){
 		.hour = t / (60 * 60),
 		.min = t % (60 * 60) / 60,
