@@ -5,7 +5,7 @@
 #include <libacars/acars.h>         // la_acars_parse
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // enum hfdl_pdu_direction
-#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE
+#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, freq_list_format_text
 
 // HFNPDU types
 #define SYSTEM_TABLE            0xD0
@@ -48,11 +48,27 @@ struct hfnpdu_perf_data {
 	uint8_t freq_change_code;
 };
 
+struct prop_freqs_data {
+	uint8_t gs_id;
+	uint32_t prop_freqs;
+	uint32_t tuned_freqs;
+};
+
+#define PROP_FREQS_CNT_MAX 6
+struct hfnpdu_freq_data {
+	char flight_id[7];
+	uint32_t propagating_freqs_cnt;
+	struct location location;
+	struct time utc_time;
+	struct prop_freqs_data propagating_freqs[PROP_FREQS_CNT_MAX];
+};
+
 struct hfdl_hfnpdu {
 	int32_t type;
 	bool err;
 	union {
 		struct hfnpdu_perf_data perf_data;
+		struct hfnpdu_freq_data freq_data;
 	} data;
 };
 
@@ -141,6 +157,46 @@ uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_d
 	return PERFORMANCE_DATA_HFNPDU_LEN;
 }
 
+uint32_t frequency_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_freq_data *result) {
+#define FREQUENCY_DATA_HFNPDU_MIN_LEN 15
+#define PROP_FREQ_DATA_LEN 6
+	ASSERT(buf);
+	ASSERT(result);
+
+	if(len < FREQUENCY_DATA_HFNPDU_MIN_LEN) {
+		debug_print(D_PROTO, "Too short: %u < %u\n", len, FREQUENCY_DATA_HFNPDU_MIN_LEN);
+		return -1;
+	}
+	memcpy(result->flight_id, buf + 2, 6);
+	result->flight_id[6] = '\0';
+
+	uint32_t coord = buf[8] | buf[9] << 8 | (buf[10] & 0xF) << 16;
+	result->location.lat = parse_coordinate(coord);
+	coord = (buf[10] & 0xF0) >> 4 | buf[11] << 4 | buf[12] << 12;
+	result->location.lon = parse_coordinate(coord);
+
+	result->utc_time = parse_utc_time(2 * extract_uint16_t(buf + 13));
+
+	uint32_t consumed_len = FREQUENCY_DATA_HFNPDU_MIN_LEN;
+	for(uint32_t f = 0; f < PROP_FREQS_CNT_MAX; f++) {
+		uint32_t pos = FREQUENCY_DATA_HFNPDU_MIN_LEN + f * PROP_FREQ_DATA_LEN;
+		if(pos + PROP_FREQ_DATA_LEN <= len) {
+			result->propagating_freqs[f].gs_id = buf[pos] & 0x7F;
+			result->propagating_freqs[f].prop_freqs =
+				buf[pos+1] | buf[pos+2] << 8 | (buf[pos+3] & 0xF) << 16;
+			result->propagating_freqs[f].tuned_freqs =
+				(buf[pos+3] & 0xF0) >> 4 | buf[pos+4] << 4 | buf[pos+5] << 12;
+			result->propagating_freqs_cnt++;
+			consumed_len += PROP_FREQ_DATA_LEN;
+		} else {
+			break;
+		}
+	}
+	debug_print(D_PROTO, "prop_freq_data_cnt: %u octets left: %u\n",
+			result->propagating_freqs_cnt, len - consumed_len);
+	return consumed_len;
+}
+
 la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction) {
 	ASSERT(buf);
 
@@ -172,6 +228,7 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction 
 		case SYSTEM_TABLE_REQUEST:
 			break;
 		case FREQUENCY_DATA:
+			consumed_len = frequency_data_parse(buf, len, &hfnpdu->data.freq_data);
 			break;
 		case DELAYED_ECHO:
 			break;
@@ -252,6 +309,32 @@ void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 			desc ? desc : "unknown");
 }
 
+void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop_freqs_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+	ASSERT(indent > 0);
+
+	LA_ISPRINTF(vstr, indent, "GS ID: %hhu\n", data->gs_id);
+	indent++;
+	freq_list_format_text(vstr, indent+1, "Listening on", data->tuned_freqs);
+	freq_list_format_text(vstr, indent+1, "Heard on", data->prop_freqs);
+}
+
+void frequency_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_freq_data const *pdu) {
+	ASSERT(vstr);
+	ASSERT(pdu);
+	ASSERT(indent > 0);
+
+	LA_ISPRINTF(vstr, indent, "Flight ID: %s\n", pdu->flight_id);
+	LA_ISPRINTF(vstr, indent, "Lat: %.7f\n", pdu->location.lat);
+	LA_ISPRINTF(vstr, indent, "Lon: %.7f\n", pdu->location.lon);
+	LA_ISPRINTF(vstr, indent, "Time: %02hhu:%02hhu:%02hhu\n",
+			pdu->utc_time.hour, pdu->utc_time.min, pdu->utc_time.sec);
+	for(uint32_t f = 0; f < pdu->propagating_freqs_cnt; f++) {
+		propagating_freqs_format_text(vstr, indent, &pdu->propagating_freqs[f]);
+	}
+}
+
 static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t indent) {
 	ASSERT(vstr != NULL);
 	ASSERT(data);
@@ -278,6 +361,8 @@ static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t inden
 		case SYSTEM_TABLE_REQUEST:
 			break;
 		case FREQUENCY_DATA:
+			frequency_data_format_text(vstr, indent, &hfnpdu->data.freq_data);
+			break;
 			break;
 		case DELAYED_ECHO:
 			break;
