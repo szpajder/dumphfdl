@@ -3,12 +3,11 @@
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/list.h>          // la_list
 #include "hfdl.h"                   // hfdl_*
-#include "util.h"                   // NEW, ASSERT, struct octet_string
+#include "util.h"                   // NEW, ASSERT, struct octet_string, freq_list_format_text
 #include "crc.h"                    // crc16_ccitt
 
 #define SPDU_LEN 66
 #define GS_STATUS_CNT 3
-#define GS_STATUS_FREQ_CNT 20
 
 struct gs_status {
 	uint32_t freqs_in_use;
@@ -33,7 +32,6 @@ struct hfdl_spdu {
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_spdu;
 static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_status const *gs);
-static void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs);
 
 la_list *spdu_parse(struct octet_string *pdu) {
 	ASSERT(pdu);
@@ -144,22 +142,6 @@ static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_st
 	indent++;
 	LA_ISPRINTF(vstr, indent, "UTC sync: %d\n", gs->utc_sync);
 	freq_list_format_text(vstr, indent, "Frequencies in use", gs->freqs_in_use);
-}
-
-static void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs) {
-	ASSERT(vstr);
-	ASSERT(indent >= 0);
-	ASSERT(label);
-
-	LA_ISPRINTF(vstr, indent, "%s: ", label);
-	bool first = true;
-	for(int32_t i = 0; i < GS_STATUS_FREQ_CNT; i++) {
-		if((freqs >> i) & 1) {
-			la_vstring_append_sprintf(vstr, "%s%d", first ? "" : ", ", i);
-			first = false;
-		}
-	}
-	EOL(vstr);
 }
 
 la_type_descriptor const proto_DEF_hfdl_spdu = {
