@@ -63,12 +63,17 @@ struct hfnpdu_freq_data {
 	struct prop_freqs_data propagating_freqs[PROP_FREQS_CNT_MAX];
 };
 
+struct hfnpdu_systable_request_data {
+	uint16_t request_data;
+};
+
 struct hfdl_hfnpdu {
 	int32_t type;
 	bool err;
 	union {
 		struct hfnpdu_perf_data perf_data;
 		struct hfnpdu_freq_data freq_data;
+		struct hfnpdu_systable_request_data systable_request_data;
 	} data;
 };
 
@@ -99,6 +104,19 @@ static struct time parse_utc_time(uint32_t t) {
 		.min = t % (60 * 60) / 60,
 		.sec = t % 60
 	};
+}
+
+uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
+#define SYSTABLE_REQUEST_HFNPDU_LEN 4
+	ASSERT(buf);
+	ASSERT(result);
+
+	if(len < SYSTABLE_REQUEST_HFNPDU_LEN) {
+		debug_print(D_PROTO, "Too short: %u < %u\n", len, SYSTABLE_REQUEST_HFNPDU_LEN);
+		return -1;
+	}
+	result->request_data = extract_uint16_t(buf + 2);
+	return SYSTABLE_REQUEST_HFNPDU_LEN;
 }
 
 uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_data *result) {
@@ -226,6 +244,7 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction 
 			consumed_len = performance_data_parse(buf, len, &hfnpdu->data.perf_data);
 			break;
 		case SYSTEM_TABLE_REQUEST:
+			consumed_len = systable_request_parse(buf, len, &hfnpdu->data.systable_request_data);
 			break;
 		case FREQUENCY_DATA:
 			consumed_len = frequency_data_parse(buf, len, &hfnpdu->data.freq_data);
@@ -309,6 +328,14 @@ void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 			desc ? desc : "unknown");
 }
 
+void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_request_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+	ASSERT(indent > 0);
+
+	LA_ISPRINTF(vstr, indent, "Request data: 0x%hx\n", data->request_data);
+}
+
 void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop_freqs_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
@@ -359,10 +386,10 @@ static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t inden
 			performance_data_format_text(vstr, indent, &hfnpdu->data.perf_data);
 			break;
 		case SYSTEM_TABLE_REQUEST:
+			systable_request_format_text(vstr, indent, &hfnpdu->data.systable_request_data);
 			break;
 		case FREQUENCY_DATA:
 			frequency_data_format_text(vstr, indent, &hfnpdu->data.freq_data);
-			break;
 			break;
 		case DELAYED_ECHO:
 			break;
