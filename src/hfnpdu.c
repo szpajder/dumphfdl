@@ -67,6 +67,19 @@ struct hfnpdu_systable_request_data {
 	uint16_t request_data;
 };
 
+struct hfnpdu_systable_data {
+	uint32_t frequencies[GS_MAX_FREQ_CNT];
+	uint16_t systable_version;
+	uint8_t total_pdu_cnt;
+	uint8_t pdu_seq_num;
+	uint8_t gs_id;
+	uint8_t freq_cnt;
+	uint8_t spdu_version;
+	uint8_t master_frame_slot;
+	struct location gs_location;
+	bool utc_sync;
+};
+
 struct hfdl_hfnpdu {
 	int32_t type;
 	bool err;
@@ -74,6 +87,7 @@ struct hfdl_hfnpdu {
 		struct hfnpdu_perf_data perf_data;
 		struct hfnpdu_freq_data freq_data;
 		struct hfnpdu_systable_request_data systable_request_data;
+		struct hfnpdu_systable_data systable_data;
 	} data;
 };
 
@@ -104,6 +118,64 @@ static struct time parse_utc_time(uint32_t t) {
 		.min = t % (60 * 60) / 60,
 		.sec = t % 60
 	};
+}
+
+uint32_t parse_systable_frequency(uint8_t const buf[3]) {
+	ASSERT(buf);
+
+	return
+		1e2 * (buf[0] & 0xF) +
+		1e3 * ((buf[0] >> 4) & 0xF) +
+		1e4 * (buf[1] & 0xF) +
+		1e5 * ((buf[1] >> 4) & 0xF) +
+		1e6 * (buf[2] & 0xF) +
+		1e7 * ((buf[2] >> 4) & 0xF);
+}
+
+uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data *result) {
+#define SYSTABLE_HFNPDU_MIN_LEN 13
+#define FREQ_FIELD_LEN 3
+	ASSERT(buf);
+	ASSERT(result);
+
+	if(len < SYSTABLE_HFNPDU_MIN_LEN) {
+		debug_print(D_PROTO, "Too short: %u < %u\n", len, SYSTABLE_HFNPDU_MIN_LEN);
+		return -1;
+	}
+	result->total_pdu_cnt = ((buf[2] >> 4) & 0xF) + 1;
+	result->pdu_seq_num = buf[2] & 0xF;
+	result->systable_version = ((buf[3] >> 4) & 0xF) | buf[4] << 4;
+	result->gs_id = buf[5] & 0x7F;
+	result->utc_sync = (buf[5] & 0x80) != 0;
+
+	uint32_t coord = buf[6] | buf[7] << 8 | (buf[8] & 0xF) << 16;
+	result->gs_location.lat = parse_coordinate(coord);
+	coord = ((buf[8] >> 4) & 0xF) | buf[9] << 4 | buf[10] << 12;
+	result->gs_location.lon = parse_coordinate(coord);
+
+	result->spdu_version = buf[11] & 7;
+	result->freq_cnt = (buf[11] >> 3) & 0x1F;
+	if(result->freq_cnt > GS_MAX_FREQ_CNT) {
+		debug_print(D_PROTO, "GS %d: too many frequencies (%d), truncating to %d\n",
+				result->gs_id, result->freq_cnt, GS_MAX_FREQ_CNT);
+		result->gs_id = GS_MAX_FREQ_CNT;
+	}
+	uint32_t consumed_len = SYSTABLE_HFNPDU_MIN_LEN - 1;
+	for(uint32_t f = 0; f < result->freq_cnt; f++) {
+		uint32_t pos = SYSTABLE_HFNPDU_MIN_LEN - 1 + f * FREQ_FIELD_LEN;
+		if(pos + FREQ_FIELD_LEN < len) {
+			result->frequencies[f] = parse_systable_frequency(buf + pos);
+			consumed_len += FREQ_FIELD_LEN;
+		} else {
+			break;
+		}
+	}
+	debug_print(D_PROTO, "freq_cnt: %u octets_left: %u\n",
+			result->freq_cnt, len - consumed_len);
+	ASSERT(consumed_len < len);
+	result->master_frame_slot = buf[consumed_len] & 0xF;
+	consumed_len++;
+	return consumed_len;
 }
 
 uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
@@ -239,6 +311,7 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction 
 	hfnpdu->type = buf[1];
 	switch(hfnpdu->type) {
 		case SYSTEM_TABLE:
+			consumed_len = systable_parse(buf, len, &hfnpdu->data.systable_data);
 			break;
 		case PERFORMANCE_DATA:
 			consumed_len = performance_data_parse(buf, len, &hfnpdu->data.perf_data);
@@ -328,6 +401,29 @@ void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 			desc ? desc : "unknown");
 }
 
+void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+	ASSERT(indent > 0);
+
+	LA_ISPRINTF(vstr, indent, "Version: %hu\n", data->systable_version);
+	LA_ISPRINTF(vstr, indent, "PDU count: %hhu\n", data->total_pdu_cnt);
+	LA_ISPRINTF(vstr, indent, "PDU seq num: %hhu\n", data->pdu_seq_num);
+	LA_ISPRINTF(vstr, indent, "GS ID: %hhu\n", data->gs_id);
+	LA_ISPRINTF(vstr, indent, "UTC sync: %d\n", data->utc_sync);
+	LA_ISPRINTF(vstr, indent, "GS location:\n");
+	LA_ISPRINTF(vstr, indent+1, "Lat: %.7f\n", data->gs_location.lat);
+	LA_ISPRINTF(vstr, indent+1, "Lon: %.7f\n", data->gs_location.lon);
+	LA_ISPRINTF(vstr, indent, "Squitter version: %hhu\n", data->spdu_version);
+	LA_ISPRINTF(vstr, indent, "Master frame slot offset: %hhu\n", data->master_frame_slot);
+	LA_ISPRINTF(vstr, indent, "Frequency count: %hhu\n", data->freq_cnt);
+	LA_ISPRINTF(vstr, indent, "Frequencies:\n");
+	indent++;
+	for(uint32_t f = 0; f < data->freq_cnt; f++) {
+		LA_ISPRINTF(vstr, indent, "%u\n", data->frequencies[f]);
+	}
+}
+
 void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_request_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
@@ -381,6 +477,7 @@ static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t inden
 	indent++;
 	switch(hfnpdu->type) {
 		case SYSTEM_TABLE:
+			systable_format_text(vstr, indent, &hfnpdu->data.systable_data);
 			break;
 		case PERFORMANCE_DATA:
 			performance_data_format_text(vstr, indent, &hfnpdu->data.perf_data);
