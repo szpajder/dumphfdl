@@ -207,7 +207,6 @@ uint32_t parse_icao_hex(uint8_t const buf[3]) {
 	return result;
 }
 
-#define GS_STATUS_FREQ_CNT 20
 void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);
@@ -215,7 +214,7 @@ void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, 
 
 	LA_ISPRINTF(vstr, indent, "%s: ", label);
 	bool first = true;
-	for(int32_t i = 0; i < GS_STATUS_FREQ_CNT; i++) {
+	for(int32_t i = 0; i < GS_MAX_FREQ_CNT; i++) {
 		if((freqs >> i) & 1) {
 			la_vstring_append_sprintf(vstr, "%s%d", first ? "" : ", ", i);
 			first = false;

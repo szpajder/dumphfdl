@@ -113,4 +113,6 @@ void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int
 la_proto_node *unknown_proto_pdu_new(void *buf, size_t len);
 
 uint32_t parse_icao_hex(uint8_t const buf[3]);
+
+#define GS_MAX_FREQ_CNT 20       // Max number of frequencies assigned to a ground station
 void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs);
