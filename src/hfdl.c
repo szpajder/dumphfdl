@@ -917,17 +917,16 @@ static void decode_user_data(struct hfdl_channel *c) {
 	uint32_t bits = 0;
 	uint32_t descrambler_bit = 0;
 	float complex symbol;
+	uint8_t soft_bits[c->data_mod_arity];
 	modem data_modem = c->m[c->data_mod_arity];
 	for(uint32_t i = 0; i < num_symbols; i++) {
 		cbuffercf_pop(c->data_symbols, &symbol);
 		descrambler_bit = descrambler_advance(c->descrambler);
 		// Flip symbol phase by M_PI when descrambler outputs 1
 		// Flip symbol phase by M_PI when Costas loop synced in an opposite phase
-		modem_demodulate(data_modem, symbol * phase_flip[descrambler_bit] * phase_flip[c->bitmask & 1], &bits);
-		//debug_print(D_BURST_DETAIL, "symbol: (%.3f, %.3f) desc_flip: %.0f bitmask_flip: %.0f, bits: %u\n",
-		//		crealf(symbol), cimagf(symbol), phase_flip[descrambler_bit], phase_flip[c->bitmask & 1], bits);
-		for(int32_t j = c->data_mod_arity - 1; j >= 0; j--) {
-			deinterleaver_push(c->deinterleaver[M1], (bits >> j) & 1);
+		modem_demodulate_soft(data_modem, symbol * phase_flip[descrambler_bit] * phase_flip[c->bitmask & 1], &bits, soft_bits);
+		for(uint32_t j = 0; j < c->data_mod_arity; j++) {
+			deinterleaver_push(c->deinterleaver[M1], soft_bits[j]);
 		}
 	}
 #define CONV_CODE_RATE 2
@@ -941,7 +940,7 @@ static void decode_user_data(struct hfdl_channel *c) {
 	}
 	uint8_t viterbi_input[viterbi_input_len];
 	for(uint32_t i = 0; i < num_encoded_bits; i++) {
-		viterbi_input[i >> step_shift] = deinterleaver_pop(c->deinterleaver[M1]) ? 255 : 0;
+		viterbi_input[i >> step_shift] = deinterleaver_pop(c->deinterleaver[M1]);
 	}
 	debug_print_buf_hex(D_BURST_DETAIL, viterbi_input, viterbi_input_len, "viterbi_input:\n");
 
