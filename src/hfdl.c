@@ -911,8 +911,8 @@ static void decode_user_data(struct hfdl_channel *c) {
 	uint32_t num_symbols = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN;
 	ASSERT(num_symbols == cbuffercf_size(c->data_symbols));
 	uint32_t num_encoded_bits = num_symbols * c->data_mod_arity;
-	chan_debug("got %d user data symbols, deinterleaver table size: %u\n", num_symbols,
-			deinterleaver_table_size(c->deinterleaver[M1]));
+	chan_debug("got %d user data symbols, deinterleaver table size: %u bitmask: 0x%x\n", num_symbols,
+			deinterleaver_table_size(c->deinterleaver[M1]), c->bitmask);
 	ASSERT(num_encoded_bits == deinterleaver_table_size(c->deinterleaver[M1]));
 	uint32_t bits = 0;
 	uint32_t descrambler_bit = 0;
@@ -922,9 +922,11 @@ static void decode_user_data(struct hfdl_channel *c) {
 		cbuffercf_pop(c->data_symbols, &symbol);
 		descrambler_bit = descrambler_advance(c->descrambler);
 		// Flip symbol phase by M_PI when descrambler outputs 1
-		modem_demodulate(data_modem, symbol * phase_flip[descrambler_bit], &bits);
-		bits ^= c->bitmask;
-		for(uint32_t j = 0; j < c->data_mod_arity; j++) {
+		// Flip symbol phase by M_PI when Costas loop synced in an opposite phase
+		modem_demodulate(data_modem, symbol * phase_flip[descrambler_bit] * phase_flip[c->bitmask & 1], &bits);
+		//debug_print(D_BURST_DETAIL, "symbol: (%.3f, %.3f) desc_flip: %.0f bitmask_flip: %.0f, bits: %u\n",
+		//		crealf(symbol), cimagf(symbol), phase_flip[descrambler_bit], phase_flip[c->bitmask & 1], bits);
+		for(int32_t j = c->data_mod_arity - 1; j >= 0; j--) {
 			deinterleaver_push(c->deinterleaver[M1], (bits >> j) & 1);
 		}
 	}
