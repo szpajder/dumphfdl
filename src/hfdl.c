@@ -930,17 +930,20 @@ static void decode_user_data(struct hfdl_channel *c) {
 		}
 	}
 #define CONV_CODE_RATE 2
-	uint32_t step_shift = 0;
 	uint32_t viterbi_input_len = num_encoded_bits;
-	// When FEC rate is 1/4, every chip is transmitted twice.
-	// Take every other chip from the interleaver in this case.
+	// When FEC rate is 1/4, every chip is transmitted twice, so we take mean value of them
 	if(hfdl_frame_params[M1].code_rate == 4) {
-		step_shift = 1;
 		viterbi_input_len /= 2;
 	}
 	uint8_t viterbi_input[viterbi_input_len];
-	for(uint32_t i = 0; i < num_encoded_bits; i++) {
-		viterbi_input[i >> step_shift] = deinterleaver_pop(c->deinterleaver[M1]);
+	if(hfdl_frame_params[M1].code_rate == 4) {
+		for(uint32_t i = 0; i < viterbi_input_len; i++) {
+			viterbi_input[i] = (deinterleaver_pop(c->deinterleaver[M1]) + deinterleaver_pop(c->deinterleaver[M1])) >> 1;
+		}
+	} else {    // code_rate == 2
+		for(uint32_t i = 0; i < num_encoded_bits; i++) {
+			viterbi_input[i] = deinterleaver_pop(c->deinterleaver[M1]);
+		}
 	}
 	debug_print_buf_hex(D_BURST_DETAIL, viterbi_input, viterbi_input_len, "viterbi_input:\n");
 
