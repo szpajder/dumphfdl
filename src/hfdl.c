@@ -970,8 +970,8 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	hm->version = 1;
 	hm->freq = c->chan_freq;
 	hm->freq_err_hz = c->freq_err_hz;
-	hm->pdu_timestamp.tv_sec = c->pdu_timestamp.tv_sec;
-	hm->pdu_timestamp.tv_usec = c->pdu_timestamp.tv_usec;
+	m->rx_timestamp.tv_sec = c->pdu_timestamp.tv_sec;
+	m->rx_timestamp.tv_usec = c->pdu_timestamp.tv_usec;
 
 	ASSERT(c->M1 >= 0);
 	ASSERT(c->M1 < M_SHIFT_CNT);

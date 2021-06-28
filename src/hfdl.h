@@ -25,7 +25,6 @@ struct hfdl_pdu_hdr_data {
 
 struct hfdl_pdu_metadata {
 	struct metadata metadata;
-	struct timeval pdu_timestamp;
 	char *station_id;
 	int32_t version;
 	int32_t freq;

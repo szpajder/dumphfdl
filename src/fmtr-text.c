@@ -44,7 +44,7 @@ static struct octet_string *fmtr_text_format_decoded_msg(struct metadata *metada
 
 	struct hfdl_pdu_metadata *hm = container_of(metadata, struct hfdl_pdu_metadata,
 			metadata);
-	la_vstring *timestamp = format_timestamp(hm->pdu_timestamp);
+	la_vstring *timestamp = format_timestamp(metadata->rx_timestamp);
 	la_vstring *vstr = la_vstring_new();
 
 	la_vstring_append_sprintf(vstr, "[%s] [%d kHz] [%.1f Hz] [%d bps] [%c]",
