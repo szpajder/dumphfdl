@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
 #include <string.h>                 // memcpy
+#include <sys/time.h>               // struct timeval
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node, LA_MSG_DIR_*
+#include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/acars.h>         // la_acars_parse
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // enum hfdl_pdu_direction
@@ -215,7 +217,8 @@ uint32_t frequency_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_freq_dat
 	return consumed_len;
 }
 
-la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction) {
+la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction,
+		la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
 	ASSERT(buf);
 
 	if(len == 0) {
@@ -253,8 +256,9 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction 
 			break;
 		case ENVELOPED_DATA:
 			if(len > 2 && buf[2] == 1) {        // ACARS SOH byte
-				node->next = la_acars_parse(buf + 3, len - 3,
-						direction == UPLINK_PDU ? LA_MSG_DIR_GND2AIR : LA_MSG_DIR_AIR2GND);
+				node->next = la_acars_parse_and_reassemble(buf + 3, len - 3,
+						direction == UPLINK_PDU ? LA_MSG_DIR_GND2AIR : LA_MSG_DIR_AIR2GND,
+						reasm_ctx, rx_timestamp);
 			} else {
 				node->next = unknown_proto_pdu_new(buf + 3, len - 3);
 			}

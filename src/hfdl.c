@@ -1027,7 +1027,7 @@ static void *pdu_decoder_thread(void *ctx) {
 				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
 					if(IS_MPDU(q->pdu->buf)) {
-						lpdu_list = mpdu_parse(q->pdu, reasm_ctx);
+						lpdu_list = mpdu_parse(q->pdu, reasm_ctx, q->metadata->rx_timestamp);
 					} else {
 						lpdu_list = spdu_parse(q->pdu);
 					}

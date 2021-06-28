@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
+#include <sys/time.h>                       // struct timeval
 #include <libacars/libacars.h>              // la_type_descriptor, la_proto_node
 #include <libacars/reassembly.h>            // la_reasm_ctx
 #include <libacars/list.h>                  // la_list
@@ -22,9 +23,10 @@ struct mpdu_dst {
 la_type_descriptor const proto_DEF_hfdl_mpdu;
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list,
-		struct hfdl_pdu_hdr_data mpdu_header);
+		struct hfdl_pdu_hdr_data mpdu_header, la_reasm_ctx *reasm_ctx,
+		struct timeval rx_timestamp);
 
-la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
+la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
 	ASSERT(pdu);
 	ASSERT(pdu->buf);
 	ASSERT(pdu->len > 0);
@@ -79,7 +81,8 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 		mpdu_header.src_id = buf[2];
 		mpdu_header.dst_id = buf[1] & 0x7f;
 		uint8_t *hdrptr = buf + 6;              // First LPDU size octet
-		if(parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list, mpdu_header) < 0) {
+		if(parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list,
+					mpdu_header, reasm_ctx, rx_timestamp) < 0) {
 			goto end;
 		}
 	} else {                                    // UPLINK_PDU
@@ -93,7 +96,8 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx) {
 			dst_ac->lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
 			mpdu->dst_aircraft = la_list_append(mpdu->dst_aircraft, dst_ac);
 			if((consumed_octets = parse_lpdu_list(hdrptr, dataptr, buf + len,
-							dst_ac->lpdu_cnt, lpdu_list, mpdu_header)) < 0) {
+							dst_ac->lpdu_cnt, lpdu_list, mpdu_header,
+							reasm_ctx, rx_timestamp)) < 0) {
 				goto end;
 			}
 		}
@@ -106,13 +110,15 @@ end:
 
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list,
-		struct hfdl_pdu_hdr_data mpdu_header) {
+		struct hfdl_pdu_hdr_data mpdu_header, la_reasm_ctx *reasm_ctx,
+		struct timeval rx_timestamp) {
 	int32_t consumed_octets = 0;
 	for(uint32_t j = 0; j < lpdu_cnt; j++) {
 		uint32_t lpdu_len = *lpdu_len_ptr + 1;
 		if(data_ptr + lpdu_len <= endptr) {
 			debug_print(D_PROTO, "lpdu %u/%u: lpdu_len=%u\n", j + 1, lpdu_cnt, lpdu_len);
-			lpdu_list = la_list_append(lpdu_list, lpdu_parse(data_ptr, lpdu_len, mpdu_header));
+			lpdu_list = la_list_append(lpdu_list, lpdu_parse(data_ptr, lpdu_len, mpdu_header,
+						reasm_ctx, rx_timestamp));
 			data_ptr += lpdu_len;              // Move to the next LPDU
 			consumed_octets += lpdu_len;
 			lpdu_len_ptr++;

@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
+#include <sys/time.h>               // struct timeval
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node
+#include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "hfnpdu.h"                 // hfnpdu_parse
@@ -111,7 +113,8 @@ static int32_t logoff_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logo
 	return LOGOFF_REQUEST_LPDU_LEN;
 }
 
-la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data mpdu_header) {
+la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data mpdu_header,
+		la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
 	ASSERT(buf);
 
 	if(len < 3) {       // Need at least LPDU type + FCS
@@ -161,7 +164,8 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 	if(consumed_len < 0) {
 		lpdu->err = true;
 	} else if((uint32_t)consumed_len < len) {
-		node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len, mpdu_header.direction);
+		node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len, mpdu_header.direction,
+				reasm_ctx, rx_timestamp);
 	}
 end:
 	return node;

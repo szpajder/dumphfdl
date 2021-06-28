@@ -8,6 +8,8 @@
 #include <string.h>             // strlen, strsep
 #include <math.h>               // roundf
 #include <unistd.h>             // usleep
+#include <libacars/libacars.h>  // la_config_set_int
+#include <libacars/acars.h>     // LA_ACARS_BEARER_HFDL
 #include <libacars/list.h>      // la_list
 #ifdef PROFILING
 #include <gperftools/profiler.h>
@@ -382,6 +384,7 @@ int32_t main(int32_t argc, char **argv) {
 		return 1;
 	}
 
+	la_config_set_int("acars_bearer", LA_ACARS_BEARER_HFDL);
 	hfdl_init_globals();
 
 	struct block *channels[channel_cnt];
