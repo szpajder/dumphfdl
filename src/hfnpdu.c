@@ -439,8 +439,8 @@ void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop
 
 	gs_id_format_text(vstr, indent, "GS ID", data->gs_id);
 	indent++;
-	freq_list_format_text(vstr, indent+1, "Listening on", data->tuned_freqs);
-	freq_list_format_text(vstr, indent+1, "Heard on", data->prop_freqs);
+	freq_list_format_text(vstr, indent+1, "Listening on", data->gs_id, data->tuned_freqs);
+	freq_list_format_text(vstr, indent+1, "Heard on", data->gs_id, data->prop_freqs);
 }
 
 void frequency_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_freq_data const *pdu) {

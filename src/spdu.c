@@ -141,7 +141,7 @@ static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_st
 	gs_id_format_text(vstr, indent, "ID", gs->id);
 	indent++;
 	LA_ISPRINTF(vstr, indent, "UTC sync: %d\n", gs->utc_sync);
-	freq_list_format_text(vstr, indent, "Frequencies in use", gs->freqs_in_use);
+	freq_list_format_text(vstr, indent, "Frequencies in use", gs->id, gs->freqs_in_use);
 }
 
 la_type_descriptor const proto_DEF_hfdl_spdu = {

@@ -209,19 +209,26 @@ uint32_t parse_icao_hex(uint8_t const buf[3]) {
 	return result;
 }
 
-void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs) {
+void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id, uint32_t freqs) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);
 	ASSERT(label);
 
 	LA_ISPRINTF(vstr, indent, "%s: ", label);
 	bool first = true;
+	Systable_lock();
 	for(int32_t i = 0; i < GS_MAX_FREQ_CNT; i++) {
 		if((freqs >> i) & 1) {
-			la_vstring_append_sprintf(vstr, "%s%d", first ? "" : ", ", i);
+			double f = systable_get_station_frequency(Systable, gs_id, i);
+			if(f > 0.0) {
+				la_vstring_append_sprintf(vstr, "%s%.1f", first ? "" : ", ", f);
+			} else {
+				la_vstring_append_sprintf(vstr, "%s%d", first ? "" : ", ", i);
+			}
 			first = false;
 		}
 	}
+	Systable_unlock();
 	EOL(vstr);
 }
 
