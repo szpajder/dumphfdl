@@ -14,7 +14,7 @@
 #endif
 #include "config.h"
 #include "options.h"            // IND(), describe_option
-#include "globals.h"            // do_exit
+#include "globals.h"            // do_exit, Systable
 #include "block.h"              // block_*
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
 #include "fft.h"                // csdr_fft_init, fft_create
@@ -24,6 +24,7 @@
 #include "output-common.h"      // output_*, fmtr_*
 #include "kvargs.h"             // kvargs
 #include "hfdl.h"               // hfdl_channel_create
+#include "systable.h"           // systable_*
 
 typedef struct {
 	char *output_spec_string;
@@ -200,6 +201,10 @@ void usage() {
 	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
 	describe_option("--milliseconds", "Print milliseconds in timestamps", 1);
 	describe_option("--raw-frames", "Print raw AVLC frame as hex", 1);
+
+	fprintf(stderr, "\nSystem table options:\n");
+	describe_option("--system-table <file>", "Load system table from file", 1);
+	describe_option("--system-table-save <file>", "Save updated system table to the given file", 1);
 }
 
 int32_t main(int32_t argc, char **argv) {
@@ -227,6 +232,9 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_MILLISECONDS 45
 #define OPT_RAW_FRAMES 46
 
+#define OPT_SYSTABLE_FILE 60
+#define OPT_SYSTABLE_SAVE_FILE 61
+
 #define DEFAULT_OUTPUT "decoded:text:file:path=-"
 
 	static struct option opts[] = {
@@ -249,6 +257,8 @@ int32_t main(int32_t argc, char **argv) {
 		{ "utc",                no_argument,        NULL,   OPT_UTC },
 		{ "milliseconds",       no_argument,        NULL,   OPT_MILLISECONDS },
 		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
+		{ "system-table",       required_argument,  NULL,   OPT_SYSTABLE_FILE },
+		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 		{ 0,                    0,                  0,      0 }
 	};
 
@@ -259,6 +269,8 @@ int32_t main(int32_t argc, char **argv) {
 	input_cfg->sfmt = SFMT_UNDEF;
 	input_cfg->type = INPUT_TYPE_UNDEF;
 	la_list *fmtr_list = NULL;
+	char const *systable_file = NULL;
+	char const *systable_save_file = NULL;
 
 	print_version();
 
@@ -313,6 +325,12 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_RAW_FRAMES:
 				Config.output_raw_frames = true;
 				break;
+			case OPT_SYSTABLE_FILE:
+				systable_file = optarg;
+				break;
+			case OPT_SYSTABLE_SAVE_FILE:
+				systable_save_file = optarg;
+				break;
 #ifdef DEBUG
 			case OPT_DEBUG:
 				Config.debug_filter = parse_msg_filterspec(debug_filters, debug_filter_usage, optarg);
@@ -349,6 +367,19 @@ int32_t main(int32_t argc, char **argv) {
 	if(Config.output_queue_hwm < 0) {
 		fprintf(stderr, "Invalid --output-queue-hwm value: must be a non-negative integer\n");
 		return 1;
+	}
+
+	Systable = systable_create(systable_save_file);
+	if(systable_file != NULL) {
+		Systable_lock();
+		if(systable_read_from_file(Systable, systable_file) == false) {
+			fprintf(stderr, "Unable to read system table from %s: %s\n",
+					systable_file, systable_error_text(Systable));
+			systable_destroy(Systable);
+			return 1;
+		}
+		Systable_unlock();
+		fprintf(stderr, "System table loaded from %s\n", systable_file);
 	}
 
 	// no --output given?
@@ -438,6 +469,10 @@ int32_t main(int32_t argc, char **argv) {
 #endif
 
 	hfdl_print_summary();
+
+	Systable_lock();
+	systable_destroy(Systable);
+	Systable_unlock();
 
 	return 0;
 }
