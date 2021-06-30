@@ -118,7 +118,7 @@ static void spdu_format_text(la_vstring *vstr, void const *data, int indent) {
 
 	LA_ISPRINTF(vstr, indent, "Uplink SPDU:\n");
 	indent++;
-	LA_ISPRINTF(vstr, indent, "Src GS: %d\n", spdu->header.src_id);
+	gs_id_format_text(vstr, indent, "Src GS", spdu->header.src_id);
 	LA_ISPRINTF(vstr, indent, "Squitter: ver: %hhu rls: %d iso: %d\n",
 			spdu->version, spdu->rls_in_use, spdu->iso8208_supported);
 	indent++;
