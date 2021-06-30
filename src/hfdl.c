@@ -520,7 +520,7 @@ void hfdl_print_summary(void) {
 #ifdef DATADUMPS
 #define fopen_datfile(file, suffix) \
 	FILE *(file) = fopen(#file "." suffix, "w"); \
-	assert(file)
+	ASSERT(file)
 #define fopen_cf32(file) fopen_datfile(file, "cf32")
 #define fopen_rf32(file) fopen_datfile(file, "rf32")
 
@@ -590,7 +590,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 #ifdef DUMP_CONST
 	uint64_t frame_id;
 	FILE *consts = fopen("const.m", "w");
-	assert(consts);
+	ASSERT(consts);
 #endif
 #ifdef DUMP_FFT
 	fopen_cf32(f_fft_out);
