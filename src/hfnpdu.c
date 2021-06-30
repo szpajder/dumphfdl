@@ -387,7 +387,7 @@ void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 			pdu->utc_time.hour, pdu->utc_time.min, pdu->utc_time.sec);
 	LA_ISPRINTF(vstr, indent, "Flight leg: %hhu\n", pdu->flight_leg);
 	gs_id_format_text(vstr, indent, "GS ID", pdu->gs_id);
-	LA_ISPRINTF(vstr, indent, "Frequency: %hhu\n", pdu->freq_id);
+	freq_list_format_text(vstr, indent, "Frequency", pdu->gs_id, 1u << pdu->freq_id);
 	LA_ISPRINTF(vstr, indent, "Frequency search count:\n");
 	LA_ISPRINTF(vstr, indent + 1, "This leg: %hu\n", pdu->cur_leg.freq_search_cnt);
 	LA_ISPRINTF(vstr, indent + 1, "Prev leg: %hu\n", pdu->prev_leg.freq_search_cnt);
