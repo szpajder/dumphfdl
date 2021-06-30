@@ -95,6 +95,11 @@ list(APPEND dumphfdl_extra_libs ${ACARS_LIBRARIES})
 list(APPEND dumphfdl_include_dirs ${ACARS_INCLUDE_DIRS})
 list(APPEND link_dirs ${ACARS_LIBRARY_DIRS})
 
+pkg_check_modules(CONFIG REQUIRED libconfig++)
+list(APPEND dumphfdl_extra_libs ${CONFIG_LIBRARIES})
+list(APPEND dumphfdl_include_dirs ${CONFIG_INCLUDE_DIRS})
+list(APPEND link_dirs ${CONFIG_LIBRARY_DIRS})
+
 option(SOAPYSDR "Enable SoapySDR support" ON)
 set(WITH_SOAPYSDR FALSE)
 
@@ -235,6 +240,7 @@ add_library (dumphfdl_base OBJECT
 	output-common.c
 	output-file.c
 	spdu.c
+	systable.c
 	util.c
 	${CMAKE_CURRENT_BINARY_DIR}/version.c
 	${dumphfdl_extra_sources}

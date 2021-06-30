@@ -8,6 +8,8 @@
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
 #include "util.h"                   // octet_string
+#include "globals.h"                // Systable, Systable_lock, Systable_unlock
+#include "systable.h"               // systable_get_station_name
 
 // Forward declarations
 char *hexdump(uint8_t *data, size_t len);
@@ -207,18 +209,44 @@ uint32_t parse_icao_hex(uint8_t const buf[3]) {
 	return result;
 }
 
-void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs) {
+void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id, uint32_t freqs) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);
 	ASSERT(label);
 
 	LA_ISPRINTF(vstr, indent, "%s: ", label);
 	bool first = true;
+	Systable_lock();
 	for(int32_t i = 0; i < GS_MAX_FREQ_CNT; i++) {
 		if((freqs >> i) & 1) {
-			la_vstring_append_sprintf(vstr, "%s%d", first ? "" : ", ", i);
+			double f = systable_get_station_frequency(Systable, gs_id, i);
+			if(f > 0.0) {
+				la_vstring_append_sprintf(vstr, "%s%.1f", first ? "" : ", ", f);
+			} else {
+				la_vstring_append_sprintf(vstr, "%s%d", first ? "" : ", ", i);
+			}
 			first = false;
 		}
 	}
+	Systable_unlock();
 	EOL(vstr);
+}
+
+void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id) {
+	ASSERT(vstr);
+	ASSERT(indent >= 0);
+	ASSERT(label);
+
+	char const *gs_name = NULL;
+	Systable_lock();
+	if(systable_is_available(Systable)) {
+		gs_name = systable_get_station_name(Systable, gs_id);
+	}
+	Systable_unlock();
+	LA_ISPRINTF(vstr, indent, "%s: ", label);
+	if(gs_name != NULL) {
+		la_vstring_append_sprintf(vstr, "%s\n", gs_name);
+	} else {
+		la_vstring_append_sprintf(vstr, "%hhu\n", gs_id);
+	}
 }

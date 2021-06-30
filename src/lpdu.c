@@ -6,7 +6,7 @@
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "hfnpdu.h"                 // hfnpdu_parse
-#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE
+#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, gs_id_format_text
 
 // LPDU types
 #define UNNUMBERED_DATA             0x0D
@@ -188,13 +188,13 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	if(lpdu->mpdu_header.direction == UPLINK_PDU) {
 		LA_ISPRINTF(vstr, indent, "Uplink LPDU:\n");
 		indent++;
-		LA_ISPRINTF(vstr, indent, "Src GS: %hhu\n", lpdu->mpdu_header.src_id);
+		gs_id_format_text(vstr, indent, "Src GS", lpdu->mpdu_header.src_id);
 		LA_ISPRINTF(vstr, indent, "Dst AC: %hhu\n", lpdu->mpdu_header.dst_id);
 	} else {
 		LA_ISPRINTF(vstr, indent, "Downlink LPDU:\n");
 		indent++;
 		LA_ISPRINTF(vstr, indent, "Src AC: %hhu\n", lpdu->mpdu_header.src_id);
-		LA_ISPRINTF(vstr, indent, "Dst GS: %hhu\n", lpdu->mpdu_header.dst_id);
+		gs_id_format_text(vstr, indent, "Dst GS", lpdu->mpdu_header.dst_id);
 	}
 	char const *lpdu_type = la_dict_search(lpdu_type_descriptions, lpdu->type);
 	if(lpdu_type != NULL) {
