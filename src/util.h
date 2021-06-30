@@ -116,3 +116,4 @@ uint32_t parse_icao_hex(uint8_t const buf[3]);
 
 #define GS_MAX_FREQ_CNT 20       // Max number of frequencies assigned to a ground station
 void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint32_t freqs);
+void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id);

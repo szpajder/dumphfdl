@@ -8,6 +8,8 @@
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
 #include "util.h"                   // octet_string
+#include "globals.h"                // Systable, Systable_lock, Systable_unlock
+#include "systable.h"               // systable_get_station_name
 
 // Forward declarations
 char *hexdump(uint8_t *data, size_t len);
@@ -221,4 +223,23 @@ void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, 
 		}
 	}
 	EOL(vstr);
+}
+
+void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id) {
+	ASSERT(vstr);
+	ASSERT(indent >= 0);
+	ASSERT(label);
+
+	char const *gs_name = NULL;
+	Systable_lock();
+	if(systable_is_available(Systable)) {
+		gs_name = systable_get_station_name(Systable, gs_id);
+	}
+	Systable_unlock();
+	LA_ISPRINTF(vstr, indent, "%s: ", label);
+	if(gs_name != NULL) {
+		la_vstring_append_sprintf(vstr, "%s\n", gs_name);
+	} else {
+		la_vstring_append_sprintf(vstr, "%hhu\n", gs_id);
+	}
 }

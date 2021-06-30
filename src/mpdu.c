@@ -5,7 +5,7 @@
 #include <libacars/list.h>                  // la_list
 #include "hfdl.h"                           // hfdl_*
 #include "lpdu.h"                           // lpdu_parse
-#include "util.h"                           // NEW, ASSERT, struct octet_string
+#include "util.h"                           // NEW, ASSERT, struct octet_string, gs_id_format_text
 
 struct hfdl_mpdu {
 	struct octet_string *pdu;
@@ -143,7 +143,7 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	if(mpdu->header.direction == UPLINK_PDU) {
 		LA_ISPRINTF(vstr, indent, "Uplink MPDU:\n");
 			indent++;
-			LA_ISPRINTF(vstr, indent, "Src GS: %hhu\n", mpdu->header.src_id);
+			gs_id_format_text(vstr, indent, "Src GS", mpdu->header.src_id);
 			int32_t i = 1;
 			for(la_list *ac = mpdu->dst_aircraft; ac != NULL; ac = la_list_next(ac)) {
 				struct mpdu_dst *dst = ac->data;
@@ -154,7 +154,7 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		LA_ISPRINTF(vstr, indent, "Downlink MPDU:\n");
 			indent++;
 			LA_ISPRINTF(vstr, indent, "Src AC: %hhu\n", mpdu->header.src_id);
-			LA_ISPRINTF(vstr, indent, "Dst GS: %hhu\n", mpdu->header.dst_id);
+			gs_id_format_text(vstr, indent, "Dst GS", mpdu->header.dst_id);
 	}
 }
 

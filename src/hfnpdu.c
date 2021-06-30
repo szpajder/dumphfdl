@@ -5,7 +5,7 @@
 #include <libacars/acars.h>         // la_acars_parse
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // enum hfdl_pdu_direction
-#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, freq_list_format_text
+#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, freq_list_format_text, gs_id_format_text
 
 // HFNPDU types
 #define SYSTEM_TABLE            0xD0
@@ -382,7 +382,7 @@ void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 	LA_ISPRINTF(vstr, indent, "Time: %02hhu:%02hhu:%02hhu\n",
 			pdu->utc_time.hour, pdu->utc_time.min, pdu->utc_time.sec);
 	LA_ISPRINTF(vstr, indent, "Flight leg: %hhu\n", pdu->flight_leg);
-	LA_ISPRINTF(vstr, indent, "GS ID: %hhu\n", pdu->gs_id);
+	gs_id_format_text(vstr, indent, "GS ID", pdu->gs_id);
 	LA_ISPRINTF(vstr, indent, "Frequency: %hhu\n", pdu->freq_id);
 	LA_ISPRINTF(vstr, indent, "Frequency search count:\n");
 	LA_ISPRINTF(vstr, indent + 1, "This leg: %hu\n", pdu->cur_leg.freq_search_cnt);
@@ -409,7 +409,7 @@ void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systab
 	LA_ISPRINTF(vstr, indent, "Version: %hu\n", data->systable_version);
 	LA_ISPRINTF(vstr, indent, "PDU count: %hhu\n", data->total_pdu_cnt);
 	LA_ISPRINTF(vstr, indent, "PDU seq num: %hhu\n", data->pdu_seq_num);
-	LA_ISPRINTF(vstr, indent, "GS ID: %hhu\n", data->gs_id);
+	gs_id_format_text(vstr, indent, "GS ID", data->gs_id);
 	LA_ISPRINTF(vstr, indent, "UTC sync: %d\n", data->utc_sync);
 	LA_ISPRINTF(vstr, indent, "GS location:\n");
 	LA_ISPRINTF(vstr, indent+1, "Lat: %.7f\n", data->gs_location.lat);
@@ -437,7 +437,7 @@ void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop
 	ASSERT(data);
 	ASSERT(indent > 0);
 
-	LA_ISPRINTF(vstr, indent, "GS ID: %hhu\n", data->gs_id);
+	gs_id_format_text(vstr, indent, "GS ID", data->gs_id);
 	indent++;
 	freq_list_format_text(vstr, indent+1, "Listening on", data->tuned_freqs);
 	freq_list_format_text(vstr, indent+1, "Heard on", data->prop_freqs);

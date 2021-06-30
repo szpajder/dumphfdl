@@ -3,7 +3,7 @@
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/list.h>          // la_list
 #include "hfdl.h"                   // hfdl_*
-#include "util.h"                   // NEW, ASSERT, struct octet_string, freq_list_format_text
+#include "util.h"                   // NEW, ASSERT, struct octet_string, freq_list_format_text, gs_id_format_text
 #include "crc.h"                    // crc16_ccitt
 
 #define SPDU_LEN 66
@@ -138,7 +138,7 @@ static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_st
 	ASSERT(indent >= 0);
 	ASSERT(gs);
 
-	LA_ISPRINTF(vstr, indent, "ID: %hhu\n", gs->id);
+	gs_id_format_text(vstr, indent, "ID", gs->id);
 	indent++;
 	LA_ISPRINTF(vstr, indent, "UTC sync: %d\n", gs->utc_sync);
 	freq_list_format_text(vstr, indent, "Frequencies in use", gs->freqs_in_use);
