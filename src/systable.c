@@ -80,6 +80,7 @@ struct systable {
 	char *savefile_path;
 	config_setting_t const *stations[STATION_ID_MAX+1];
 	enum systable_err_code err;
+	bool available;
 };
 
 /******************************
@@ -110,7 +111,8 @@ bool systable_read_from_file(systable *st, char const *file) {
 		st->err = ST_ERR_LIBCONFIG;
 		return false;
 	}
-	return systable_parse(st);
+	st->available = systable_parse(st);
+	return st->available;
 }
 
 char const *systable_error_text(systable const *st) {
@@ -154,6 +156,10 @@ double systable_get_station_frequency(systable const *st, int32_t gs_id, int32_t
 		}
 	}
 	return -1.0;
+}
+
+bool systable_is_available(systable const *st) {
+	return st != NULL && st->available;
 }
 
 void systable_destroy(systable *st) {
