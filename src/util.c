@@ -7,7 +7,7 @@
 #include <unistd.h>                 // _exit
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
-#include "util.h"                   // octet_string
+#include "util.h"                   // struct octet_string, struct location
 #include "globals.h"                // Systable, Systable_lock, Systable_unlock
 #include "systable.h"               // systable_get_station_name
 
@@ -249,4 +249,12 @@ void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint
 	} else {
 		la_vstring_append_sprintf(vstr, "%hhu\n", gs_id);
 	}
+}
+
+double parse_coordinate(uint32_t c) {
+	struct { int32_t coord:20; } s;
+	int32_t r = s.coord = (int32_t)c;
+	double result = r * 180.0 / (double)0x7ffff;
+	debug_print(D_PROTO, "r=%d (%06X)\n", r, r);
+	return result;
 }

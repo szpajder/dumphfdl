@@ -19,10 +19,6 @@
 
 #define extract_uint16_t(buf) ((uint16_t)((buf)[0]) | (uint16_t)((buf)[1]) << 8)
 
-struct location {
-	double lat, lon;
-};
-
 struct time {
 	uint8_t hour, min, sec;
 };
@@ -105,14 +101,6 @@ la_dict const hfnpdu_type_descriptions[] = {
 
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_hfnpdu;
-
-static double parse_coordinate(uint32_t c) {
-	struct { int32_t coord:20; } s;
-	int32_t r = s.coord = (int32_t)c;
-	double result = r * 180.0 / (double)0x7ffff;
-	debug_print(D_PROTO, "r=%d (%06X)\n", r, r);
-	return result;
-}
 
 static struct time parse_utc_time(uint32_t t) {
 	return (struct time){
