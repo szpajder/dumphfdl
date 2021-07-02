@@ -207,6 +207,7 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 	switch(lpdu->type) {
 		case LOGON_DENIED:
 		case LOGOFF_REQUEST:
+			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logoff_request.icao_address);
 			descr = la_dict_search(
 					lpdu->type == LOGON_DENIED ? logon_denied_reason_codes : logoff_request_reason_codes,
 					lpdu->data.logoff_request.reason_code
