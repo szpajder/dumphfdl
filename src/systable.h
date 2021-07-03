@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
+#pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include <libacars/libacars.h>          // la_proto_node
 
 typedef struct systable systable;
 
@@ -11,4 +13,7 @@ int32_t systable_get_version(systable const *st);
 char const *systable_get_station_name(systable const *st, int32_t id);
 double systable_get_station_frequency(systable const *st, int32_t gs_id, int32_t freq_id);
 bool systable_is_available(systable const *st);
+void systable_store_pdu(systable const *st, int16_t version, uint8_t seq_num,
+		uint8_t pdu_set_len, uint8_t *buf, uint32_t len);
+la_proto_node *systable_decode_from_pdu_set(systable const *st);
 void systable_destroy(systable *st);

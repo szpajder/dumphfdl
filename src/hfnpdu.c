@@ -66,16 +66,9 @@ struct hfnpdu_systable_request_data {
 };
 
 struct hfnpdu_systable_data {
-	uint32_t frequencies[GS_MAX_FREQ_CNT];
 	uint16_t systable_version;
 	uint8_t total_pdu_cnt;
 	uint8_t pdu_seq_num;
-	uint8_t gs_id;
-	uint8_t freq_cnt;
-	uint8_t spdu_version;
-	uint8_t master_frame_slot;
-	struct location gs_location;
-	bool utc_sync;
 };
 
 struct hfdl_hfnpdu {
@@ -90,7 +83,7 @@ struct hfdl_hfnpdu {
 };
 
 la_dict const hfnpdu_type_descriptions[] = {
-	{ .id = SYSTEM_TABLE,         .val = "System table" },
+	{ .id = SYSTEM_TABLE,         .val = "System table (partial)" },
 	{ .id = PERFORMANCE_DATA,     .val = "Performance data" },
 	{ .id = SYSTEM_TABLE_REQUEST, .val = "System table request" },
 	{ .id = FREQUENCY_DATA,       .val = "Frequency data" },
@@ -110,21 +103,11 @@ static struct time parse_utc_time(uint32_t t) {
 	};
 }
 
-uint32_t parse_systable_frequency(uint8_t const buf[3]) {
-	ASSERT(buf);
-
-	return
-		1e2 * (buf[0] & 0xF) +
-		1e3 * ((buf[0] >> 4) & 0xF) +
-		1e4 * (buf[1] & 0xF) +
-		1e5 * ((buf[1] >> 4) & 0xF) +
-		1e6 * (buf[2] & 0xF) +
-		1e7 * ((buf[2] >> 4) & 0xF);
-}
-
+// System table is split across several PDUs which have to be reassembled before
+// decoding. This routine parses only the initial part (up to System table version field),
+// which is repeated in every PDU.
 uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data *result) {
-#define SYSTABLE_HFNPDU_MIN_LEN 13
-#define FREQ_FIELD_LEN 3
+#define SYSTABLE_HFNPDU_MIN_LEN 5       // From HFNPDU type to system table version
 	ASSERT(buf);
 	ASSERT(result);
 
@@ -135,37 +118,7 @@ uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data 
 	result->total_pdu_cnt = ((buf[2] >> 4) & 0xF) + 1;
 	result->pdu_seq_num = buf[2] & 0xF;
 	result->systable_version = ((buf[3] >> 4) & 0xF) | buf[4] << 4;
-	result->gs_id = buf[5] & 0x7F;
-	result->utc_sync = (buf[5] & 0x80) != 0;
-
-	uint32_t coord = buf[6] | buf[7] << 8 | (buf[8] & 0xF) << 16;
-	result->gs_location.lat = parse_coordinate(coord);
-	coord = ((buf[8] >> 4) & 0xF) | buf[9] << 4 | buf[10] << 12;
-	result->gs_location.lon = parse_coordinate(coord);
-
-	result->spdu_version = buf[11] & 7;
-	result->freq_cnt = (buf[11] >> 3) & 0x1F;
-	if(result->freq_cnt > GS_MAX_FREQ_CNT) {
-		debug_print(D_PROTO, "GS %d: too many frequencies (%d), truncating to %d\n",
-				result->gs_id, result->freq_cnt, GS_MAX_FREQ_CNT);
-		result->gs_id = GS_MAX_FREQ_CNT;
-	}
-	uint32_t consumed_len = SYSTABLE_HFNPDU_MIN_LEN - 1;
-	for(uint32_t f = 0; f < result->freq_cnt; f++) {
-		uint32_t pos = SYSTABLE_HFNPDU_MIN_LEN - 1 + f * FREQ_FIELD_LEN;
-		if(pos + FREQ_FIELD_LEN < len) {
-			result->frequencies[f] = parse_systable_frequency(buf + pos);
-			consumed_len += FREQ_FIELD_LEN;
-		} else {
-			break;
-		}
-	}
-	debug_print(D_PROTO, "freq_cnt: %u octets_left: %u\n",
-			result->freq_cnt, len - consumed_len);
-	ASSERT(consumed_len < len);
-	result->master_frame_slot = buf[consumed_len] & 0xF;
-	consumed_len++;
-	return consumed_len;
+	return SYSTABLE_HFNPDU_MIN_LEN;
 }
 
 uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
@@ -302,7 +255,20 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction 
 	hfnpdu->type = buf[1];
 	switch(hfnpdu->type) {
 		case SYSTEM_TABLE:
+			// Parse the initial part of the PDU (it gets repeated in all PDUs in the set)
 			consumed_len = systable_parse(buf, len, &hfnpdu->data.systable_data);
+			if(consumed_len > 0 && (uint32_t)consumed_len < len) {
+				Systable_lock();
+				// If there is any data left, then store it for reassembly
+				systable_store_pdu(Systable,
+						hfnpdu->data.systable_data.systable_version,
+						hfnpdu->data.systable_data.pdu_seq_num,
+						hfnpdu->data.systable_data.total_pdu_cnt,
+						buf + consumed_len, len - consumed_len);
+				// Try to reassemble and decode the complete table
+				node->next = systable_decode_from_pdu_set(Systable);
+				Systable_unlock();
+			}
 			break;
 		case PERFORMANCE_DATA:
 			consumed_len = performance_data_parse(buf, len, &hfnpdu->data.perf_data);
@@ -399,21 +365,7 @@ void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systab
 	ASSERT(indent > 0);
 
 	LA_ISPRINTF(vstr, indent, "Version: %hu\n", data->systable_version);
-	LA_ISPRINTF(vstr, indent, "PDU count: %hhu\n", data->total_pdu_cnt);
-	LA_ISPRINTF(vstr, indent, "PDU seq num: %hhu\n", data->pdu_seq_num);
-	gs_id_format_text(vstr, indent, "GS ID", data->gs_id);
-	LA_ISPRINTF(vstr, indent, "UTC sync: %d\n", data->utc_sync);
-	LA_ISPRINTF(vstr, indent, "GS location:\n");
-	LA_ISPRINTF(vstr, indent+1, "Lat: %.7f\n", data->gs_location.lat);
-	LA_ISPRINTF(vstr, indent+1, "Lon: %.7f\n", data->gs_location.lon);
-	LA_ISPRINTF(vstr, indent, "Squitter version: %hhu\n", data->spdu_version);
-	LA_ISPRINTF(vstr, indent, "Master frame slot offset: %hhu\n", data->master_frame_slot);
-	LA_ISPRINTF(vstr, indent, "Frequency count: %hhu\n", data->freq_cnt);
-	LA_ISPRINTF(vstr, indent, "Frequencies:\n");
-	indent++;
-	for(uint32_t f = 0; f < data->freq_cnt; f++) {
-		LA_ISPRINTF(vstr, indent, "%u\n", data->frequencies[f]);
-	}
+	LA_ISPRINTF(vstr, indent, "Part: %u of %hhu\n", data->pdu_seq_num + 1u, data->total_pdu_cnt);
 }
 
 void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_request_data const *data) {
@@ -481,9 +433,7 @@ static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t inden
 			frequency_data_format_text(vstr, indent, &hfnpdu->data.freq_data);
 			break;
 		case DELAYED_ECHO:
-			break;
 		case ENVELOPED_DATA:
-			break;
 		default:
 			break;
 	}
