@@ -124,7 +124,7 @@ struct systable {
 *******************************/
 
 la_type_descriptor proto_DEF_systable_decoding_result;
-static bool systable_parse(systable *st);
+static bool systable_validate(systable *st);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
 static la_proto_node *systable_decode(uint8_t *buf, uint32_t len, int16_t version);
@@ -150,7 +150,7 @@ bool systable_read_from_file(systable *st, char const *file) {
 		st->current->err = ST_ERR_LIBCONFIG;
 		return false;
 	}
-	st->current->available = systable_parse(st);
+	st->current->available = systable_validate(st);
 	return st->current->available;
 }
 
@@ -289,8 +289,8 @@ la_proto_node *systable_decode_from_pdu_set(systable const *st) {
  * Private methods
 *****************************************/
 
-#define parse_success() do { return true; } while(0)
-#define parse_error(code) do { st->current->err = (code); return false; } while(0)
+#define validation_success() do { return true; } while(0)
+#define validation_error(code) do { st->current->err = (code); return false; } while(0)
 
 #define SYSTABLE_GS_DATA_MIN_LEN 8  // from GS ID to Master Slot Offset, excl. frequencies
 
@@ -300,12 +300,12 @@ struct systable_gs_decoding_result {
 	bool err;
 };
 
-static bool systable_parse_version(systable *st);
-static bool systable_parse_stations(systable *st);
-static bool systable_parse_station(systable *st, config_setting_t const *station);
-static bool systable_parse_station_id(systable *st, config_setting_t const *station);
-static bool systable_parse_station_name(systable *st, config_setting_t const *station);
-static bool systable_parse_frequencies(systable *st, config_setting_t const *station);
+static bool systable_validate_version(systable *st);
+static bool systable_validate_stations(systable *st);
+static bool systable_validate_station(systable *st, config_setting_t const *station);
+static bool systable_validate_station_id(systable *st, config_setting_t const *station);
+static bool systable_validate_station_name(systable *st, config_setting_t const *station);
+static bool systable_validate_frequencies(systable *st, config_setting_t const *station);
 static bool systable_add_station(systable *st, config_setting_t const *station);
 static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len);
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
@@ -320,108 +320,108 @@ static struct _systable *_systable_create(char const *savefile) {
 	return _st;
 }
 
-static bool systable_parse(systable *st) {
+static bool systable_validate(systable *st) {
 	ASSERT(st);
 
 	bool result = true;
-	result &= systable_parse_version(st);
-	result &= systable_parse_stations(st);
+	result &= systable_validate_version(st);
+	result &= systable_validate_stations(st);
 	return result;
 }
 
-static bool systable_parse_version(systable *st) {
+static bool systable_validate_version(systable *st) {
 #define SYSTABLE_VERSION_MAX 4095
 	ASSERT(st);
 
 	int32_t version = 0;
 	if(config_lookup_int(&st->current->cfg, "version", &version) == CONFIG_FALSE) {
-		parse_error(ST_ERR_VERSION_MISSING);
+		validation_error(ST_ERR_VERSION_MISSING);
 	}
 	if(version < 0 || version > SYSTABLE_VERSION_MAX) {
-		parse_error(ST_ERR_VERSION_OUT_OF_RANGE);
+		validation_error(ST_ERR_VERSION_OUT_OF_RANGE);
 	}
-	parse_success();
+	validation_success();
 }
 
-static bool systable_parse_stations(systable *st) {
+static bool systable_validate_stations(systable *st) {
 	ASSERT(st);
 
 	config_setting_t *stations = config_lookup(&st->current->cfg, "stations");
 	if(stations == NULL || !config_setting_is_list(stations)) {
-		parse_error(ST_ERR_STATIONS_MISSING);
+		validation_error(ST_ERR_STATIONS_MISSING);
 	}
 	config_setting_t *station = NULL;
 	uint32_t idx = 0;
 	while((station = config_setting_get_elem(stations, idx)) != NULL) {
-		if(systable_parse_station(st, station) == false ||
+		if(systable_validate_station(st, station) == false ||
 				systable_add_station(st, station) == false) {
 			return false;
 		}
 		idx++;
 	}
-	parse_success();
+	validation_success();
 }
 
-static bool systable_parse_station(systable *st, config_setting_t const *station) {
+static bool systable_validate_station(systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
 	if(!config_setting_is_group(station)) {
-		parse_error(ST_ERR_STATION_WRONG_TYPE);
+		validation_error(ST_ERR_STATION_WRONG_TYPE);
 	}
 	bool result = true;
-	result &= systable_parse_station_id(st, station);
-	result &= systable_parse_station_name(st, station);
-	result &= systable_parse_frequencies(st, station);
+	result &= systable_validate_station_id(st, station);
+	result &= systable_validate_station_name(st, station);
+	result &= systable_validate_frequencies(st, station);
 	return result;
 }
 
-static bool systable_parse_station_id(systable *st, config_setting_t const *station) {
+static bool systable_validate_station_id(systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
 	int32_t id = 0;
 	if(config_setting_lookup_int(station, "id", &id) == CONFIG_FALSE) {
-		parse_error(ST_ERR_STATION_ID_MISSING);
+		validation_error(ST_ERR_STATION_ID_MISSING);
 	}
 	if(id < 0 || id > STATION_ID_MAX) {
-		parse_error(ST_ERR_STATION_ID_OUT_OF_RANGE);
+		validation_error(ST_ERR_STATION_ID_OUT_OF_RANGE);
 	}
-	parse_success();
+	validation_success();
 }
 
-static bool systable_parse_frequencies(systable *st, config_setting_t const *station) {
+static bool systable_validate_frequencies(systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
 	config_setting_t *frequencies = config_setting_get_member(station, "frequencies");
 	if(frequencies == NULL || !config_setting_is_list(frequencies)) {
-		parse_error(ST_ERR_FREQUENCIES_MISSING);
+		validation_error(ST_ERR_FREQUENCIES_MISSING);
 	}
 	config_setting_t *frequency = NULL;
 	uint32_t idx = 0;
 	while((frequency = config_setting_get_elem(frequencies, idx)) != NULL) {
 		if(config_setting_is_number(frequency) == false) {
-			parse_error(ST_ERR_FREQUENCY_WRONG_TYPE);
+			validation_error(ST_ERR_FREQUENCY_WRONG_TYPE);
 		}
 		idx++;
 	}
-	parse_success();
+	validation_success();
 }
 
-static bool systable_parse_station_name(systable *st, config_setting_t const *station) {
+static bool systable_validate_station_name(systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
 	config_setting_t *name = config_setting_get_member(station, "name");
 	if(name == NULL) {
 		// this setting is optional
-		parse_success();
+		validation_success();
 	}
 	if(config_setting_type(name) != CONFIG_TYPE_STRING) {
-		parse_error(ST_ERR_STATION_NAME_WRONG_TYPE);
+		validation_error(ST_ERR_STATION_NAME_WRONG_TYPE);
 	}
-	parse_success();
+	validation_success();
 }
 
 static bool systable_add_station(systable *st, config_setting_t const *station) {
@@ -429,13 +429,13 @@ static bool systable_add_station(systable *st, config_setting_t const *station) 
 	ASSERT(station);
 
 	int32_t id = 0;
-	// error checking has been done in systable_parse_station()
+	// error checking has been done in systable_validate_station()
 	config_setting_lookup_int(station, "id", &id);
 	if(st->current->stations[id] != NULL) {
-		parse_error(ST_ERR_STATION_ID_DUPLICATE);
+		validation_error(ST_ERR_STATION_ID_DUPLICATE);
 	}
 	st->current->stations[id] = station;
-	parse_success();
+	validation_success();
 }
 
 static struct systable_pdu_set *pdu_set_create(uint8_t len) {
