@@ -108,7 +108,7 @@ struct _systable {
 	config_t cfg;                                           // system table as a libconfig object
 	config_setting_t const *stations[STATION_ID_MAX+1];     // quick access to GS params (indexed by GS ID)
 	struct systable_pdu_set *pdu_set;                       // System Table PDUs received from ground stations
-	struct systable_decoding_result *decoded;                 // system table data decoded from PDUs
+	struct systable_decoding_result *decoded;               // system table data decoded from PDUs
 	char *savefile_path;                                    // where to save updated table
 	enum systable_err_code err;                             // error code of last operation
 	bool available;                                         // is this system table ready to use
@@ -127,7 +127,7 @@ la_type_descriptor proto_DEF_systable_decoding_result;
 static bool systable_validate(systable *st);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
-static la_proto_node *systable_decode(uint8_t *buf, uint32_t len, int16_t version);
+static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len);
 static void pdu_set_destroy(struct systable_pdu_set *ps);
 
 /******************************
@@ -278,10 +278,17 @@ la_proto_node *systable_decode_from_pdu_set(systable const *st) {
 		pos += ps->pdus[i]->len;
 	}
 	debug_print_buf_hex(D_PROTO_DETAIL, buf, total_len, "Reassembled message:\n");
-	la_proto_node *node = systable_decode(buf, total_len, ps->version);
+	struct systable_decoding_result *result = systable_decode(buf, total_len);
+	ASSERT(result != NULL);
+	result->version = ps->version;
+
 	pdu_set_destroy(st->new->pdu_set);
 	st->new->pdu_set = NULL;
 	XFREE(buf);
+
+	la_proto_node *node = la_proto_node_new();
+	node->data = result;
+	node->td = &proto_DEF_systable_decoding_result;
 	return node;
 }
 
@@ -457,15 +464,11 @@ static void pdu_set_destroy(struct systable_pdu_set *ps) {
 	XFREE(ps);
 }
 
-static la_proto_node *systable_decode(uint8_t *buf, uint32_t len, int16_t version) {
+static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len) {
 	ASSERT(buf);
 	ASSERT(len > 0);
 
 	NEW(struct systable_decoding_result, result);
-	la_proto_node *node = la_proto_node_new();
-	node->data = result;
-	node->td = &proto_DEF_systable_decoding_result;
-	result->version = version;
 	while(len >= SYSTABLE_GS_DATA_MIN_LEN) {
 		struct systable_gs_decoding_result gs = systable_decode_gs(buf, len);
 		if(!gs.err) {
@@ -481,7 +484,7 @@ static la_proto_node *systable_decode(uint8_t *buf, uint32_t len, int16_t versio
 fail:
 	result->err = true;
 end:
-	return node;
+	return result;
 }
 
 static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len) {
