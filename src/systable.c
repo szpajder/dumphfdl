@@ -105,30 +105,36 @@ struct systable_pdu_set {
 	uint8_t len;                                            // total number of PDUs in set
 };
 
+struct systable_err {
+	config_t *cfg;                                          // the config on which the last operation has failed
+	enum systable_err_code code;                            // error code of the last operation
+};
+
 struct _systable {
 	config_t cfg;                                           // system table as a libconfig object
 	config_setting_t const *stations[STATION_ID_MAX+1];     // quick access to GS params (indexed by GS ID)
 	struct systable_pdu_set *pdu_set;                       // System Table PDUs received from ground stations
 	char *savefile_path;                                    // where to save updated table
-	enum systable_err_code err;                             // error code of last operation
+	struct systable_err err;                                // diagnostics for the last operation
 	bool available;                                         // is this system table ready to use
 };
 
 // Main system table object
 struct systable {
 	struct _systable *current, *new;
+	struct systable_err err;                                // diagnostics for the last operation
 };
 
 /******************************
  * Forward declarations
-*******************************/
+ ******************************/
 
 la_type_descriptor proto_DEF_systable_decoding_result;
 static bool systable_validate(struct _systable *st);
 static bool systable_populate_stations_cache(struct _systable *st);
 static bool systable_is_newer(int32_t v_old, int32_t v_new);
 static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result);
-static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file);
+static bool systable_save_config(struct _systable *st);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
 static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len);
@@ -150,12 +156,18 @@ bool systable_read_from_file(systable *st, char const *file) {
 	ASSERT(file);
 	config_init(&st->current->cfg);
 	if(config_read_file(&st->current->cfg, file) != CONFIG_TRUE) {
-		st->current->err = ST_ERR_LIBCONFIG;
+		st->err.code = ST_ERR_LIBCONFIG;
+		st->err.cfg = &st->current->cfg;
 		return false;
 	}
 	bool result = systable_validate(st->current);
 	if(result) {
 		result &= systable_populate_stations_cache(st->current);
+	}
+	// If there was an error, then propagate it up from st->new to st,
+	// so that systable_error_text() can return the correct error message.
+	if(!result) {
+		st->err = st->current->err;
 	}
 	st->current->available = result;
 	return st->current->available;
@@ -165,11 +177,11 @@ char const *systable_error_text(systable const *st) {
 	if(st == NULL) {
 		return NULL;
 	}
-	ASSERT(st->current->err < ST_ERR_MAX);
-	if(st->current->err == ST_ERR_LIBCONFIG) {
-		return config_error_text(&st->current->cfg);
+	ASSERT(st->err.code < ST_ERR_MAX);
+	if(st->err.code == ST_ERR_LIBCONFIG) {
+		return config_error_text(st->err.cfg);
 	}
-	return la_dict_search(systable_error_messages, st->current->err);
+	return la_dict_search(systable_error_messages, st->err.code);
 }
 
 int32_t systable_get_version(systable const *st) {
@@ -311,9 +323,10 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 				result->version, systable_get_version(st));
 		config_init(&st->new->cfg);
 		if(systable_generate_config(&st->new->cfg, result)) {
-			if(systable_save_config(st->current, &st->new->cfg, st->new->savefile_path)) {
+			if(systable_save_config(st->new)) {
 				fprintf(stderr, "System table version %d saved to %s\n", result->version, st->new->savefile_path);
 			} else {
+				st->err = st->new->err;
 				fprintf(stderr, "Could not save system table to %s: %s\n", st->new->savefile_path,
 						systable_error_text(st));
 			}
@@ -322,7 +335,10 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 				st->current = st->new;
 				st->current->available = true;
 			} else {
-				fprintf(stderr, "Failed to populate ground station cache - keeping the old system table\n");
+				st->err = st->new->err;
+				fprintf(stderr, "Failed to populate ground station cache: %s\n",
+						systable_error_text(st));
+				fprintf(stderr,	"Keeping the old system table\n");
 				_systable_destroy(st->new);
 			}
 			st->new = _systable_create(st->current->savefile_path);
@@ -337,10 +353,10 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 
 /****************************************
  * Private methods
-*****************************************/
+ ****************************************/
 
 #define validation_success() do { return true; } while(0)
-#define validation_error(code) do { st->err = (code); return false; } while(0)
+#define validation_error(error) do { st->err.code = (error); return false; } while(0)
 
 #define SYSTABLE_GS_DATA_MIN_LEN 8  // from GS ID to Master Slot Offset, excl. frequencies
 
@@ -721,19 +737,19 @@ static bool systable_generate_station_config(struct systable_gs_data const *gs_d
 	return true;
 }
 
-static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file) {
+static bool systable_save_config(struct _systable *st) {
 	ASSERT(st);
-	ASSERT(cfg);
-	if(file == NULL) {      // Save file path was not specified - this is not an error
+	if(st->savefile_path == NULL) {      // Save file path was not specified - this is not an error
 		goto success;
 	}
-	if(config_write_file(cfg, file) == CONFIG_TRUE) {
+	if(config_write_file(&st->cfg, st->savefile_path) == CONFIG_TRUE) {
 		goto success;
 	} else {
-		st->err = ST_ERR_LIBCONFIG;
+		st->err.code = ST_ERR_LIBCONFIG;
+		st->err.cfg = &st->cfg;
 		return false;
 	}
 success:
-	st->err = ST_ERR_OK;
+	st->err.code = ST_ERR_OK;
 	return true;
 }
