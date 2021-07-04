@@ -266,7 +266,7 @@ la_proto_node *hfnpdu_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction 
 						hfnpdu->data.systable_data.total_pdu_cnt,
 						buf + consumed_len, len - consumed_len);
 				// Try to reassemble and decode the complete table
-				node->next = systable_decode_from_pdu_set(Systable);
+				node->next = systable_process_pdu_set(Systable);
 				Systable_unlock();
 			}
 			break;

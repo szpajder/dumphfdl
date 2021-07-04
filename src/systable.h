@@ -15,5 +15,5 @@ double systable_get_station_frequency(systable const *st, int32_t gs_id, int32_t
 bool systable_is_available(systable const *st);
 void systable_store_pdu(systable const *st, int16_t version, uint8_t seq_num,
 		uint8_t pdu_set_len, uint8_t *buf, uint32_t len);
-la_proto_node *systable_decode_from_pdu_set(systable const *st);
+la_proto_node *systable_process_pdu_set(systable *st);
 void systable_destroy(systable *st);

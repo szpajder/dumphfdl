@@ -76,6 +76,7 @@ static la_dict const systable_error_messages[] = {
 };
 
 #define STATION_ID_MAX 127
+#define SYSTABLE_VERSION_MAX 4095
 
 // Parameters of a single ground station
 // as decoded from a System table PDU set
@@ -108,7 +109,6 @@ struct _systable {
 	config_t cfg;                                           // system table as a libconfig object
 	config_setting_t const *stations[STATION_ID_MAX+1];     // quick access to GS params (indexed by GS ID)
 	struct systable_pdu_set *pdu_set;                       // System Table PDUs received from ground stations
-	struct systable_decoding_result *decoded;               // system table data decoded from PDUs
 	char *savefile_path;                                    // where to save updated table
 	enum systable_err_code err;                             // error code of last operation
 	bool available;                                         // is this system table ready to use
@@ -125,6 +125,9 @@ struct systable {
 
 la_type_descriptor proto_DEF_systable_decoding_result;
 static bool systable_validate(systable *st);
+static bool systable_is_newer(int32_t v_old, int32_t v_new);
+static bool systable_generate_config(struct systable_decoding_result *result, config_t *cfg);
+static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
 static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len);
@@ -255,7 +258,16 @@ void systable_store_pdu(systable const *st, int16_t version, uint8_t idx,
 	}
 }
 
-la_proto_node *systable_decode_from_pdu_set(systable const *st) {
+// A one-shot function which:
+// - reassembles the PDU set if it's complete
+// - decodes the reassembled System Table message
+// - if the new system table is newer than the current one
+//   (or if there is no current one):
+//   - replaces the currently used system table with the new one
+//   - stores the new system table in the savefile, if configured to do so
+// Returns the decoded system table as a la_proto_node or NULL
+// if decoding was not attempted due to incomplete PDU set.
+la_proto_node *systable_process_pdu_set(systable *st) {
 	if(st == NULL) {
 		return NULL;
 	}
@@ -289,6 +301,24 @@ la_proto_node *systable_decode_from_pdu_set(systable const *st) {
 	st->new->pdu_set = NULL;
 	XFREE(buf);
 
+	if(!result->err &&
+			(!systable_is_available(st) || systable_is_newer(systable_get_version(st), result->version))) {
+		debug_print(D_MISC, "Decoded systable is newer than the current one (%d > %d), updating\n",
+				result->version, systable_get_version(st));
+		if(systable_generate_config(result, &st->new->cfg)) {
+			if(systable_save_config(st->current, &st->new->cfg, st->new->savefile_path)) {
+				fprintf(stderr, "System table version %d saved to %s\n", result->version, st->new->savefile_path);
+			} else {
+				fprintf(stderr, "Could not save system table to %s: %s\n", st->new->savefile_path,
+						systable_error_text(st));
+			}
+			_systable_destroy(st->current);
+			st->current = st->new;
+			st->current->available = true;
+			st->new = _systable_create(st->current->savefile_path);
+		}
+	}
+
 	la_proto_node *node = la_proto_node_new();
 	node->data = result;
 	node->td = &proto_DEF_systable_decoding_result;
@@ -320,6 +350,7 @@ static bool systable_add_station(systable *st, config_setting_t const *station);
 static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len);
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data);
+static bool systable_generate_station_config(struct systable_gs_data const *gs_data, config_setting_t *s);
 
 static struct _systable *_systable_create(char const *savefile) {
 	NEW(struct _systable, _st);
@@ -340,7 +371,6 @@ static bool systable_validate(systable *st) {
 }
 
 static bool systable_validate_version(systable *st) {
-#define SYSTABLE_VERSION_MAX 4095
 	ASSERT(st);
 
 	int32_t version = 0;
@@ -607,3 +637,77 @@ la_type_descriptor proto_DEF_systable_decoding_result = {
 	.format_text = systable_decoding_result_format_text,
 	.destroy = systable_decoding_result_destroy
 };
+
+static bool systable_is_newer(int32_t v_old, int32_t v_new) {
+	// Negative version indicates an error, so non-negative is always preferred.
+	if(v_old < 0 && v_new >= 0) {
+		return true;
+	} else if(v_new < 0 && v_old >= 0) {
+		return false;
+	} else if(v_new == v_old) {
+		return false;
+	}
+	return v_new > v_old ||
+		// If v_new is smaller than v_old but the distance between v_old and v_new
+		// modulo version space size is less than half of that size, then
+		// assume that the version has wrapped and v_new is newer than v_old.
+		v_new + SYSTABLE_VERSION_MAX - v_old < (SYSTABLE_VERSION_MAX + 1) >> 1;
+}
+
+#define FAIL_IF(cond) do { if(cond) { return false; } } while(0)
+
+static bool systable_generate_config(struct systable_decoding_result *result, config_t *cfg) {
+	ASSERT(result);
+	ASSERT(!result->err);
+	ASSERT(cfg);
+
+	config_setting_t *root = config_root_setting(cfg);
+	FAIL_IF(!root);
+
+	config_setting_t *s = config_setting_add(root, "version", CONFIG_TYPE_INT);
+	FAIL_IF(!s);
+	FAIL_IF(config_setting_set_int(s, result->version) != CONFIG_TRUE);
+
+	config_setting_t *stations = config_setting_add(root, "stations", CONFIG_TYPE_LIST);
+	FAIL_IF(!stations);
+	for(la_list *l = result->gs_list; l != NULL; l = l->next) {
+		FAIL_IF(systable_generate_station_config(l->data, stations) != CONFIG_TRUE);
+	}
+	return true;
+
+}
+
+static bool systable_generate_station_config(struct systable_gs_data const *gs_data, config_setting_t *gs_list) {
+	ASSERT(gs_data);
+	ASSERT(gs_list);
+
+	config_setting_t *gs = config_setting_add(gs_list, NULL, CONFIG_TYPE_GROUP);
+	FAIL_IF(!gs);
+	config_setting_t *s = config_setting_add(gs, "id", CONFIG_TYPE_INT);
+	FAIL_IF(!s);
+	FAIL_IF(config_setting_set_int(s, gs_data->gs_id) != CONFIG_TRUE);
+	config_setting_t *freqs = config_setting_add(gs, "frequencies", CONFIG_TYPE_LIST);
+	FAIL_IF(!freqs);
+	for(int32_t i = 0; i < gs_data->freq_cnt; i++) {
+		config_setting_t *f = config_setting_set_float_elem(freqs, -1, gs_data->frequencies[i] / 1000.0);
+		FAIL_IF(!f);
+	}
+	return true;
+}
+
+static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file) {
+	ASSERT(st);
+	ASSERT(cfg);
+	if(file == NULL) {      // Save file path was not specified - this is not an error
+		goto success;
+	}
+	if(config_write_file(cfg, file) == CONFIG_TRUE) {
+		goto success;
+	} else {
+		st->err = ST_ERR_LIBCONFIG;
+		return false;
+	}
+success:
+	st->err = ST_ERR_OK;
+	return true;
+}
