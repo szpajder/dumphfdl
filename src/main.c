@@ -375,8 +375,11 @@ int32_t main(int32_t argc, char **argv) {
 	if(systable_file != NULL) {
 		Systable_lock();
 		if(systable_read_from_file(Systable, systable_file) == false) {
-			fprintf(stderr, "Unable to read system table from %s: %s\n",
-					systable_file, systable_error_text(Systable));
+			fprintf(stderr, "Could not load system table from file %s:", systable_file);
+			if(systable_error_type(Systable) == SYSTABLE_ERR_FILE_PARSE) {
+				fprintf(stderr, " line %d:", systable_file_error_line(Systable));
+			}
+			fprintf(stderr, " %s\n", systable_error_text(Systable));
 			systable_destroy(Systable);
 			return 1;
 		}

@@ -108,6 +108,7 @@ struct systable_pdu_set {
 struct systable_err {
 	config_t *cfg;                                          // the config on which the last operation has failed
 	enum systable_err_code code;                            // error code of the last operation
+	enum systable_err_t type;                               // last error type
 };
 
 struct _systable {
@@ -182,6 +183,31 @@ char const *systable_error_text(systable const *st) {
 		return config_error_text(st->err.cfg);
 	}
 	return la_dict_search(systable_error_messages, st->err.code);
+}
+
+int32_t systable_file_error_line(systable const *st) {
+	if(st == NULL) {
+		return 0;
+	}
+	return config_error_line(st->err.cfg);
+}
+
+enum systable_err_t systable_error_type(systable const *st) {
+	if(st == NULL) {
+		return SYSTABLE_ERR_NONE;
+	} else if(st->err.code == ST_ERR_LIBCONFIG) {
+		config_error_t err = config_error_type(st->err.cfg);
+		switch(err) {
+			case CONFIG_ERR_FILE_IO:
+				return SYSTABLE_ERR_IO;
+			case CONFIG_ERR_PARSE:
+				return SYSTABLE_ERR_FILE_PARSE;
+			case CONFIG_ERR_NONE:
+			default:
+				return SYSTABLE_ERR_NONE;
+		}
+	}
+	return st->err.type;
 }
 
 int32_t systable_get_version(systable const *st) {
@@ -355,8 +381,14 @@ la_proto_node *systable_process_pdu_set(systable *st) {
  * Private methods
  ****************************************/
 
-#define validation_success() do { return true; } while(0)
-#define validation_error(error) do { st->err.code = (error); return false; } while(0)
+#define validation_success() do { \
+	st->err.code = ST_ERR_OK; \
+	st->err.type = SYSTABLE_ERR_NONE; \
+	return true; } while(0)
+#define validation_error(error) do { \
+	st->err.code = (error); \
+	st->err.type = SYSTABLE_ERR_VALIDATE; \
+	return false; } while(0)
 
 #define SYSTABLE_GS_DATA_MIN_LEN 8  // from GS ID to Master Slot Offset, excl. frequencies
 
