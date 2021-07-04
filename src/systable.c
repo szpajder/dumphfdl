@@ -124,7 +124,7 @@ struct systable {
 *******************************/
 
 la_type_descriptor proto_DEF_systable_decoding_result;
-static bool systable_validate(systable *st);
+static bool systable_validate(struct _systable *st);
 static bool systable_is_newer(int32_t v_old, int32_t v_new);
 static bool systable_generate_config(struct systable_decoding_result *result, config_t *cfg);
 static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file);
@@ -135,7 +135,7 @@ static void pdu_set_destroy(struct systable_pdu_set *ps);
 
 /******************************
  * Public methods
-*******************************/
+ ******************************/
 
 systable *systable_create(char const *savefile) {
 	NEW(systable, st);
@@ -153,7 +153,7 @@ bool systable_read_from_file(systable *st, char const *file) {
 		st->current->err = ST_ERR_LIBCONFIG;
 		return false;
 	}
-	st->current->available = systable_validate(st);
+	st->current->available = systable_validate(st->current);
 	return st->current->available;
 }
 
@@ -330,7 +330,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 *****************************************/
 
 #define validation_success() do { return true; } while(0)
-#define validation_error(code) do { st->current->err = (code); return false; } while(0)
+#define validation_error(code) do { st->err = (code); return false; } while(0)
 
 #define SYSTABLE_GS_DATA_MIN_LEN 8  // from GS ID to Master Slot Offset, excl. frequencies
 
@@ -340,13 +340,13 @@ struct systable_gs_decoding_result {
 	bool err;
 };
 
-static bool systable_validate_version(systable *st);
-static bool systable_validate_stations(systable *st);
-static bool systable_validate_station(systable *st, config_setting_t const *station);
-static bool systable_validate_station_id(systable *st, config_setting_t const *station);
-static bool systable_validate_station_name(systable *st, config_setting_t const *station);
-static bool systable_validate_frequencies(systable *st, config_setting_t const *station);
-static bool systable_add_station(systable *st, config_setting_t const *station);
+static bool systable_validate_version(struct _systable *st);
+static bool systable_validate_stations(struct _systable *st);
+static bool systable_validate_station(struct _systable *st, config_setting_t const *station);
+static bool systable_validate_station_id(struct _systable *st, config_setting_t const *station);
+static bool systable_validate_station_name(struct _systable *st, config_setting_t const *station);
+static bool systable_validate_frequencies(struct _systable *st, config_setting_t const *station);
+static bool systable_add_station(struct _systable *st, config_setting_t const *station);
 static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len);
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data);
@@ -361,7 +361,7 @@ static struct _systable *_systable_create(char const *savefile) {
 	return _st;
 }
 
-static bool systable_validate(systable *st) {
+static bool systable_validate(struct _systable *st) {
 	ASSERT(st);
 
 	bool result = true;
@@ -370,11 +370,11 @@ static bool systable_validate(systable *st) {
 	return result;
 }
 
-static bool systable_validate_version(systable *st) {
+static bool systable_validate_version(struct _systable *st) {
 	ASSERT(st);
 
 	int32_t version = 0;
-	if(config_lookup_int(&st->current->cfg, "version", &version) == CONFIG_FALSE) {
+	if(config_lookup_int(&st->cfg, "version", &version) == CONFIG_FALSE) {
 		validation_error(ST_ERR_VERSION_MISSING);
 	}
 	if(version < 0 || version > SYSTABLE_VERSION_MAX) {
@@ -383,10 +383,10 @@ static bool systable_validate_version(systable *st) {
 	validation_success();
 }
 
-static bool systable_validate_stations(systable *st) {
+static bool systable_validate_stations(struct _systable *st) {
 	ASSERT(st);
 
-	config_setting_t *stations = config_lookup(&st->current->cfg, "stations");
+	config_setting_t *stations = config_lookup(&st->cfg, "stations");
 	if(stations == NULL || !config_setting_is_list(stations)) {
 		validation_error(ST_ERR_STATIONS_MISSING);
 	}
@@ -402,7 +402,7 @@ static bool systable_validate_stations(systable *st) {
 	validation_success();
 }
 
-static bool systable_validate_station(systable *st, config_setting_t const *station) {
+static bool systable_validate_station(struct _systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
@@ -416,7 +416,7 @@ static bool systable_validate_station(systable *st, config_setting_t const *stat
 	return result;
 }
 
-static bool systable_validate_station_id(systable *st, config_setting_t const *station) {
+static bool systable_validate_station_id(struct _systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
@@ -430,7 +430,7 @@ static bool systable_validate_station_id(systable *st, config_setting_t const *s
 	validation_success();
 }
 
-static bool systable_validate_frequencies(systable *st, config_setting_t const *station) {
+static bool systable_validate_frequencies(struct _systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
@@ -449,7 +449,7 @@ static bool systable_validate_frequencies(systable *st, config_setting_t const *
 	validation_success();
 }
 
-static bool systable_validate_station_name(systable *st, config_setting_t const *station) {
+static bool systable_validate_station_name(struct _systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
@@ -464,18 +464,18 @@ static bool systable_validate_station_name(systable *st, config_setting_t const 
 	validation_success();
 }
 
-static bool systable_add_station(systable *st, config_setting_t const *station) {
+static bool systable_add_station(struct _systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
 	int32_t id = 0;
 	// error checking has been done in systable_validate_station()
 	config_setting_lookup_int(station, "id", &id);
-	if(st->current->stations[id] != NULL) {
-		validation_error(ST_ERR_STATION_ID_DUPLICATE);
+	if(st->stations[id] != NULL) {
+		return false;
 	}
-	st->current->stations[id] = station;
-	validation_success();
+	st->stations[id] = station;
+	return true;
 }
 
 static struct systable_pdu_set *pdu_set_create(uint8_t len) {
