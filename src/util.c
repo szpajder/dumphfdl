@@ -239,9 +239,7 @@ void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint
 
 	char const *gs_name = NULL;
 	Systable_lock();
-	if(systable_is_available(Systable)) {
-		gs_name = systable_get_station_name(Systable, gs_id);
-	}
+	gs_name = systable_get_station_name(Systable, gs_id);
 	Systable_unlock();
 	LA_ISPRINTF(vstr, indent, "%s: ", label);
 	if(gs_name != NULL) {
