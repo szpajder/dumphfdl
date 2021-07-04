@@ -126,7 +126,7 @@ struct systable {
 la_type_descriptor proto_DEF_systable_decoding_result;
 static bool systable_validate(struct _systable *st);
 static bool systable_is_newer(int32_t v_old, int32_t v_new);
-static bool systable_generate_config(struct systable_decoding_result *result, config_t *cfg);
+static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result);
 static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
@@ -305,7 +305,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 		debug_print(D_MISC, "Decoded systable is newer than the current one (%d > %d), updating\n",
 				result->version, systable_get_version(st));
 		config_init(&st->new->cfg);
-		if(systable_generate_config(result, &st->new->cfg)) {
+		if(systable_generate_config(&st->new->cfg, result)) {
 			if(systable_save_config(st->current, &st->new->cfg, st->new->savefile_path)) {
 				fprintf(stderr, "System table version %d saved to %s\n", result->version, st->new->savefile_path);
 			} else {
@@ -655,7 +655,7 @@ static bool systable_is_newer(int32_t v_old, int32_t v_new) {
 
 #define FAIL_IF(cond) do { if(cond) { return false; } } while(0)
 
-static bool systable_generate_config(struct systable_decoding_result *result, config_t *cfg) {
+static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result) {
 	ASSERT(result);
 	ASSERT(!result->err);
 	ASSERT(cfg);
