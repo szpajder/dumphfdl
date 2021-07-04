@@ -145,10 +145,9 @@ systable *systable_create(char const *savefile) {
 }
 
 bool systable_read_from_file(systable *st, char const *file) {
-	if(st == NULL) {
-		return false;
-	}
+	ASSERT(st);
 	ASSERT(file);
+	config_init(&st->current->cfg);
 	if(config_read_file(&st->current->cfg, file) != CONFIG_TRUE) {
 		st->current->err = ST_ERR_LIBCONFIG;
 		return false;
@@ -305,6 +304,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 			(!systable_is_available(st) || systable_is_newer(systable_get_version(st), result->version))) {
 		debug_print(D_MISC, "Decoded systable is newer than the current one (%d > %d), updating\n",
 				result->version, systable_get_version(st));
+		config_init(&st->new->cfg);
 		if(systable_generate_config(result, &st->new->cfg)) {
 			if(systable_save_config(st->current, &st->new->cfg, st->new->savefile_path)) {
 				fprintf(stderr, "System table version %d saved to %s\n", result->version, st->new->savefile_path);
@@ -354,7 +354,6 @@ static bool systable_generate_station_config(struct systable_gs_data const *gs_d
 
 static struct _systable *_systable_create(char const *savefile) {
 	NEW(struct _systable, _st);
-	config_init(&_st->cfg);
 	if(savefile != NULL) {
 		_st->savefile_path = strdup(savefile);
 	}
