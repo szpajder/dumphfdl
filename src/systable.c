@@ -125,6 +125,7 @@ struct systable {
 
 la_type_descriptor proto_DEF_systable_decoding_result;
 static bool systable_validate(struct _systable *st);
+static bool systable_populate_stations_cache(struct _systable *st);
 static bool systable_is_newer(int32_t v_old, int32_t v_new);
 static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result);
 static bool systable_save_config(struct _systable *st, config_t *cfg, char const *file);
@@ -152,7 +153,11 @@ bool systable_read_from_file(systable *st, char const *file) {
 		st->current->err = ST_ERR_LIBCONFIG;
 		return false;
 	}
-	st->current->available = systable_validate(st->current);
+	bool result = systable_validate(st->current);
+	if(result) {
+		result &= systable_populate_stations_cache(st->current);
+	}
+	st->current->available = result;
 	return st->current->available;
 }
 
@@ -312,9 +317,14 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 				fprintf(stderr, "Could not save system table to %s: %s\n", st->new->savefile_path,
 						systable_error_text(st));
 			}
-			_systable_destroy(st->current);
-			st->current = st->new;
-			st->current->available = true;
+			if(systable_populate_stations_cache(st->new)) {
+				_systable_destroy(st->current);
+				st->current = st->new;
+				st->current->available = true;
+			} else {
+				fprintf(stderr, "Failed to populate ground station cache - keeping the old system table\n");
+				_systable_destroy(st->new);
+			}
 			st->new = _systable_create(st->current->savefile_path);
 		}
 	}
@@ -346,7 +356,7 @@ static bool systable_validate_station(struct _systable *st, config_setting_t con
 static bool systable_validate_station_id(struct _systable *st, config_setting_t const *station);
 static bool systable_validate_station_name(struct _systable *st, config_setting_t const *station);
 static bool systable_validate_frequencies(struct _systable *st, config_setting_t const *station);
-static bool systable_add_station(struct _systable *st, config_setting_t const *station);
+static bool systable_add_station_cache_entry(struct _systable *st, config_setting_t const *station);
 static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len);
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data);
@@ -392,8 +402,7 @@ static bool systable_validate_stations(struct _systable *st) {
 	config_setting_t *station = NULL;
 	uint32_t idx = 0;
 	while((station = config_setting_get_elem(stations, idx)) != NULL) {
-		if(systable_validate_station(st, station) == false ||
-				systable_add_station(st, station) == false) {
+		if(systable_validate_station(st, station) == false) {
 			return false;
 		}
 		idx++;
@@ -463,7 +472,25 @@ static bool systable_validate_station_name(struct _systable *st, config_setting_
 	validation_success();
 }
 
-static bool systable_add_station(struct _systable *st, config_setting_t const *station) {
+static bool systable_populate_stations_cache(struct _systable *st) {
+	ASSERT(st);
+
+	config_setting_t *stations = config_lookup(&st->cfg, "stations");
+	if(stations == NULL) {
+		validation_error(ST_ERR_STATIONS_MISSING);
+	}
+	config_setting_t *station = NULL;
+	uint32_t idx = 0;
+	while((station = config_setting_get_elem(stations, idx)) != NULL) {
+		if(systable_add_station_cache_entry(st, station) == false) {
+			return false;
+		}
+		idx++;
+	}
+	validation_success();
+}
+
+static bool systable_add_station_cache_entry(struct _systable *st, config_setting_t const *station) {
 	ASSERT(st);
 	ASSERT(station);
 
@@ -471,10 +498,10 @@ static bool systable_add_station(struct _systable *st, config_setting_t const *s
 	// error checking has been done in systable_validate_station()
 	config_setting_lookup_int(station, "id", &id);
 	if(st->stations[id] != NULL) {
-		return false;
+		validation_error(ST_ERR_STATION_ID_DUPLICATE);
 	}
 	st->stations[id] = station;
-	return true;
+	validation_success();
 }
 
 static struct systable_pdu_set *pdu_set_create(uint8_t len) {
