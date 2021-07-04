@@ -167,7 +167,7 @@ char const *systable_error_text(systable const *st) {
 
 int32_t systable_get_version(systable const *st) {
 	int32_t version = -1;       // invalid default value
-	if(st != NULL) {
+	if(systable_is_available(st)) {
 		config_lookup_int(&st->current->cfg, "version", &version);
 	}
 	return version;
@@ -175,15 +175,18 @@ int32_t systable_get_version(systable const *st) {
 
 char const *systable_get_station_name(systable const *st, int32_t id) {
 	char const *name = NULL;
-	if(st != NULL && id >= 0 && id < STATION_ID_MAX && st->current->stations[id] != NULL) {
+	if(systable_is_available(st) && id >= 0 && id < STATION_ID_MAX &&
+			st->current->stations[id] != NULL) {
 		config_setting_lookup_string(st->current->stations[id], "name", &name);
 	}
 	return name;
 }
 
 double systable_get_station_frequency(systable const *st, int32_t gs_id, int32_t freq_id) {
-	if(st != NULL && gs_id >= 0 && gs_id < STATION_ID_MAX && st->current->stations[gs_id] != NULL) {
-		config_setting_t *frequencies = config_setting_get_member(st->current->stations[gs_id], "frequencies");
+	if(systable_is_available(st) && gs_id >= 0 && gs_id < STATION_ID_MAX &&
+			st->current->stations[gs_id] != NULL) {
+		config_setting_t *frequencies = config_setting_get_member(st->current->stations[gs_id],
+					"frequencies");
 		config_setting_t *freq = config_setting_get_elem(frequencies, freq_id);
 		if(freq != NULL) {
 			int type = config_setting_type(freq);
