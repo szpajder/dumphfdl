@@ -19,6 +19,8 @@ enum systable_err_code {
 	ST_ERR_STATION_ID_OUT_OF_RANGE,
 	ST_ERR_STATION_ID_DUPLICATE,
 	ST_ERR_STATION_NAME_WRONG_TYPE,
+	ST_ERR_STATION_COORDINATE_MISSING,
+	ST_ERR_STATION_COORDINATE_WRONG_TYPE,
 	ST_ERR_FREQUENCIES_MISSING,
 	ST_ERR_FREQUENCY_WRONG_TYPE,
 	ST_ERR_MAX
@@ -60,6 +62,14 @@ static la_dict const systable_error_messages[] = {
 	{
 		.id = ST_ERR_STATION_NAME_WRONG_TYPE,
 		.val = "name setting has wrong type (must be a string)"
+	},
+	{
+		.id = ST_ERR_STATION_COORDINATE_MISSING,
+		.val = "station latitude or longitude missing (need both or neither)"
+	},
+	{
+		.id = ST_ERR_STATION_COORDINATE_WRONG_TYPE,
+		.val = "station coordinate has wrong type (must be a floating-point number)"
 	},
 	{
 		.id = ST_ERR_FREQUENCIES_MISSING,
@@ -403,6 +413,7 @@ static bool systable_validate_stations(struct _systable *st);
 static bool systable_validate_station(struct _systable *st, config_setting_t const *station);
 static bool systable_validate_station_id(struct _systable *st, config_setting_t const *station);
 static bool systable_validate_station_name(struct _systable *st, config_setting_t const *station);
+static bool systable_validate_station_coordinates(struct _systable *st, config_setting_t const *station);
 static bool systable_validate_frequencies(struct _systable *st, config_setting_t const *station);
 static bool systable_add_station_cache_entry(struct _systable *st, config_setting_t const *station);
 static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len);
@@ -468,6 +479,7 @@ static bool systable_validate_station(struct _systable *st, config_setting_t con
 	bool result = true;
 	result &= systable_validate_station_id(st, station);
 	result &= systable_validate_station_name(st, station);
+	result &= systable_validate_station_coordinates(st, station);
 	result &= systable_validate_frequencies(st, station);
 	return result;
 }
@@ -516,6 +528,24 @@ static bool systable_validate_station_name(struct _systable *st, config_setting_
 	}
 	if(config_setting_type(name) != CONFIG_TYPE_STRING) {
 		validation_error(ST_ERR_STATION_NAME_WRONG_TYPE);
+	}
+	validation_success();
+}
+
+static bool systable_validate_station_coordinates(struct _systable *st, config_setting_t const *station) {
+	ASSERT(st);
+	ASSERT(station);
+
+	config_setting_t *lat = config_setting_get_member(station, "lat");
+	config_setting_t *lon = config_setting_get_member(station, "lon");
+	// Coordinates are optional, but either both or neither coordinate shall be present
+	if(lat == NULL && lon == NULL) {
+		validation_success();
+	} else if(lat == NULL || lon == NULL) {
+		validation_error(ST_ERR_STATION_COORDINATE_MISSING);
+	}
+	if(config_setting_type(lat) != CONFIG_TYPE_FLOAT || config_setting_type(lon) != CONFIG_TYPE_FLOAT) {
+		validation_error(ST_ERR_STATION_COORDINATE_WRONG_TYPE);
 	}
 	validation_success();
 }
