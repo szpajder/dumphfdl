@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>                 // strdup
+#include <math.h>                   // fabs
 #include <libconfig.h>              // config_*
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/dict.h>          // la_dict_*
@@ -149,6 +150,7 @@ static bool systable_save_config(struct _systable *st);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
 static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len);
+static void systable_copy_station_names(config_t *dst, config_setting_t const **stations);
 static void pdu_set_destroy(struct systable_pdu_set *ps);
 
 /******************************
@@ -359,6 +361,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 				result->version, systable_get_version(st));
 		config_init(&st->new->cfg);
 		if(systable_generate_config(&st->new->cfg, result)) {
+			systable_copy_station_names(&st->new->cfg, st->current->stations);
 			if(systable_save_config(st->new)) {
 				fprintf(stderr, "System table version %d saved to %s\n", result->version, st->new->savefile_path);
 			} else {
@@ -422,6 +425,7 @@ static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint3
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data);
 static bool systable_generate_station_config(struct systable_gs_data const *gs_data, config_setting_t *s);
+static bool systable_station_locations_match(config_setting_t const *s1, config_setting_t const *s2);
 
 static struct _systable *_systable_create(char const *savefile) {
 	NEW(struct _systable, _st);
@@ -805,6 +809,61 @@ static bool systable_generate_station_config(struct systable_gs_data const *gs_d
 		FAIL_IF(!f);
 	}
 	return true;
+}
+
+// Copies station names from the old station list to the new config.
+// The name gets copied from an existing station with the same ID provided that
+// its location did not change.
+static void systable_copy_station_names(config_t *dst, config_setting_t const **stations) {
+	ASSERT(dst);
+	ASSERT(stations);
+
+	config_setting_t *stations_dst = config_lookup(dst, "stations");
+	if(stations_dst == NULL || !config_setting_is_list(stations_dst)) {
+		return;
+	}
+	config_setting_t *station = NULL, *n = NULL;
+	uint32_t idx = 0;
+	int32_t id = 0;
+	char const *name = NULL;
+	while((station = config_setting_get_elem(stations_dst, idx)) != NULL) {
+		if(config_setting_lookup_int(station, "id", &id) == CONFIG_TRUE &&
+				stations[id] != NULL &&
+				systable_station_locations_match(station, stations[id]) &&
+				(n = config_setting_get_member(stations[id], "name")) != NULL &&
+				(name = config_setting_get_string(n)) != NULL) {
+			n = config_setting_add(station, "name", CONFIG_TYPE_STRING);
+			config_setting_set_string(n, name);
+		}
+		idx++;
+	}
+}
+
+#define get_coord(setting_var, setting, name, var) \
+	setting_var = config_setting_get_member(setting, name); \
+	if(!setting_var || config_setting_type(setting_var) != CONFIG_TYPE_FLOAT) { \
+		return false; \
+	} \
+	double var = config_setting_get_float(setting_var)
+
+static bool systable_station_locations_match(config_setting_t const *s1, config_setting_t const *s2) {
+	ASSERT(s1);
+	ASSERT(s2);
+
+	config_setting_t *s = NULL;
+	get_coord(s, s1, "lat", lat1);
+	get_coord(s, s1, "lon", lon1);
+	get_coord(s, s2, "lat", lat2);
+	get_coord(s, s2, "lon", lon2);
+
+	// A naive check if the coordinates point at (almost) the same location.
+	// It's good enough for the current set of ground stations - neither of them
+	// is located exactly on the 0th meridian or the equator, so we may safely
+	// assume that they won't suddenly jump over to the other hemisphere.
+	if(fabs(lat1-lat2) < 1.0 && fabs(lon1-lon2) < 1.0) {
+		return true;
+	}
+	return false;
 }
 
 static bool systable_save_config(struct _systable *st) {
