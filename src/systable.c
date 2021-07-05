@@ -745,7 +745,7 @@ static bool systable_generate_config(config_t *cfg, struct systable_decoding_res
 	config_setting_t *stations = config_setting_add(root, "stations", CONFIG_TYPE_LIST);
 	FAIL_IF(!stations);
 	for(la_list *l = result->gs_list; l != NULL; l = l->next) {
-		FAIL_IF(systable_generate_station_config(l->data, stations) != CONFIG_TRUE);
+		FAIL_IF(systable_generate_station_config(l->data, stations) == false );
 	}
 	return true;
 
@@ -759,7 +759,15 @@ static bool systable_generate_station_config(struct systable_gs_data const *gs_d
 	FAIL_IF(!gs);
 	config_setting_t *s = config_setting_add(gs, "id", CONFIG_TYPE_INT);
 	FAIL_IF(!s);
-	FAIL_IF(config_setting_set_int(s, gs_data->gs_id) != CONFIG_TRUE);
+	FAIL_IF(config_setting_set_int(s, gs_data->gs_id) == CONFIG_FALSE);
+
+	s = config_setting_add(gs, "lat", CONFIG_TYPE_FLOAT);
+	FAIL_IF(!s);
+	FAIL_IF(config_setting_set_float(s, gs_data->gs_location.lat) == CONFIG_FALSE);
+	s = config_setting_add(gs, "lon", CONFIG_TYPE_FLOAT);
+	FAIL_IF(!s);
+	FAIL_IF(config_setting_set_float(s, gs_data->gs_location.lon) == CONFIG_FALSE);
+
 	config_setting_t *freqs = config_setting_add(gs, "frequencies", CONFIG_TYPE_LIST);
 	FAIL_IF(!freqs);
 	for(int32_t i = 0; i < gs_data->freq_cnt; i++) {
