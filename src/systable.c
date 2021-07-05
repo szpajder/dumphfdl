@@ -399,6 +399,8 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 	st->err.code = (error); \
 	st->err.type = SYSTABLE_ERR_VALIDATE; \
 	return false; } while(0)
+#define FAIL_IF(cond) do { if(cond) { return false; } } while(0)
+
 
 #define SYSTABLE_GS_DATA_MIN_LEN 8  // from GS ID to Master Slot Offset, excl. frequencies
 
@@ -433,8 +435,8 @@ static bool systable_validate(struct _systable *st) {
 	ASSERT(st);
 
 	bool result = true;
-	result &= systable_validate_version(st);
-	result &= systable_validate_stations(st);
+	FAIL_IF(!systable_validate_version(st));
+	FAIL_IF(!systable_validate_stations(st));
 	return result;
 }
 
@@ -477,10 +479,10 @@ static bool systable_validate_station(struct _systable *st, config_setting_t con
 		validation_error(ST_ERR_STATION_WRONG_TYPE);
 	}
 	bool result = true;
-	result &= systable_validate_station_id(st, station);
-	result &= systable_validate_station_name(st, station);
-	result &= systable_validate_station_coordinates(st, station);
-	result &= systable_validate_frequencies(st, station);
+	FAIL_IF(!systable_validate_station_id(st, station));
+	FAIL_IF(!systable_validate_station_name(st, station));
+	FAIL_IF(!systable_validate_station_coordinates(st, station));
+	FAIL_IF(!systable_validate_frequencies(st, station));
 	return result;
 }
 
@@ -757,8 +759,6 @@ static bool systable_is_newer(int32_t v_old, int32_t v_new) {
 		// assume that the version has wrapped and v_new is newer than v_old.
 		v_new + SYSTABLE_VERSION_MAX - v_old < (SYSTABLE_VERSION_MAX + 1) >> 1;
 }
-
-#define FAIL_IF(cond) do { if(cond) { return false; } } while(0)
 
 static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result) {
 	ASSERT(result);
