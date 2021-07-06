@@ -768,7 +768,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						timersub(&c->pdu_timestamp, &ts_correction, &c->pdu_timestamp);
 						chan_debug("A2 sequence found at sample %" PRIu64 " (corr=%f retry=%d costas_dphi=%f)\n",
 								c->sample_cnt, corr_A2, c->search_retries, c->loop->dphi);
-						c->freq_err_hz = c->loop->dphi * HFDL_SYMBOL_RATE;
+						c->freq_err_hz = c->loop->dphi * HFDL_SYMBOL_RATE / SPS;
 						S.A2_found++;
 						S.A2_corr_total += fabsf(corr_A2);
 						c->symbols_wanted = M1_LEN;
