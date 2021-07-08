@@ -251,15 +251,22 @@ static void costas_cccf_execute(costas c, float complex in, float complex *out) 
 	*out = in * cexpf(-I * c->phi);
 }
 
+static inline float branchless_limit(float x, float limit) {
+	float x1 = fabsf(x + limit);
+	float x2 = fabsf(x - limit);
+	x1 -= x2;
+	return 0.5 * x1;
+}
+
 static void costas_cccf_adjust(costas c, float err) {
 	c->err = err;
-	if(c->err > 1.0f) {
-		c->err = 1.0f;
-	} else if(c->err < -1.0f) {
-		c->err = -1.0f;
-	}
+	c->err = branchless_limit(c->err, 1.0f);
 	c->phi += c->alpha * c->err;
 	c->dphi += c->beta * c->err;
+	// Cap dphi to 0.5, so that it does not wander too far away
+	// when the channel is silent for a long time.
+	// This limits the correctable frequency offset to approx. 143 Hz.
+	c->dphi = branchless_limit(c->dphi, 0.5f);
 }
 
 static void costas_cccf_step(costas c) {
