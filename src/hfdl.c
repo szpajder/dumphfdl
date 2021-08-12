@@ -37,6 +37,8 @@
 #define DATA_FRAME_CNT_SINGLE_SLOT 72
 #define DATA_FRAME_CNT_DOUBLE_SLOT 168
 #define DATA_SYMBOLS_CNT_MAX (DATA_FRAME_CNT_DOUBLE_SLOT * DATA_FRAME_LEN)
+#define PREAMBLE_LEN (2 * A_LEN + M1_LEN + M2_LEN + 9 * T_LEN)
+#define SINGLE_SLOT_FRAME_LEN (PREKEY_LEN + PREAMBLE_LEN + DATA_FRAME_CNT_SINGLE_SLOT * (DATA_FRAME_LEN + T_LEN))
 #define CORR_THRESHOLD 0.3f
 #define MAX_SEARCH_RETRIES 3
 #define HFDL_SSB_CARRIER_OFFSET_HZ 1440
@@ -263,10 +265,6 @@ static void costas_cccf_adjust(costas c, float err) {
 	c->err = branchless_limit(c->err, 1.0f);
 	c->phi += c->alpha * c->err;
 	c->dphi += c->beta * c->err;
-	// Cap dphi to 0.5, so that it does not wander too far away
-	// when the channel is silent for a long time.
-	// This limits the correctable frequency offset to approx. 143 Hz.
-	c->dphi = branchless_limit(c->dphi, 0.5f);
 }
 
 static void costas_cccf_step(costas c) {
@@ -276,6 +274,10 @@ static void costas_cccf_step(costas c) {
 	} else if(c->phi < -M_PI) {
 		c->phi += 2.0 * M_PI;
 	}
+}
+
+static void costas_cccf_reset(costas c) {
+	c->dphi = c->phi = 0.f;
 }
 
 /**********************************
@@ -563,6 +565,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 	float corr_A1 = 0.f;
 	float corr_A2 = 0.f;
 	float corr_M1 = 0.f;
+	static size_t const max_symbols_without_frame = 13 * SINGLE_SLOT_FRAME_LEN;
 	c->s_state = SAMPLER_EMIT_BITS;
 	c->fr_state = FRAMER_A1_SEARCH;
 #ifdef COSTAS_DEBUG
@@ -685,6 +688,11 @@ static void *hfdl_decoder_thread(void *ctx) {
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[M_BPSK]));
 				}
 				costas_cccf_step(c->loop);
+				if(UNLIKELY(fabsf(c->loop->dphi) > 0.25f && c->fr_state == FRAMER_A1_SEARCH)) {
+					chan_debug("costas_dphi: %f, resetting control loops\n", c->loop->dphi);
+					costas_cccf_reset(c->loop);
+					symsync_crcf_reset(c->ss);
+				}
 
 #ifdef COSTAS_DEBUG
 				write_rf32(f_costas_dphi, c->loop->dphi);
@@ -733,6 +741,13 @@ static void *hfdl_decoder_thread(void *ctx) {
 #endif
 
 				c->symbol_cnt++;
+				if(UNLIKELY(c->symbol_cnt >= max_symbols_without_frame && c->fr_state == FRAMER_A1_SEARCH)) {
+					chan_debug("Too long without a good frame (%" PRIu64 " symbols), resetting control loops\n", c->symbol_cnt);
+					c->symbol_cnt = 0;
+					costas_cccf_reset(c->loop);
+					symsync_crcf_reset(c->ss);
+				}
+
 				if(c->s_state == SAMPLER_EMIT_BITS) {
 					bits ^= c->bitmask;
 					for(uint32_t b = 0; b < c->current_mod_arity; b++, bits >>= 1) {
@@ -832,6 +847,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 								(float)c->train_bits_bad / (float)c->train_bits_total * 100.f);
 						decode_user_data(c);
 						framer_reset(c);
+						c->symbol_cnt = 0;
 					}
 					break;
 				case FRAMER_DATA_1:
