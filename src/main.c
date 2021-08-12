@@ -203,6 +203,7 @@ void usage() {
 	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
 	describe_option("--milliseconds", "Print milliseconds in timestamps", 1);
 	describe_option("--raw-frames", "Print raw AVLC frame as hex", 1);
+	describe_option("--prettify-xml", "Pretty-print XML payloads in ACARS and MIAM CORE PDUs", 1);
 
 	fprintf(stderr, "\nSystem table options:\n");
 	describe_option("--system-table <file>", "Load system table from file", 1);
@@ -233,6 +234,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_UTC 44
 #define OPT_MILLISECONDS 45
 #define OPT_RAW_FRAMES 46
+#define OPT_PRETTIFY_XML 47
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -259,6 +261,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "utc",                no_argument,        NULL,   OPT_UTC },
 		{ "milliseconds",       no_argument,        NULL,   OPT_MILLISECONDS },
 		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
+		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
 		{ "system-table",       required_argument,  NULL,   OPT_SYSTABLE_FILE },
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 		{ 0,                    0,                  0,      0 }
@@ -326,6 +329,9 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_RAW_FRAMES:
 				Config.output_raw_frames = true;
+				break;
+			case OPT_PRETTIFY_XML:
+				la_config_set_bool("prettify_xml", true);
 				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;
