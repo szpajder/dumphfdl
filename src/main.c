@@ -178,6 +178,25 @@ overflow:
 	return false;
 }
 
+static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t source_rate, int32_t *result) {
+	ASSERT(result);
+	ASSERT(cnt > 0);
+	int32_t freq_min, freq_max;
+	freq_min = freq_max = freqs[0];
+	for(int i = 0; i < cnt; i++) {
+		if(freqs[i] < freq_min) freq_min = freqs[i];
+		if(freqs[i] > freq_max) freq_max = freqs[i];
+	}
+	int32_t span = abs(freq_max - freq_min);
+	if(span >= source_rate) {
+		fprintf(stderr, "Error: channel frequencies are too far apart"
+				" (span is larger than receiver bandwidth)\n");
+		return false;
+	}
+	*result = freq_min + (freq_max - freq_min) / 2;
+	return true;
+}
+
 void usage() {
 	fprintf(stderr, "Usage:\n");
 #ifdef WITH_SOAPYSDR
@@ -399,8 +418,12 @@ int32_t main(int32_t argc, char **argv) {
 	}
 
 	if(input_cfg->centerfreq < 0) {
-		fprintf(stderr, "Center frequency must be non-negative\n");
-		return 1;
+		if(compute_centerfreq(frequencies, channel_cnt, input_cfg->sample_rate, &input_cfg->centerfreq) == true) {
+			fprintf(stderr, "%s: computed center frequency: %d Hz\n", input_cfg->device_string, input_cfg->centerfreq);
+		} else {
+			fprintf(stderr, "%s: failed to compute center frequency\n", input_cfg->device_string);
+			return 2;
+		}
 	}
 	if(Config.output_queue_hwm < 0) {
 		fprintf(stderr, "Invalid --output-queue-hwm value: must be a non-negative integer\n");
