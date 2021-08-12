@@ -155,6 +155,29 @@ static uint32_t parse_msg_filterspec(msg_filterspec_t const *filters, void (*hel
 }
 #endif      // DEBUG
 
+static bool parse_frequency(char const *freq_str, int32_t *result) {
+	ASSERT(result);
+	char *endptr = NULL;
+	float val = strtof(freq_str, &endptr);
+	int32_t ret = 0;
+	if(endptr == freq_str) {
+		fprintf(stderr, "'%s': not a valid frequency value (must be a numeric value in kHz)\n", freq_str);
+		return false;
+	} else if(errno == ERANGE) {
+		goto overflow;
+	}
+	ret = (int32_t)(1e3 * val);
+	if(ret == INT_MAX || ret == INT_MIN) {
+		goto overflow;
+	}
+	debug_print(D_MISC, "str: %s val: %d\n", freq_str, ret);
+	*result = ret;
+	return true;
+overflow:
+	fprintf(stderr, "'%s': not a valid frequency value (overflow)\n", freq_str);
+	return false;
+}
+
 void usage() {
 	fprintf(stderr, "Usage:\n");
 #ifdef WITH_SOAPYSDR
@@ -172,13 +195,13 @@ void usage() {
 	describe_option("--debug <filter_spec>", "Debug message classes to display (default: none) (\"--debug help\" for details)", 1);
 #endif
 	fprintf(stderr, "common options:\n");
-	describe_option("<freq_1> [<freq_2> [...]]", "HFDL channel frequencies, in Hz", 1);
+	describe_option("<freq_1> [<freq_2> [...]]", "HFDL channel frequencies, in kHz", 1);
 #ifdef WITH_SOAPYSDR
 	fprintf(stderr, "\nsoapysdr_options:\n");
 	describe_option("--soapysdr <device_string>", "Use SoapySDR compatible device identified with the given string", 1);
 	//describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
 	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
-	describe_option("--centerfreq <center_frequency>", "Center frequency of the receiver, in Hz (default: 0)", 1);
+	describe_option("--centerfreq <center_frequency>", "Center frequency of the receiver, in kHz (default: 0)", 1);
 	describe_option("--gain <gain>", "Set end-to-end gain (decibels)", 1);
 	describe_option("--gain-elements <gain1=val1,gain2=val2,...>", "Set gain elements (default: none)", 1);
 	//describe_option("--correction <correction>", "Set freq correction (ppm)", 1);
@@ -187,7 +210,7 @@ void usage() {
 	fprintf(stderr, "\nfile_options:\n");
 	describe_option("--iq-file <input_file>", "Read I/Q samples from file", 1);
 	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
-	describe_option("--centerfreq <center_frequency>", "Center frequency of the input data, in Hz (default: 0)", 1);
+	describe_option("--centerfreq <center_frequency>", "Center frequency of the input data, in kHz (default: 0)", 1);
 	describe_option("--sample-format <sample_format>", "Input sample format. Supported formats:", 1);
 	describe_option("CU8", "8-bit unsigned (eg. recorded with rtl_sdr)", 2);
 	describe_option("CS16", "16-bit signed, little-endian (eg. recorded with sdrplay)", 2);
@@ -307,7 +330,9 @@ int32_t main(int32_t argc, char **argv) {
 				input_cfg->sample_rate = atoi(optarg);
 				break;
 			case OPT_CENTERFREQ:
-				input_cfg->centerfreq = atoi(optarg);
+				if(parse_frequency(optarg, &input_cfg->centerfreq) == false) {
+					return 1;
+				}
 				break;
 			case OPT_GAIN:
 				// TODO
@@ -356,20 +381,25 @@ int32_t main(int32_t argc, char **argv) {
 				return 1;
 		}
 	}
-	int channel_cnt = argc - optind;
-	if(channel_cnt < 1) {
-		fprintf(stderr, "No channel frequencies given\n");
-		usage();
-		return 1;
-	}
 	if(input_cfg->sample_rate < HFDL_SYMBOL_RATE * SPS) {
 		fprintf(stderr, "Sample rate must be greater or equal to %d\n", HFDL_SYMBOL_RATE * SPS);
-		usage();
 		return 1;
 	}
+
+	int32_t channel_cnt = argc - optind;
+	if(channel_cnt < 1) {
+		fprintf(stderr, "No channel frequencies given\n");
+		return 1;
+	}
+	int32_t frequencies[channel_cnt];
+	for(int32_t i = 0; i < channel_cnt; i++) {
+		if(parse_frequency(argv[optind + i], &frequencies[i]) == false) {
+			return 1;
+		}
+	}
+
 	if(input_cfg->centerfreq < 0) {
 		fprintf(stderr, "Center frequency must be non-negative\n");
-		usage();
 		return 1;
 	}
 	if(Config.output_queue_hwm < 0) {
@@ -402,7 +432,6 @@ int32_t main(int32_t argc, char **argv) {
 	struct block *input = input_create(input_cfg);
 	if(input == NULL) {
 		fprintf(stderr, "Invalid input specified");
-		usage();
 		return 1;
 	}
 	if(input_init(input) < 0) {
@@ -430,7 +459,7 @@ int32_t main(int32_t argc, char **argv) {
 	struct block *channels[channel_cnt];
 	for(int32_t i = 0; i < channel_cnt; i++) {
 		channels[i] = hfdl_channel_create(input_cfg->sample_rate, fft_decimation_rate,
-				fftfilt_transition_bw, input_cfg->centerfreq, atoi(argv[optind + i]));
+				fftfilt_transition_bw, input_cfg->centerfreq, frequencies[i]);
 		if(channels[i] == NULL) {
 			fprintf(stderr, "Failed to initialize channel %s\n",
 					argv[optind + i]);
