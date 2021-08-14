@@ -27,6 +27,7 @@
 #include "kvargs.h"             // kvargs
 #include "hfdl.h"               // hfdl_channel_create
 #include "systable.h"           // systable_*
+#include "statsd.h"             // statsd_*
 
 typedef struct {
 	char *output_spec_string;
@@ -252,6 +253,11 @@ void usage() {
 	fprintf(stderr, "\nSystem table options:\n");
 	describe_option("--system-table <file>", "Load system table from file", 1);
 	describe_option("--system-table-save <file>", "Save updated system table to the given file", 1);
+
+#ifdef WITH_STATSD
+	fprintf(stderr, "\nEtsy StatsD options:\n");
+	describe_option("--statsd <host>:<port>", "Send statistics to Etsy StatsD server <host>:<port>", 1);
+#endif
 }
 
 int32_t main(int32_t argc, char **argv) {
@@ -284,6 +290,10 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
 
+#ifdef WITH_STATSD
+#define OPT_STATSD 70
+#endif
+
 #define DEFAULT_OUTPUT "decoded:text:file:path=-"
 
 	static struct option opts[] = {
@@ -310,6 +320,9 @@ int32_t main(int32_t argc, char **argv) {
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "system-table",       required_argument,  NULL,   OPT_SYSTABLE_FILE },
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
+#ifdef WITH_STATSD
+		{ "statsd",             required_argument,  NULL,   OPT_STATSD },
+#endif
 		{ 0,                    0,                  0,      0 }
 	};
 
@@ -322,6 +335,9 @@ int32_t main(int32_t argc, char **argv) {
 	la_list *fmtr_list = NULL;
 	char const *systable_file = NULL;
 	char const *systable_save_file = NULL;
+#ifdef WITH_STATSD
+	char *statsd_addr = NULL;
+#endif
 
 	print_version();
 
@@ -394,6 +410,11 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_SYSTABLE_SAVE_FILE:
 				systable_save_file = optarg;
 				break;
+#ifdef WITH_STATSD
+			case OPT_STATSD:
+				statsd_addr = strdup(optarg);
+				break;
+#endif
 #ifdef DEBUG
 			case OPT_DEBUG:
 				Config.debug_filter = parse_msg_filterspec(debug_filters, debug_filter_usage, optarg);
@@ -490,6 +511,20 @@ int32_t main(int32_t argc, char **argv) {
 	if(fft == NULL) {
 		return 1;
 	}
+
+#ifdef WITH_STATSD
+	if(statsd_addr != NULL) {
+		if(statsd_initialize(statsd_addr) < 0) {
+			fprintf(stderr, "Failed to initialize StatsD client - disabling\n");
+		} else {
+			for(int i = 0; i < channel_cnt; i++) {
+				statsd_initialize_counters_per_channel(frequencies[i]);
+			}
+			statsd_initialize_counters_per_msgdir();
+		}
+		XFREE(statsd_addr);
+	}
+#endif
 
 	la_config_set_int("acars_bearer", LA_ACARS_BEARER_HFDL);
 	hfdl_init_globals();

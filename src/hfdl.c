@@ -23,6 +23,7 @@
 #include "metadata.h"               // struct metadata
 #include "mpdu.h"                   // mpdu_parse
 #include "spdu.h"                   // spdu_parse
+#include "statsd.h"                 // statsd_*
 #include "crc.h"                    // crc16_ccitt
 #include "output-common.h"          // output_queue_push, shutdown_outputs
 
@@ -796,6 +797,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						c->symbols_wanted = M1_LEN;
 						c->search_retries = 0;
 						c->fr_state = FRAMER_M1_SEARCH;
+						statsd_increment_per_channel(c->chan_freq, "demod.preamble.A2_found");
 					} else if(++c->search_retries >= MAX_SEARCH_RETRIES) {
 						framer_reset(c);
 					}
@@ -804,6 +806,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 					M1_match = match_sequence(M1, M_SHIFT_CNT, c->bits, &corr_M1);
 					if(fabsf(corr_M1) > CORR_THRESHOLD) {
 						chan_debug("M1 match at sample %" PRIu64 ": %d (corr=%f, costas_dphi=%f)\n", c->sample_cnt, M1_match, corr_M1, c->loop->dphi);
+						statsd_increment_per_channel(c->chan_freq, "demod.preamble.M1_found");
 						S.M1_found++;
 						S.M1_corr_total += fabsf(corr_M1);
 						c->data_segment_cnt = hfdl_frame_params[M1_match].data_segment_cnt;
@@ -815,6 +818,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						c->s_state = SAMPLER_SKIP;
 					} else {
 						chan_debug("M1 sequence unreliable (val=%d corr=%f)\n", M1_match, corr_M1);
+						statsd_increment_per_channel(c->chan_freq, "demod.preamble.errors.M1_not_found");
 						framer_reset(c);
 					}
 					break;
@@ -1040,7 +1044,6 @@ static void *pdu_decoder_thread(void *ctx) {
 			break;
 		}
 		ASSERT(q->metadata != NULL);
-		//statsd_increment_per_channel(q->metadata->freq, "avlc.frames.processed");
 
 		fmtr_instance_t *fmtr = NULL;
 		decoding_status = DECODING_NOT_DONE;
@@ -1049,10 +1052,13 @@ static void *pdu_decoder_thread(void *ctx) {
 			if(fmtr->intype == FMTR_INTYPE_DECODED_FRAME) {
 				// Decode the pdu unless we've done it before
 				if(decoding_status == DECODING_NOT_DONE) {
+					struct hfdl_pdu_metadata *hm = container_of(q->metadata,
+							struct hfdl_pdu_metadata, metadata);
+					statsd_increment_per_channel(hm->freq, "frames.processed");
 					if(IS_MPDU(q->pdu->buf)) {
-						lpdu_list = mpdu_parse(q->pdu, reasm_ctx, q->metadata->rx_timestamp);
+						lpdu_list = mpdu_parse(q->pdu, reasm_ctx, q->metadata->rx_timestamp, hm->freq);
 					} else {
-						lpdu_list = spdu_parse(q->pdu);
+						lpdu_list = spdu_parse(q->pdu, hm->freq);
 					}
 					if(lpdu_list != NULL) {
 						decoding_status = DECODING_SUCCESS;

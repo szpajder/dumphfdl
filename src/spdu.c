@@ -3,6 +3,8 @@
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/list.h>          // la_list
 #include "hfdl.h"                   // hfdl_*
+#include "spdu.h"
+#include "statsd.h"                 // statsd_*
 #include "util.h"                   // NEW, ASSERT, struct octet_string, freq_list_format_text, gs_id_format_text
 #include "crc.h"                    // crc16_ccitt
 
@@ -33,13 +35,17 @@ struct hfdl_spdu {
 la_type_descriptor const proto_DEF_hfdl_spdu;
 static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_status const *gs);
 
-la_list *spdu_parse(struct octet_string *pdu) {
+la_list *spdu_parse(struct octet_string *pdu, int32_t freq) {
+#ifndef WITH_STATSD
+	UNUSED(freq);
+#endif
 	ASSERT(pdu);
 	ASSERT(pdu->buf);
 	ASSERT(pdu->len > 0);
 
 	la_list *spdu_list = NULL;
 	if(pdu->len < SPDU_LEN) {
+		statsd_increment_per_channel(freq, "frame.errors.too_short");
 		debug_print(D_PROTO, "Too short: %zu < %u\n", pdu->len, SPDU_LEN);
 		goto end;
 	}
@@ -53,10 +59,13 @@ la_list *spdu_parse(struct octet_string *pdu) {
 
 	if(hfdl_pdu_fcs_check(pdu->buf, 64u)) {
 		spdu->header.crc_ok = true;
+		statsd_increment_per_channel(freq, "frames.good");
 	} else {
+		statsd_increment_per_channel(freq, "frame.errors.bad_fcs");
 		goto end;
 	}
 	uint8_t *buf = pdu->buf;
+	statsd_increment_per_channel(freq, "frame.dir.gnd2air");
 	spdu->header.direction = UPLINK_PDU;
 	spdu->header.src_id = buf[1] & 0x7F;
 

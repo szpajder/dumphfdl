@@ -6,6 +6,7 @@
 #include <libacars/list.h>                  // la_list
 #include "hfdl.h"                           // hfdl_*
 #include "lpdu.h"                           // lpdu_parse
+#include "statsd.h"                         // statsd_*
 #include "util.h"                           // NEW, ASSERT, struct octet_string, gs_id_format_text
 
 struct hfdl_mpdu {
@@ -24,9 +25,10 @@ la_type_descriptor const proto_DEF_hfdl_mpdu;
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list,
 		struct hfdl_pdu_hdr_data mpdu_header, la_reasm_ctx *reasm_ctx,
-		struct timeval rx_timestamp);
+		struct timeval rx_timestamp, int32_t freq);
 
-la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
+la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
+		struct timeval rx_timestamp, int32_t freq) {
 	ASSERT(pdu);
 	ASSERT(pdu->buf);
 	ASSERT(pdu->len > 0);
@@ -57,6 +59,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx, struct ti
 		for(uint32_t i = 0; i < aircraft_cnt; i++) {
 			if(len < hdr_len + 2) {
 				debug_print(D_PROTO, "uplink: too short: %u < %u\n", len, hdr_len + 2);
+				statsd_increment_per_channel(freq, "frame.errors.too_short");
 				goto end;
 			}
 			lpdu_cnt = (buf[hdr_len+1] >> 4) & 0xF;
@@ -67,25 +70,30 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx, struct ti
 	debug_print(D_PROTO, "hdr_len: %u\n", hdr_len);
 	if(len < hdr_len + 2) {
 		debug_print(D_PROTO, "Too short: %u < %u\n", len, hdr_len + lpdu_cnt + 2);
+		statsd_increment_per_channel(freq, "frame.errors.too_short");
 		goto end;
 	}
 
 	if(hfdl_pdu_fcs_check(buf, hdr_len)) {
 		mpdu_header.crc_ok = true;
+		statsd_increment_per_channel(freq, "frames.good");
 	} else {
+		statsd_increment_per_channel(freq, "frame.errors.bad_fcs");
 		goto end;
 	}
 
 	uint8_t *dataptr = buf + hdr_len + 2;       // First data octet of the first LPDU
 	if(mpdu_header.direction == DOWNLINK_PDU) {
+		statsd_increment_per_channel(freq, "frame.dir.air2gnd");
 		mpdu_header.src_id = buf[2];
 		mpdu_header.dst_id = buf[1] & 0x7f;
 		uint8_t *hdrptr = buf + 6;              // First LPDU size octet
 		if(parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list,
-					mpdu_header, reasm_ctx, rx_timestamp) < 0) {
+					mpdu_header, reasm_ctx, rx_timestamp, freq) < 0) {
 			goto end;
 		}
 	} else {                                    // UPLINK_PDU
+		statsd_increment_per_channel(freq, "frame.dir.gnd2air");
 		mpdu_header.src_id = buf[1] & 0x7f;
 		mpdu_header.dst_id = 0;                 // See comment in mpdu_format_text()
 		uint8_t *hdrptr = buf + 2;              // First AC ID octet
@@ -97,7 +105,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx, struct ti
 			mpdu->dst_aircraft = la_list_append(mpdu->dst_aircraft, dst_ac);
 			if((consumed_octets = parse_lpdu_list(hdrptr, dataptr, buf + len,
 							dst_ac->lpdu_cnt, lpdu_list, mpdu_header,
-							reasm_ctx, rx_timestamp)) < 0) {
+							reasm_ctx, rx_timestamp, freq)) < 0) {
 				goto end;
 			}
 		}
@@ -111,14 +119,14 @@ end:
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list,
 		struct hfdl_pdu_hdr_data mpdu_header, la_reasm_ctx *reasm_ctx,
-		struct timeval rx_timestamp) {
+		struct timeval rx_timestamp, int32_t freq) {
 	int32_t consumed_octets = 0;
 	for(uint32_t j = 0; j < lpdu_cnt; j++) {
 		uint32_t lpdu_len = *lpdu_len_ptr + 1;
 		if(data_ptr + lpdu_len <= endptr) {
 			debug_print(D_PROTO, "lpdu %u/%u: lpdu_len=%u\n", j + 1, lpdu_cnt, lpdu_len);
-			lpdu_list = la_list_append(lpdu_list, lpdu_parse(data_ptr, lpdu_len, mpdu_header,
-						reasm_ctx, rx_timestamp));
+			lpdu_list = la_list_append(lpdu_list, lpdu_parse(data_ptr, lpdu_len,
+						mpdu_header, reasm_ctx, rx_timestamp, freq));
 			data_ptr += lpdu_len;              // Move to the next LPDU
 			consumed_octets += lpdu_len;
 			lpdu_len_ptr++;

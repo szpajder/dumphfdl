@@ -6,6 +6,8 @@
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "hfnpdu.h"                 // hfnpdu_parse
+#include "lpdu.h"
+#include "statsd.h"                 // statsd_*
 #include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, gs_id_format_text
 
 // LPDU types
@@ -113,11 +115,17 @@ static int32_t logoff_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logo
 	return LOGOFF_REQUEST_LPDU_LEN;
 }
 
-la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data mpdu_header,
-		la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
+la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
+		mpdu_header, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp,
+		int32_t freq) {
+#ifndef WITH_STATSD
+	UNUSED(freq);
+#endif
 	ASSERT(buf);
 
+	statsd_increment_per_channel(freq, "lpdus.processed");
 	if(len < 3) {       // Need at least LPDU type + FCS
+		statsd_increment_per_channel(freq, "lpdu.errors.too_short");
 		debug_print(D_PROTO, "Too short: %u < 3\n", len);
 		return NULL;
 	}
@@ -133,8 +141,10 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data m
 	lpdu->crc_ok = hfdl_pdu_fcs_check(buf, len);
 	if(!lpdu->crc_ok) {
 		lpdu->err = true;
+		statsd_increment_per_channel(freq, "lpdu.errors.bad_fcs");
 		goto end;
 	}
+	statsd_increment_per_channel(freq, "lpdus.good");
 
 	int32_t consumed_len = 0;
 	lpdu->type = buf[0];
