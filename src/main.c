@@ -240,6 +240,8 @@ void usage() {
 	describe_option("", "(See \"--output help\" for details)", 1);
 	describe_option("--output-queue-hwm <integer>", "High water mark value for output queues (0 = no limit)", 1);
 	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file or --raw-frames-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
+	describe_option("--station-id <name>", "Receiver site identifier", 1);
+	fprintf(stderr, "%*sMaximum length: %u characters\n", USAGE_OPT_NAME_COLWIDTH, "", STATION_ID_LEN_MAX);
 
 	fprintf(stderr, "\nText output formatting options:\n");
 	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
@@ -277,6 +279,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_MILLISECONDS 45
 #define OPT_RAW_FRAMES 46
 #define OPT_PRETTIFY_XML 47
+#define OPT_STATION_ID 48
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -304,6 +307,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "milliseconds",       no_argument,        NULL,   OPT_MILLISECONDS },
 		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
 		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
+		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "system-table",       required_argument,  NULL,   OPT_SYSTABLE_FILE },
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 		{ 0,                    0,                  0,      0 }
@@ -376,6 +380,13 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_PRETTIFY_XML:
 				la_config_set_bool("prettify_xml", true);
+				break;
+			case OPT_STATION_ID:
+				if(strlen(optarg) > STATION_ID_LEN_MAX) {
+					fprintf(stderr, "Warning: --station-id argument too long; truncated to %d characters\n",
+							STATION_ID_LEN_MAX);
+				}
+				Config.station_id = strndup(optarg, STATION_ID_LEN_MAX);
 				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;

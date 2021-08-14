@@ -11,11 +11,14 @@ struct dumphfdl_config {
 #ifdef DEBUG
 	uint32_t debug_filter;
 #endif
+	char *station_id;
 	int32_t output_queue_hwm;
 	bool utc;
 	bool milliseconds;
 	bool output_raw_frames;
 };
+
+#define STATION_ID_LEN_MAX 255
 
 extern struct dumphfdl_config Config;
 extern int32_t do_exit;
