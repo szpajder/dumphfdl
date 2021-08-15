@@ -23,7 +23,7 @@ struct mpdu_dst {
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_mpdu;
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
-		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list,
+		uint8_t *endptr, uint32_t lpdu_cnt, la_list **lpdu_list,
 		struct hfdl_pdu_hdr_data mpdu_header, la_reasm_ctx *reasm_ctx,
 		struct timeval rx_timestamp, int32_t freq);
 
@@ -34,12 +34,15 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 	ASSERT(pdu->len > 0);
 
 	la_list *lpdu_list = NULL;
-	NEW(struct hfdl_mpdu, mpdu);
-	mpdu->pdu = pdu;
-	la_proto_node *node = la_proto_node_new();
-	node->data = mpdu;
-	node->td = &proto_DEF_hfdl_mpdu;
-	lpdu_list = la_list_append(lpdu_list, node);
+	struct hfdl_mpdu *mpdu = NULL;
+	if(Config.output_mpdus) {
+		mpdu = XCALLOC(1, sizeof(struct hfdl_mpdu));
+		mpdu->pdu = pdu;
+		la_proto_node *node = la_proto_node_new();
+		node->data = mpdu;
+		node->td = &proto_DEF_hfdl_mpdu;
+		lpdu_list = la_list_append(lpdu_list, node);
+	}
 
 	struct hfdl_pdu_hdr_data mpdu_header = {0};
 	uint32_t aircraft_cnt = 0;
@@ -88,7 +91,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 		mpdu_header.src_id = buf[2];
 		mpdu_header.dst_id = buf[1] & 0x7f;
 		uint8_t *hdrptr = buf + 6;              // First LPDU size octet
-		if(parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, lpdu_list,
+		if(parse_lpdu_list(hdrptr, dataptr, buf + len, lpdu_cnt, &lpdu_list,
 					mpdu_header, reasm_ctx, rx_timestamp, freq) < 0) {
 			goto end;
 		}
@@ -99,12 +102,16 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 		uint8_t *hdrptr = buf + 2;              // First AC ID octet
 		int32_t consumed_octets = 0;
 		for(uint32_t i = 0; i < aircraft_cnt; i++, hdrptr++, dataptr += consumed_octets) {
-			NEW(struct mpdu_dst, dst_ac);
-			dst_ac->dst_id = mpdu_header.dst_id = *hdrptr++;
-			dst_ac->lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
-			mpdu->dst_aircraft = la_list_append(mpdu->dst_aircraft, dst_ac);
+			mpdu_header.dst_id = *hdrptr++;
+			lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
+			if(Config.output_mpdus == true) {
+				NEW(struct mpdu_dst, dst_ac);
+				dst_ac->dst_id = mpdu_header.dst_id;
+				dst_ac->lpdu_cnt = lpdu_cnt;
+				mpdu->dst_aircraft = la_list_append(mpdu->dst_aircraft, dst_ac);
+			}
 			if((consumed_octets = parse_lpdu_list(hdrptr, dataptr, buf + len,
-							dst_ac->lpdu_cnt, lpdu_list, mpdu_header,
+							lpdu_cnt, &lpdu_list, mpdu_header,
 							reasm_ctx, rx_timestamp, freq)) < 0) {
 				goto end;
 			}
@@ -112,12 +119,14 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 	}
 
 end:
-	mpdu->header = mpdu_header;
+	if(Config.output_mpdus == true) {
+		mpdu->header = mpdu_header;
+	}
 	return lpdu_list;
 }
 
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
-		uint8_t *endptr, uint32_t lpdu_cnt, la_list *lpdu_list,
+		uint8_t *endptr, uint32_t lpdu_cnt, la_list **lpdu_list,
 		struct hfdl_pdu_hdr_data mpdu_header, la_reasm_ctx *reasm_ctx,
 		struct timeval rx_timestamp, int32_t freq) {
 	int32_t consumed_octets = 0;
@@ -125,7 +134,7 @@ static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 		uint32_t lpdu_len = *lpdu_len_ptr + 1;
 		if(data_ptr + lpdu_len <= endptr) {
 			debug_print(D_PROTO, "lpdu %u/%u: lpdu_len=%u\n", j + 1, lpdu_cnt, lpdu_len);
-			lpdu_list = la_list_append(lpdu_list, lpdu_parse(data_ptr, lpdu_len,
+			*lpdu_list = la_list_append(*lpdu_list, lpdu_parse(data_ptr, lpdu_len,
 						mpdu_header, reasm_ctx, rx_timestamp, freq));
 			data_ptr += lpdu_len;              // Move to the next LPDU
 			consumed_octets += lpdu_len;

@@ -16,6 +16,7 @@ struct dumphfdl_config {
 	bool utc;
 	bool milliseconds;
 	bool output_raw_frames;
+	bool output_mpdus;
 };
 
 #define STATION_ID_LEN_MAX 255

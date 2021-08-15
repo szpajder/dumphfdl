@@ -241,6 +241,7 @@ void usage() {
 	describe_option("", "(See \"--output help\" for details)", 1);
 	describe_option("--output-queue-hwm <integer>", "High water mark value for output queues (0 = no limit)", 1);
 	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file or --raw-frames-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
+	describe_option("--output-mpdus", "Include media access control protocol data units in the output (default: false)", 1);
 	describe_option("--station-id <name>", "Receiver site identifier", 1);
 	fprintf(stderr, "%*sMaximum length: %u characters\n", USAGE_OPT_NAME_COLWIDTH, "", STATION_ID_LEN_MAX);
 
@@ -286,6 +287,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_RAW_FRAMES 46
 #define OPT_PRETTIFY_XML 47
 #define OPT_STATION_ID 48
+#define OPT_OUTPUT_MPDUS 49
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -318,6 +320,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
 		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
+		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
 		{ "system-table",       required_argument,  NULL,   OPT_SYSTABLE_FILE },
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 #ifdef WITH_STATSD
@@ -403,6 +406,9 @@ int32_t main(int32_t argc, char **argv) {
 							STATION_ID_LEN_MAX);
 				}
 				Config.station_id = strndup(optarg, STATION_ID_LEN_MAX);
+				break;
+			case OPT_OUTPUT_MPDUS:
+				Config.output_mpdus = true;
 				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;
