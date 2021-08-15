@@ -79,7 +79,7 @@ void statsd_initialize_counters_per_channel(int32_t freq) {
 	}
 	char metric[256];
 	for(int32_t n = 0; counters_per_channel[n] != NULL; n++) {
-		snprintf(metric, sizeof(metric), "%d.%s", freq, counters_per_channel[n]);
+		snprintf(metric, sizeof(metric), "channels.%d.%s", freq, counters_per_channel[n]);
 		statsd_count(statsd, metric, 0, 1.0);
 	}
 }
@@ -114,7 +114,7 @@ void statsd_counter_per_channel_increment(int32_t freq, char *counter) {
 		return;
 	}
 	char metric[256];
-	snprintf(metric, sizeof(metric), "%d.%s", freq, counter);
+	snprintf(metric, sizeof(metric), "channels.%d.%s", freq, counter);
 	statsd_inc(statsd, metric, 1.0);
 }
 
