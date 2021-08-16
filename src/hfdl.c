@@ -319,7 +319,7 @@ static uint32_t descrambler_advance(descrambler d) {
  **********************************/
 
 struct deinterleaver {
-	uint32_t **table;
+	uint8_t **table;
 	int32_t row, col;
 	int32_t column_cnt;
 	int32_t push_column_shift;
@@ -332,9 +332,9 @@ static deinterleaver deinterleaver_create(int32_t M1) {
 	deinterleaver d = XCALLOC(DEINTERLEAVER_ROW_CNT, sizeof(struct deinterleaver));
 	d->column_cnt = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN
 		* hfdl_frame_params[M1].scheme / DEINTERLEAVER_ROW_CNT;
-	d->table = XCALLOC(DEINTERLEAVER_ROW_CNT, sizeof(uint32_t *));
+	d->table = XCALLOC(DEINTERLEAVER_ROW_CNT, sizeof(uint8_t *));
 	for(int32_t i = 0; i < DEINTERLEAVER_ROW_CNT; i++) {
-		d->table[i] = XCALLOC(d->column_cnt, sizeof(uint32_t));
+		d->table[i] = XCALLOC(d->column_cnt, sizeof(uint8_t));
 	}
 	d->push_column_shift = hfdl_frame_params[M1].deinterleaver_push_column_shift;
 	debug_print(D_BURST, "M1: %d column_cnt: %d total_size: %d column_shift: %d\n",
@@ -342,8 +342,8 @@ static deinterleaver deinterleaver_create(int32_t M1) {
 	return d;
 }
 
-static void deinterleaver_push(deinterleaver d, uint32_t val) {
-	debug_print(D_BURST_DETAIL, "push:%d:%d:%u\n", d->row, d->col, val);
+static void deinterleaver_push(deinterleaver d, uint8_t val) {
+	debug_print(D_BURST_DETAIL, "push:%d:%d:%hhu\n", d->row, d->col, val);
 	d->table[d->row][d->col] = val;
 	d->row++;
 	if(d->row == DEINTERLEAVER_ROW_CNT) {
@@ -356,9 +356,9 @@ static void deinterleaver_push(deinterleaver d, uint32_t val) {
 	}
 }
 
-static uint32_t deinterleaver_pop(deinterleaver d) {
-	uint32_t ret = d->table[d->row][d->col];
-	debug_print(D_BURST_DETAIL, "pop:%d:%d:%u\n", d->row, d->col, ret);
+static uint8_t deinterleaver_pop(deinterleaver d) {
+	uint8_t ret = d->table[d->row][d->col];
+	debug_print(D_BURST_DETAIL, "pop:%d:%d:%hhu\n", d->row, d->col, ret);
 	d->row = (d->row + DEINTERLEAVER_POP_ROW_SHIFT) % DEINTERLEAVER_ROW_CNT;
 	if(d->row == 0) {
 		d->col++;
@@ -964,11 +964,15 @@ static void decode_user_data(struct hfdl_channel *c) {
 	}
 	uint8_t viterbi_input[viterbi_input_len];
 	if(hfdl_frame_params[M1].code_rate == 4) {
+		uint8_t a, b;
 		for(uint32_t i = 0; i < viterbi_input_len; i++) {
-			viterbi_input[i] = (deinterleaver_pop(c->deinterleaver[M1]) + deinterleaver_pop(c->deinterleaver[M1])) >> 1;
+			a = deinterleaver_pop(c->deinterleaver[M1]);
+			b = deinterleaver_pop(c->deinterleaver[M1]);
+			// Average without overflow (http://aggregate.org/MAGIC/#Average%20of%20Integers)
+			viterbi_input[i] = (a & b) + ((a ^ b) >> 1);
 		}
 	} else {    // code_rate == 2
-		for(uint32_t i = 0; i < num_encoded_bits; i++) {
+		for(uint32_t i = 0; i < viterbi_input_len; i++) {
 			viterbi_input[i] = deinterleaver_pop(c->deinterleaver[M1]);
 		}
 	}
