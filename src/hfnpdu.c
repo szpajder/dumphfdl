@@ -108,7 +108,7 @@ static struct time parse_utc_time(uint32_t t) {
 // System table is split across several PDUs which have to be reassembled before
 // decoding. This routine parses only the initial part (up to System table version field),
 // which is repeated in every PDU.
-static uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data *result) {
+static int32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data *result) {
 #define SYSTABLE_HFNPDU_MIN_LEN 5       // From HFNPDU type to system table version
 	ASSERT(buf);
 	ASSERT(result);
@@ -123,7 +123,7 @@ static uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systabl
 	return SYSTABLE_HFNPDU_MIN_LEN;
 }
 
-static uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
+static int32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
 #define SYSTABLE_REQUEST_HFNPDU_LEN 4
 	ASSERT(buf);
 	ASSERT(result);
@@ -136,7 +136,7 @@ static uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu
 	return SYSTABLE_REQUEST_HFNPDU_LEN;
 }
 
-static uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_data *result) {
+static int32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_data *result) {
 #define PERFORMANCE_DATA_HFNPDU_LEN 47
 	ASSERT(buf);
 	ASSERT(result);
@@ -192,7 +192,7 @@ static uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu
 	return PERFORMANCE_DATA_HFNPDU_LEN;
 }
 
-static uint32_t frequency_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_freq_data *result) {
+static int32_t frequency_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_freq_data *result) {
 #define FREQUENCY_DATA_HFNPDU_MIN_LEN 15
 #define PROP_FREQ_DATA_LEN 6
 	ASSERT(buf);
