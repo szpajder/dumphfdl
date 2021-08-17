@@ -108,7 +108,7 @@ static struct time parse_utc_time(uint32_t t) {
 // System table is split across several PDUs which have to be reassembled before
 // decoding. This routine parses only the initial part (up to System table version field),
 // which is repeated in every PDU.
-uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data *result) {
+static uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data *result) {
 #define SYSTABLE_HFNPDU_MIN_LEN 5       // From HFNPDU type to system table version
 	ASSERT(buf);
 	ASSERT(result);
@@ -123,7 +123,7 @@ uint32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_data 
 	return SYSTABLE_HFNPDU_MIN_LEN;
 }
 
-uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
+static uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable_request_data *result) {
 #define SYSTABLE_REQUEST_HFNPDU_LEN 4
 	ASSERT(buf);
 	ASSERT(result);
@@ -136,7 +136,7 @@ uint32_t systable_request_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systab
 	return SYSTABLE_REQUEST_HFNPDU_LEN;
 }
 
-uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_data *result) {
+static uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_data *result) {
 #define PERFORMANCE_DATA_HFNPDU_LEN 47
 	ASSERT(buf);
 	ASSERT(result);
@@ -192,7 +192,7 @@ uint32_t performance_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_perf_d
 	return PERFORMANCE_DATA_HFNPDU_LEN;
 }
 
-uint32_t frequency_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_freq_data *result) {
+static uint32_t frequency_data_parse(uint8_t *buf, uint32_t len, struct hfnpdu_freq_data *result) {
 #define FREQUENCY_DATA_HFNPDU_MIN_LEN 15
 #define PROP_FREQ_DATA_LEN 6
 	ASSERT(buf);
@@ -263,7 +263,7 @@ static void update_statsd_acars_metrics(la_msg_dir msg_dir, la_proto_node *root)
 }
 #endif
 
-la_proto_node *acars_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction,
+static la_proto_node *acars_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction,
 		la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
 	ASSERT(buf);
 	la_proto_node *node = NULL;
@@ -351,7 +351,7 @@ static void hfnpdu_destroy(void *data) {
 	XFREE(hfnpdu);
 }
 
-void mpdu_stats_format_text(la_vstring *vstr, int32_t indent, struct mpdu_stats const *stats, char const *label) {
+static void mpdu_stats_format_text(la_vstring *vstr, int32_t indent, struct mpdu_stats const *stats, char const *label) {
 	ASSERT(vstr);
 	ASSERT(stats);
 	ASSERT(indent > 0);
@@ -372,7 +372,7 @@ static la_dict const freq_change_code_descriptions[] = {
 	{ .id = 0, .val = NULL }
 };
 
-void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_perf_data const *pdu) {
+static void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_perf_data const *pdu) {
 	ASSERT(vstr);
 	ASSERT(pdu);
 	ASSERT(indent > 0);
@@ -403,7 +403,7 @@ void performance_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 			desc ? desc : "unknown");
 }
 
-void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_data const *data) {
+static void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
 	ASSERT(indent > 0);
@@ -412,7 +412,7 @@ void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systab
 	LA_ISPRINTF(vstr, indent, "Part: %u of %hhu\n", data->pdu_seq_num + 1u, data->total_pdu_cnt);
 }
 
-void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_request_data const *data) {
+static void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_request_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
 	ASSERT(indent > 0);
@@ -420,7 +420,7 @@ void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpd
 	LA_ISPRINTF(vstr, indent, "Request data: 0x%hx\n", data->request_data);
 }
 
-void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop_freqs_data const *data) {
+static void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop_freqs_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
 	ASSERT(indent > 0);
@@ -431,7 +431,7 @@ void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop
 	freq_list_format_text(vstr, indent+1, "Heard on", data->gs_id, data->prop_freqs);
 }
 
-void frequency_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_freq_data const *pdu) {
+static void frequency_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_freq_data const *pdu) {
 	ASSERT(vstr);
 	ASSERT(pdu);
 	ASSERT(indent > 0);
