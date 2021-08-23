@@ -116,13 +116,13 @@ static int32_t logoff_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logo
 }
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
-		mpdu_header, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp,
-		int32_t freq) {
+		mpdu_header, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
 #ifndef WITH_STATSD
 	UNUSED(freq);
 #endif
 	ASSERT(buf);
 
+	int32_t freq = mpdu_header.freq;
 	statsd_increment_per_channel(freq, "lpdus.processed");
 	if(len < 3) {       // Need at least LPDU type + FCS
 		statsd_increment_per_channel(freq, "lpdu.errors.too_short");

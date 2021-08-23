@@ -15,8 +15,10 @@ enum hfdl_pdu_direction {
 	DOWNLINK_PDU = 1
 };
 
-// Useful fields extracted from MPDU/SPDU header
+// Useful fields extracted from MPDU/SPDU header or PDU metadata
+// that need to be passed down below the MPDU layer
 struct hfdl_pdu_hdr_data {
+	int32_t freq;           // For ac_cache lookups during LPDU formatting
 	uint8_t src_id;         // GS ID for uplinks, AC ID for downlinks
 	uint8_t dst_id;         // AC ID for uplinks, GS ID for downlinks
 	enum hfdl_pdu_direction direction;

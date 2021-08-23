@@ -8,5 +8,4 @@
 #include "hfdl.h"                       // struct hfdl_pdu_hdr_data
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
-		mpdu_header, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp,
-		int32_t freq);
+		mpdu_header, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp);
