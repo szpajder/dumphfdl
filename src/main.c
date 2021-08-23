@@ -21,6 +21,7 @@
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
 #include "fft.h"                // csdr_fft_init, fft_create
 #include "util.h"               // ASSERT
+#include "ac_cache.h"           // ac_cache_create, ac_cache_destroy
 #include "input-common.h"       // sample_format_t, input_create
 #include "input-helpers.h"      // sample_format_from_string
 #include "output-common.h"      // output_*, fmtr_*
@@ -96,6 +97,7 @@ static msg_filterspec_t const debug_filters[] = {
 	{ "proto",              D_PROTO,                        "Frame payload decoding" },
 	{ "proto_detail",       D_PROTO_DETAIL,                 "Frame payload decoding - details with raw data dumps" },
 	{ "stats",              D_STATS,                        "Statistics generation" },
+	{ "cache",              D_CACHE,                        "Operations on caches" },
 	{ "output",             D_OUTPUT,                       "Data output operations" },
 	{ "misc",               D_MISC,                         "Messages not falling into other categories" },
 	{ 0,                    0,                              0 }
@@ -488,6 +490,11 @@ int32_t main(int32_t argc, char **argv) {
 		fprintf(stderr, "System table loaded from %s\n", systable_file);
 	}
 
+	if((AC_cache = ac_cache_create()) == NULL) {
+		fprintf(stderr, "Unable to initialize aircraft address cache\n");
+		return 1;
+	}
+
 	// no --output given?
 	if(fmtr_list == NULL) {
 		fmtr_list = setup_output(fmtr_list, DEFAULT_OUTPUT);
@@ -593,6 +600,10 @@ int32_t main(int32_t argc, char **argv) {
 	Systable_lock();
 	systable_destroy(Systable);
 	Systable_unlock();
+
+	AC_cache_lock();
+	ac_cache_destroy(AC_cache);
+	AC_cache_unlock();
 
 	return 0;
 }

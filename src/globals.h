@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <pthread.h>
 #include "systable.h"
+#include "ac_cache.h"
 
 // global config
 struct dumphfdl_config {
@@ -31,3 +32,8 @@ extern systable *Systable;
 extern pthread_mutex_t Systable_lock;
 #define Systable_lock() do { pthread_mutex_lock(&Systable_lock); } while(0)
 #define Systable_unlock() do { pthread_mutex_unlock(&Systable_lock); } while(0)
+
+extern ac_cache *AC_cache;
+extern pthread_mutex_t AC_cache_lock;
+#define AC_cache_lock() do { pthread_mutex_lock(&AC_cache_lock); } while(0)
+#define AC_cache_unlock() do { pthread_mutex_unlock(&AC_cache_lock); } while(0)

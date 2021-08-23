@@ -6,9 +6,12 @@
 #include <libacars/dict.h>          // la_dict
 #include "hfdl.h"                   // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "hfnpdu.h"                 // hfnpdu_parse
+#include "ac_cache.h"               // ac_cache_entry_create, ac_cache_entry_delete
+#include "globals.h"                // AC_cache, AC_cache_lock
 #include "lpdu.h"
 #include "statsd.h"                 // statsd_*
-#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, gs_id_format_text
+#include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, gs_id_format_text,
+                                    // ac_id_format_text
 
 // LPDU types
 #define UNNUMBERED_DATA             0x0D
@@ -117,9 +120,6 @@ static int32_t logoff_request_parse(uint8_t *buf, uint32_t len, struct lpdu_logo
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
 		mpdu_header, la_reasm_ctx *reasm_ctx, struct timeval rx_timestamp) {
-#ifndef WITH_STATSD
-	UNUSED(freq);
-#endif
 	ASSERT(buf);
 
 	int32_t freq = mpdu_header.freq;
@@ -156,10 +156,21 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
 		case LOGON_DENIED:
 		case LOGOFF_REQUEST:
 			consumed_len = logoff_request_parse(buf, len, &lpdu->data.logoff_request);
+			if(consumed_len > 0) {
+				AC_cache_lock();
+				ac_cache_entry_delete(AC_cache, freq, lpdu->data.logoff_request.icao_address);
+				AC_cache_unlock();
+			}
 			break;
 		case LOGON_CONFIRM:
 		case LOGON_RESUME_CONFIRM:
 			consumed_len = logon_confirm_parse(buf, len, &lpdu->data.logon_confirm);
+			if(consumed_len > 0) {
+				AC_cache_lock();
+				ac_cache_entry_create(AC_cache, freq, lpdu->data.logon_confirm.ac_id,
+						lpdu->data.logon_confirm.icao_address);
+				AC_cache_unlock();
+			}
 			break;
 		case LOGON_RESUME:
 		case LOGON_REQUEST_NORMAL:
@@ -199,11 +210,11 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		LA_ISPRINTF(vstr, indent, "Uplink LPDU:\n");
 		indent++;
 		gs_id_format_text(vstr, indent, "Src GS", lpdu->mpdu_header.src_id);
-		LA_ISPRINTF(vstr, indent, "Dst AC: %hhu\n", lpdu->mpdu_header.dst_id);
+		ac_id_format_text(vstr, indent, "Dst AC", lpdu->mpdu_header.freq, lpdu->mpdu_header.dst_id);
 	} else {
 		LA_ISPRINTF(vstr, indent, "Downlink LPDU:\n");
 		indent++;
-		LA_ISPRINTF(vstr, indent, "Src AC: %hhu\n", lpdu->mpdu_header.src_id);
+		ac_id_format_text(vstr, indent, "Src AC", lpdu->mpdu_header.freq, lpdu->mpdu_header.src_id);
 		gs_id_format_text(vstr, indent, "Dst GS", lpdu->mpdu_header.dst_id);
 	}
 	char const *lpdu_type = la_dict_search(lpdu_type_descriptions, lpdu->type);

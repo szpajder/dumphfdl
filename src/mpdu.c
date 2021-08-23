@@ -168,16 +168,15 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		LA_ISPRINTF(vstr, indent, "Uplink MPDU:\n");
 			indent++;
 			gs_id_format_text(vstr, indent, "Src GS", mpdu->header.src_id);
-			int32_t i = 1;
 			for(la_list *ac = mpdu->dst_aircraft; ac != NULL; ac = la_list_next(ac)) {
 				struct mpdu_dst *dst = ac->data;
-				LA_ISPRINTF(vstr, indent, "Dst AC #%d: %hhu\n", i++, dst->dst_id);
+				ac_id_format_text(vstr, indent, "Dst AC", mpdu->header.freq, dst->dst_id);
 				LA_ISPRINTF(vstr, indent+1, "LPDU count: %hhu\n", dst->lpdu_cnt);
 			}
 	} else {
 		LA_ISPRINTF(vstr, indent, "Downlink MPDU:\n");
 			indent++;
-			LA_ISPRINTF(vstr, indent, "Src AC: %hhu\n", mpdu->header.src_id);
+			ac_id_format_text(vstr, indent, "Src AC", mpdu->header.freq, mpdu->header.src_id);
 			gs_id_format_text(vstr, indent, "Dst GS", mpdu->header.dst_id);
 	}
 }

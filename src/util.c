@@ -8,8 +8,10 @@
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
 #include "util.h"                   // struct octet_string, struct location
-#include "globals.h"                // Systable, Systable_lock, Systable_unlock
+#include "globals.h"                // Systable, Systable_lock, Systable_unlock,
+                                    // AC_cache, AC_cache_lock, AC_cache_unlock
 #include "systable.h"               // systable_get_station_name
+#include "ac_cache.h"               // ac_cache_entry_lookup
 
 // Forward declarations
 char *hexdump(uint8_t *data, size_t len);
@@ -246,6 +248,23 @@ void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint
 		la_vstring_append_sprintf(vstr, "%s\n", gs_name);
 	} else {
 		la_vstring_append_sprintf(vstr, "%hhu\n", gs_id);
+	}
+}
+
+void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int32_t freq, uint8_t ac_id) {
+	ASSERT(vstr);
+	ASSERT(indent >= 0);
+	ASSERT(label);
+
+	struct ac_cache_entry *entry = NULL;
+	AC_cache_lock();
+	entry = ac_cache_entry_lookup(AC_cache, freq, ac_id);
+	AC_cache_unlock();
+	LA_ISPRINTF(vstr, indent, "%s: ", label);
+	if(entry != NULL) {
+		la_vstring_append_sprintf(vstr, "%hhu (%06X)\n", ac_id, entry->icao_address);
+	} else {
+		la_vstring_append_sprintf(vstr, "%hhu\n", ac_id);
 	}
 }
 

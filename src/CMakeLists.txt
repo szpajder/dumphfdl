@@ -218,7 +218,9 @@ add_custom_command(
 add_subdirectory (libfec)
 
 add_library (dumphfdl_base OBJECT
+	ac_cache.c
 	block.c
+	cache.c
 	crc.c
 	fastddc.c
 	fft.c
