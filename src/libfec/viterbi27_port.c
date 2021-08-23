@@ -7,7 +7,6 @@
 #include <memory.h>
 #include <limits.h>
 #include "fec.h"
-#include "util.h"       // XCALLOC, NEW
 
 typedef union { unsigned int w[64]; } metric_t;
 typedef union { unsigned long w[2];} decision_t;
@@ -95,8 +94,8 @@ void *create_viterbi27_port(int len){
 		int polys[2] = { V27POLYA, V27POLYB };
 		set_viterbi27_polynomial_port(polys);
 	}
-	NEW(struct v27, vp);
-	vp->decisions = XCALLOC(len + 6, sizeof(decision_t));
+	struct v27 *vp = calloc(1, sizeof(struct v27));
+	vp->decisions = calloc(len + 6, sizeof(decision_t));
 	init_viterbi27_port(vp,0);
 
 	return vp;
