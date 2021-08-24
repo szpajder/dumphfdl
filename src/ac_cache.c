@@ -152,7 +152,7 @@ static bool ac_cache_fwd_key_compare(void const *key1, void const *key2) {
 	ASSERT(key1);
 	ASSERT(key2);
 	struct ac_cache_fwd_key const *k1 = key1;
-	struct ac_cache_fwd_key const *k2 = key1;
+	struct ac_cache_fwd_key const *k2 = key2;
 	return (k1->freq == k2->freq && k1->id == k2->id);
 }
 
