@@ -118,6 +118,7 @@ uint32_t parse_icao_hex(uint8_t const buf[3]);
 void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id, uint32_t freqs);
 void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id);
 void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int32_t freq, uint8_t ac_id);
+void ac_data_format_text(la_vstring *vstr, int indent, uint32_t addr);
 
 struct location {
 	double lat, lon;

@@ -106,10 +106,10 @@ set(WITH_SOAPYSDR FALSE)
 option(ETSY_STATSD "Enable Etsy StatsD support" ON)
 set(WITH_STATSD FALSE)
 
-#option(SQLITE "Enable SQLite support for reading aircraft info from
-#Basestation DB" ON)
-#set(WITH_SQLITE FALSE)
-#
+option(SQLITE "Enable SQLite support for reading aircraft info from
+Basestation DB" ON)
+set(WITH_SQLITE FALSE)
+
 #option(ZMQ "Enable support for ZeroMQ outputs" ON)
 #set(WITH_ZMQ FALSE)
 
@@ -143,15 +143,15 @@ if(ETSY_STATSD)
 	endif()
 endif()
 
-#if(SQLITE)
-#	find_package(SQLite3)
-#	if (SQLite3_FOUND)
-#		list(APPEND dumphfdl_extra_libs ${SQLite3_LIBRARIES})
-#		list(APPEND dumphfdl_include_dirs ${SQLite3_INCLUDE_DIRS})
-#		set(WITH_SQLITE TRUE)
-#	endif()
-#endif()
-#
+if(SQLITE)
+	find_package(SQLite3)
+	if (SQLite3_FOUND)
+		list(APPEND dumphfdl_extra_libs ${SQLite3_LIBRARIES})
+		list(APPEND dumphfdl_include_dirs ${SQLite3_INCLUDE_DIRS})
+		set(WITH_SQLITE TRUE)
+	endif()
+endif()
+
 #set(LIBZMQ_VER_MAJOR_MIN 3)
 #set(LIBZMQ_VER_MINOR_MIN 2)
 #set(LIBZMQ_VER_PATCH_MIN 0)
@@ -198,7 +198,7 @@ message(STATUS "- SDR drivers:")
 message(STATUS "  - soapysdr:\t\trequested: ${SOAPYSDR}, enabled: ${WITH_SOAPYSDR}")
 message(STATUS "- Other options:")
 message(STATUS "  - Etsy StatsD:\t\trequested: ${ETSY_STATSD}, enabled: ${WITH_STATSD}")
-#message(STATUS "  - SQLite:\t\t\trequested: ${SQLITE}, enabled: ${WITH_SQLITE}")
+message(STATUS "  - SQLite:\t\t\trequested: ${SQLITE}, enabled: ${WITH_SQLITE}")
 #message(STATUS "  - ZeroMQ:\t\t\trequested: ${ZMQ}, enabled: ${WITH_ZMQ}")
 #message(STATUS "  - Raw binary format:\trequested: ${RAW_BINARY_FORMAT}, enabled: ${WITH_PROTOBUF_C}")
 message(STATUS "  - Profiling:\t\trequested: ${PROFILING}, enabled: ${WITH_PROFILING}")
@@ -219,6 +219,7 @@ add_subdirectory (libfec)
 
 add_library (dumphfdl_base OBJECT
 	ac_cache.c
+	ac_data.c
 	block.c
 	cache.c
 	crc.c

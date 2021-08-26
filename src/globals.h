@@ -6,6 +6,12 @@
 #include <pthread.h>
 #include "systable.h"
 #include "ac_cache.h"
+#include "ac_data.h"
+
+enum ac_data_details {
+	AC_DETAILS_NORMAL = 0,
+	AC_DETAILS_VERBOSE = 1
+};
 
 // global config
 struct dumphfdl_config {
@@ -14,10 +20,12 @@ struct dumphfdl_config {
 #endif
 	char *station_id;
 	int32_t output_queue_hwm;
+	enum ac_data_details ac_data_details;
 	bool utc;
 	bool milliseconds;
 	bool output_raw_frames;
 	bool output_mpdus;
+	bool ac_data_available;
 };
 
 #define STATION_ID_LEN_MAX 255
@@ -37,3 +45,5 @@ extern ac_cache *AC_cache;
 extern pthread_mutex_t AC_cache_lock;
 #define AC_cache_lock() do { pthread_mutex_lock(&AC_cache_lock); } while(0)
 #define AC_cache_unlock() do { pthread_mutex_unlock(&AC_cache_lock); } while(0)
+
+extern ac_data *AC_data;

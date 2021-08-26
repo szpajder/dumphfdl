@@ -7,7 +7,7 @@
 #include "hfdl.h"                           // hfdl_*
 #include "lpdu.h"                           // lpdu_parse
 #include "statsd.h"                         // statsd_*
-#include "util.h"                           // NEW, ASSERT, struct octet_string, gs_id_format_text
+#include "util.h"                           // NEW, ASSERT, struct octet_string, {ac,gs}_id_format_text
 
 struct hfdl_mpdu {
 	struct octet_string *pdu;

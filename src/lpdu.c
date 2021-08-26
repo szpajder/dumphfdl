@@ -229,6 +229,7 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		case LOGON_DENIED:
 		case LOGOFF_REQUEST:
 			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logoff_request.icao_address);
+			ac_data_format_text(vstr, indent + 1, lpdu->data.logoff_request.icao_address);
 			descr = la_dict_search(
 					lpdu->type == LOGON_DENIED ? logon_denied_reason_codes : logoff_request_reason_codes,
 					lpdu->data.logoff_request.reason_code
@@ -239,12 +240,14 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 		case LOGON_CONFIRM:
 		case LOGON_RESUME_CONFIRM:
 			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logon_confirm.icao_address);
+			ac_data_format_text(vstr, indent + 1, lpdu->data.logon_confirm.icao_address);
 			LA_ISPRINTF(vstr, indent, "Assigned AC ID: %u\n", lpdu->data.logon_confirm.ac_id);
 			break;
 		case LOGON_RESUME:
 		case LOGON_REQUEST_NORMAL:
 		case LOGON_REQUEST_DLS:
 			LA_ISPRINTF(vstr, indent, "ICAO: %06X\n", lpdu->data.logon_request.icao_address);
+			ac_data_format_text(vstr, indent + 1, lpdu->data.logon_request.icao_address);
 			break;
 		default:
 			return;

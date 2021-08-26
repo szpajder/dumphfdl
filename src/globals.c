@@ -4,6 +4,7 @@
 #include "globals.h"                // dumphfdl_config
 #include "systable.h"               // systable
 #include "ac_cache.h"               // ac_cache
+#include "ac_data.h"                // ac_data
 
 int32_t do_exit = 0;
 struct dumphfdl_config Config = {0};
@@ -15,3 +16,6 @@ pthread_mutex_t Systable_lock = PTHREAD_MUTEX_INITIALIZER;
 // HFDL ID -> ICAO mapping table
 ac_cache *AC_cache;
 pthread_mutex_t AC_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+
+// basestation.sqb cache
+ac_data *AC_data;

@@ -12,6 +12,7 @@
                                     // AC_cache, AC_cache_lock, AC_cache_unlock
 #include "systable.h"               // systable_get_station_name
 #include "ac_cache.h"               // ac_cache_entry_lookup
+#include "ac_data.h"                // ac_data_entry_lookup
 
 // Forward declarations
 char *hexdump(uint8_t *data, size_t len);
@@ -263,8 +264,29 @@ void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int3
 	LA_ISPRINTF(vstr, indent, "%s: ", label);
 	if(entry != NULL) {
 		la_vstring_append_sprintf(vstr, "%hhu (%06X)\n", ac_id, entry->icao_address);
+		ac_data_format_text(vstr, indent + 1, entry->icao_address);
 	} else {
 		la_vstring_append_sprintf(vstr, "%hhu\n", ac_id);
+	}
+}
+
+void ac_data_format_text(la_vstring *vstr, int indent, uint32_t addr) {
+	if(Config.ac_data_available == true) {
+		struct ac_data_entry *ac = ac_data_entry_lookup(AC_data, addr);
+		if(Config.ac_data_details == AC_DETAILS_NORMAL) {
+			LA_ISPRINTF(vstr, indent, "AC info: %s, %s, %s\n",
+					ac && ac->registration ? ac->registration : "-",
+					ac && ac->icaotypecode ? ac->icaotypecode : "-",
+					ac && ac->operatorflagcode ? ac->operatorflagcode : "-"
+					);
+		} else if(Config.ac_data_details == AC_DETAILS_VERBOSE) {
+			LA_ISPRINTF(vstr, indent, "AC info: %s, %s, %s, %s\n",
+					ac && ac->registration ? ac->registration : "-",
+					ac && ac->manufacturer ? ac->manufacturer : "-",
+					ac && ac->type ? ac->type : "-",
+					ac && ac->registeredowners ? ac->registeredowners : "-"
+					);
+		}
 	}
 }
 

@@ -22,6 +22,7 @@
 #include "fft.h"                // csdr_fft_init, fft_create
 #include "util.h"               // ASSERT
 #include "ac_cache.h"           // ac_cache_create, ac_cache_destroy
+#include "ac_data.h"            // ac_data_create, ac_data_destroy
 #include "input-common.h"       // sample_format_t, input_create
 #include "input-helpers.h"      // sample_format_from_string
 #include "output-common.h"      // output_*, fmtr_*
@@ -244,6 +245,10 @@ void usage() {
 	describe_option("--output-queue-hwm <integer>", "High water mark value for output queues (0 = no limit)", 1);
 	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file or --raw-frames-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
 	describe_option("--output-mpdus", "Include media access control protocol data units in the output (default: false)", 1);
+#ifdef WITH_SQLITE
+	describe_option("--bs-db <file>", "Read aircraft info from Basestation database <file> (SQLite)", 1);
+	describe_option("--ac-details normal|verbose", "Aircraft info detail level (default: normal)", 1);
+#endif
 	describe_option("--station-id <name>", "Receiver site identifier", 1);
 	fprintf(stderr, "%*sMaximum length: %u characters\n", USAGE_OPT_NAME_COLWIDTH, "", STATION_ID_LEN_MAX);
 
@@ -298,6 +303,11 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_STATSD 70
 #endif
 
+#ifdef WITH_SQLITE
+#define OPT_BS_DB 80
+#define OPT_AC_DETAILS 81
+#endif
+
 #define DEFAULT_OUTPUT "decoded:text:file:path=-"
 
 	static struct option opts[] = {
@@ -323,6 +333,10 @@ int32_t main(int32_t argc, char **argv) {
 		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
+#ifdef WITH_SQLITE
+		{ "bs-db",              required_argument,  NULL,   OPT_BS_DB },
+		{ "ac-details",         required_argument,  NULL,   OPT_AC_DETAILS },
+#endif
 		{ "system-table",       required_argument,  NULL,   OPT_SYSTABLE_FILE },
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 #ifdef WITH_STATSD
@@ -332,6 +346,7 @@ int32_t main(int32_t argc, char **argv) {
 	};
 
 	// Initialize default config
+	Config.ac_data_details = AC_DETAILS_NORMAL;
 	Config.output_queue_hwm = OUTPUT_QUEUE_HWM_DEFAULT;
 
 	struct input_cfg *input_cfg = input_cfg_create();
@@ -342,6 +357,9 @@ int32_t main(int32_t argc, char **argv) {
 	char const *systable_save_file = NULL;
 #ifdef WITH_STATSD
 	char *statsd_addr = NULL;
+#endif
+#ifdef WITH_SQLITE
+	char *bs_db_file = NULL;
 #endif
 
 	print_version();
@@ -418,6 +436,22 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_SYSTABLE_SAVE_FILE:
 				systable_save_file = optarg;
 				break;
+#ifdef WITH_SQLITE
+			case OPT_BS_DB:
+				bs_db_file = optarg;
+				break;
+			case OPT_AC_DETAILS:
+				if(!strcmp(optarg, "normal")) {
+					Config.ac_data_details = AC_DETAILS_NORMAL;
+				} else if(!strcmp(optarg, "verbose")) {
+					Config.ac_data_details = AC_DETAILS_VERBOSE;
+				} else {
+					fprintf(stderr, "Invalid value for option --ac-details\n");
+					fprintf(stderr, "Use --help for help\n");
+					return 1;
+				}
+				break;
+#endif
 #ifdef WITH_STATSD
 			case OPT_STATSD:
 				statsd_addr = strdup(optarg);
@@ -539,6 +573,18 @@ int32_t main(int32_t argc, char **argv) {
 	}
 #endif
 
+#ifdef WITH_SQLITE
+	if(bs_db_file != NULL) {
+		AC_data = ac_data_create(bs_db_file);
+		if(AC_data == NULL) {
+			fprintf(stderr, "Failed to open aircraft database. "
+					"Aircraft details will not be logged.\n");
+		} else {
+			Config.ac_data_available = true;
+		}
+	}
+#endif
+
 	la_config_set_int("acars_bearer", LA_ACARS_BEARER_HFDL);
 	hfdl_init_globals();
 
@@ -604,6 +650,10 @@ int32_t main(int32_t argc, char **argv) {
 	AC_cache_lock();
 	ac_cache_destroy(AC_cache);
 	AC_cache_unlock();
+
+#ifdef WITH_SQLITE
+	ac_data_destroy(AC_data);
+#endif
 
 	return 0;
 }
