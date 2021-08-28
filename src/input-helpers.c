@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include <stdio.h>              // fprintf
 #include <limits.h>             // SHRT_MAX, SCHAR_MAX, UCHAR_MAX
 #include <complex.h>            // CMPLXF
 #include <strings.h>            // strcasecmp()
@@ -8,11 +7,8 @@
 #include "input-common.h"       // struct input
 #include "util.h"               // ASSERT, debug_print
 
-void complex_samples_produce(struct circ_buffer *circ_buffer, float complex *samples, size_t num_samples);
-
-static void convert_cf32(struct input *input, void *buf, size_t len) {
-	ASSERT(input);
-	ASSERT(buf);
+static void convert_cf32(struct input *input, void *inbuf, size_t len,
+		float complex *outbuf) {
 	if(UNLIKELY(len % input->bytes_per_sample != 0)) {
 		debug_print(D_SDR, "Warning: buf len %zu is not a multiple of %d, truncating\n",
 				len, input->bytes_per_sample);
@@ -21,25 +17,21 @@ static void convert_cf32(struct input *input, void *buf, size_t len) {
 	if(UNLIKELY(len == 0)) {
 		return;
 	}
-	float *fbuf = (float *)buf;
-	size_t fbuf_len = len / sizeof(float);
-	size_t num_samples = len / input->bytes_per_sample;
-	float complex cf32_buf[num_samples];
-	size_t cf32_buf_idx = 0;
+	float *floatbuf = inbuf;
+	size_t floatbuf_len = len / sizeof(float);
+	size_t outbuf_idx = 0;
 	float re = 0.f, im = 0.f;
 	float const full_scale = input->full_scale;
 	ASSERT(full_scale > 0.f);
-	for(size_t i = 0; i < fbuf_len;) {
-		re = fbuf[i++] / full_scale;
-		im = fbuf[i++] / full_scale;
-		cf32_buf[cf32_buf_idx++] = CMPLXF(re, im);
+	for(size_t i = 0; i < floatbuf_len;) {
+		re = floatbuf[i++] / full_scale;
+		im = floatbuf[i++] / full_scale;
+		outbuf[outbuf_idx++] = CMPLXF(re, im);
 	}
-	complex_samples_produce(&input->block.producer.out->circ_buffer, cf32_buf, num_samples);
 }
 
-static void convert_cs16(struct input *input, void *buf, size_t len) {
-	ASSERT(input);
-	ASSERT(buf);
+static void convert_cs16(struct input *input, void *inbuf, size_t len,
+		float complex *outbuf) {
 	if(UNLIKELY(len % input->bytes_per_sample != 0)) {
 		debug_print(D_SDR, "Warning: buf len %zu is not a multiple of %d, truncating\n",
 				len, input->bytes_per_sample);
@@ -48,25 +40,21 @@ static void convert_cs16(struct input *input, void *buf, size_t len) {
 	if(UNLIKELY(len == 0)) {
 		return;
 	}
-	int16_t *bbuf = (int16_t *)buf;
-	size_t blen = len / sizeof(int16_t);
-	size_t num_samples = len / input->bytes_per_sample;
-	float complex csbuf[num_samples];
-	size_t csbuf_idx = 0;
+	int16_t *shortbuf = inbuf;
+	size_t shortbuf_len = len / sizeof(int16_t);
+	size_t outbuf_idx = 0;
 	float re = 0.f, im = 0.f;
 	float const full_scale = input->full_scale;
 	ASSERT(full_scale > 0.f);
-	for(size_t i = 0; i < blen;) {
-		re = (float)bbuf[i++] / full_scale;
-		im = (float)bbuf[i++] / full_scale;
-		csbuf[csbuf_idx++] = CMPLXF(re, im);
+	for(size_t i = 0; i < shortbuf_len;) {
+		re = (float)shortbuf[i++] / full_scale;
+		im = (float)shortbuf[i++] / full_scale;
+		outbuf[outbuf_idx++] = CMPLXF(re, im);
 	}
-	complex_samples_produce(&input->block.producer.out->circ_buffer, csbuf, num_samples);
 }
 
-static void convert_cu8(struct input *input, void *buf, size_t len) {
-	ASSERT(input);
-	ASSERT(buf);
+static void convert_cu8(struct input *input, void *inbuf, size_t len,
+		float complex *outbuf) {
 	if(UNLIKELY(len % input->bytes_per_sample != 0)) {
 		debug_print(D_SDR, "Warning: buf len %zu is not a multiple of %d, truncating\n",
 				len, input->bytes_per_sample);
@@ -75,11 +63,9 @@ static void convert_cu8(struct input *input, void *buf, size_t len) {
 	if(UNLIKELY(len == 0)) {
 		return;
 	}
-	uint8_t *bytebuf = (uint8_t *)buf;
+	uint8_t *bytebuf = inbuf;
 	size_t bytebuf_len = len / sizeof(uint8_t);
-	size_t num_samples = len / input->bytes_per_sample;
-	float complex cf32_buf[num_samples];
-	size_t cf32_buf_idx = 0;
+	size_t outbuf_idx = 0;
 	float re = 0.f, im = 0.f;
 	float const full_scale = input->full_scale;
 	ASSERT(full_scale > 0.f);
@@ -87,16 +73,16 @@ static void convert_cu8(struct input *input, void *buf, size_t len) {
 	for(size_t i = 0; i < bytebuf_len;) {
 		re = (bytebuf[i++] - shift) / full_scale;
 		im = (bytebuf[i++] - shift) / full_scale;
-		cf32_buf[cf32_buf_idx++] = CMPLXF(re, im);
+		outbuf[outbuf_idx++] = CMPLXF(re, im);
 	}
-	complex_samples_produce(&input->block.producer.out->circ_buffer, cf32_buf, num_samples);
 }
 
-void complex_samples_produce(struct circ_buffer *circ_buffer, float complex *samples, size_t num_samples) {
+void complex_samples_produce(struct circ_buffer *circ_buffer,
+		float complex *samples, size_t num_samples) {
 	pthread_mutex_lock(circ_buffer->mutex);
 	size_t cbuf_available = cbuffercf_space_available(circ_buffer->buf);
 	if(cbuf_available < num_samples) {
-		fprintf(stderr, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
+		debug_print(D_SDR, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
 				num_samples, cbuf_available, num_samples - cbuf_available);
 		num_samples = cbuf_available;
 	}

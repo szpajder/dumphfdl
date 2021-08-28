@@ -34,10 +34,13 @@ void *file_input_thread(void *ctx) {
 
 	ASSERT(file_input->fh != NULL);
 
-	uint8_t *buf = XCALLOC(FILE_BUFSIZE, sizeof(uint8_t));
-	size_t space_available, len;
+	void *inbuf = XCALLOC(FILE_BUFSIZE, sizeof(uint8_t));
+	float complex *outbuf = XCALLOC(FILE_BUFSIZE / input->bytes_per_sample,
+			sizeof(float complex));
+	size_t space_available, len, samples_read;
 	do {
-		len = fread(buf, 1, FILE_BUFSIZE, file_input->fh);
+		len = fread(inbuf, 1, FILE_BUFSIZE, file_input->fh);
+		samples_read = len / input->bytes_per_sample;
 		while(true) {
 			pthread_mutex_lock(circ_buffer->mutex);
 			space_available = cbuffercf_space_available(circ_buffer->buf);
@@ -47,7 +50,8 @@ void *file_input_thread(void *ctx) {
 			}
 			usleep(100000);
 		}
-		input->convert_sample_buffer(input, buf, len);
+		input->convert_sample_buffer(input, inbuf, len, outbuf);
+		complex_samples_produce(circ_buffer, outbuf, samples_read);
 	} while(len == FILE_BUFSIZE && do_exit == 0);
 	fclose(file_input->fh);
 	file_input->fh = NULL;
@@ -55,7 +59,8 @@ void *file_input_thread(void *ctx) {
 	block_connection_one2one_shutdown(block->producer.out);
 	do_exit = 1;
 	block->running = false;
-	XFREE(buf);
+	XFREE(inbuf);
+	XFREE(outbuf);
 	return NULL;
 }
 

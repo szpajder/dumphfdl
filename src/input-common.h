@@ -40,7 +40,7 @@ struct input_vtable {
 	void* (*rx_thread_routine)(void *);
 };
 
-typedef void (*convert_sample_buffer_fun)(struct input *, void *, size_t);
+typedef void (*convert_sample_buffer_fun)(struct input *, void *, size_t, float complex *);
 
 struct input {
 	struct block block;

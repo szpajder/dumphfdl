@@ -213,7 +213,8 @@ void *soapysdr_input_thread(void *ctx) {
 	struct block *block = ctx;
 	struct input *input = container_of(block, struct input, block);
 	struct soapysdr_input *soapysdr_input = container_of(input, struct soapysdr_input, input);
-	uint8_t *buf = XCALLOC(input->block.producer.max_tu, input->bytes_per_sample);
+	void *inbuf = XCALLOC(input->block.producer.max_tu, input->bytes_per_sample);
+	float complex *outbuf = XCALLOC(input->block.producer.max_tu, sizeof(float complex));
 	int ret;
 	if((ret = SoapySDRDevice_activateStream(soapysdr_input->sdr, soapysdr_input->stream, 0, 0, 0)) != 0) {
 		fprintf(stderr, "Failed to activate stream for SoapySDR device '%s': %s (ret=%d)\n",
@@ -223,17 +224,17 @@ void *soapysdr_input_thread(void *ctx) {
 	usleep(100000);
 
 	while(do_exit == 0) {
-		void *bufs[] = { buf };
 		int flags;
 		long long timeNs;
-		int samples_read = SoapySDRDevice_readStream(soapysdr_input->sdr, soapysdr_input->stream, bufs,
+		int samples_read = SoapySDRDevice_readStream(soapysdr_input->sdr, soapysdr_input->stream, &inbuf,
 			input->block.producer.max_tu, &flags, &timeNs, SOAPYSDR_READSTREAM_TIMEOUT_US);
 		if(samples_read < 0) {	// when it's negative, it's the error code
 			fprintf(stderr, "SoapySDR device '%s': readStream failed: %s\n",
 				input->config->device_string, SoapySDR_errToStr(samples_read));
 			continue;
 		}
-		input->convert_sample_buffer(input, buf, samples_read * input->bytes_per_sample);
+		input->convert_sample_buffer(input, inbuf, samples_read * input->bytes_per_sample, outbuf);
+		complex_samples_produce(&input->block.producer.out->circ_buffer, outbuf, samples_read);
 	}
 shutdown:
 	debug_print(D_MISC, "Shutdown ordered, signaling consumer shutdown\n");
@@ -242,7 +243,8 @@ shutdown:
 	SoapySDRDevice_unmake(soapysdr_input->sdr);
 	block_connection_one2one_shutdown(block->producer.out);
 	block->running = false;
-	XFREE(buf);
+	XFREE(inbuf);
+	XFREE(outbuf);
 	return NULL;
 }
 
