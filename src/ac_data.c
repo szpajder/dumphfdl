@@ -62,7 +62,7 @@ struct ac_data *ac_data_create(char const *bs_db_file) {
 		fprintf(stderr, "%s: could not query Aircraft table: %s\n", bs_db_file, sqlite3_errmsg(ac_data->db));
 		goto fail;
 	}
-	ac_data->cache = cache_create(&ac_data_vtable, AC_DATA_TTL, AC_DATA_EXPIRATION_INTERVAL);
+	ac_data->cache = cache_create("ac_data", &ac_data_vtable, AC_DATA_TTL, AC_DATA_EXPIRATION_INTERVAL);
 	ASSERT(ac_data->cache != NULL);
 // XXX: statsd counters are global across all ac_data objects
 #ifdef WITH_STATSD

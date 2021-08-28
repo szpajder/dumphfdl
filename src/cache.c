@@ -1,8 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
+#include <string.h>                         // strdup
 #include <time.h>                           // time_t
 #include <libacars/hash.h>                  // la_hash_*
+#include <libacars/vstring.h>               // la_vstring
 #include "util.h"                           // NEW, debug_print
 #include "cache.h"
+#include "statsd.h"                         // statsd_*
 
 struct cache_entry {
 	time_t created_time;
@@ -13,10 +16,28 @@ struct cache_entry {
 struct cache {
 	struct cache_vtable const *vtable;
 	la_hash *table;
+	la_vstring *statsd_metric_name__entry_count;
+	char const *name;
 	time_t last_expiration_time;
 	uint32_t ttl;
 	uint32_t expiration_interval;
+	uint32_t num_entries;
 };
+
+#define CACHE_DEFAULT_NAME "__default__"
+#ifdef WITH_STATSD
+#define CACHE_ENTRY_COUNT_ADD(cache, n) do { \
+	if((n) < 0 && (cache)->num_entries < (uint32_t)(-(n))) { \
+		(cache)->num_entries = 0; \
+	} else { \
+		(cache)->num_entries += (n); \
+	} \
+	statsd_set((cache)->statsd_metric_name__entry_count->str, (cache)->num_entries); \
+} while(0)
+#else
+#define CACHE_ENTRY_COUNT_ADD(cache, n) nop()
+#endif
+
 
 /******************************
  * Forward declarations
@@ -29,8 +50,8 @@ static void cache_entry_destroy(void *entry);
  * Public methods
  ******************************/
 
-cache *cache_create(struct cache_vtable const *vtable, uint32_t ttl,
-		uint32_t expiration_interval) {
+cache *cache_create(char const *cache_name, struct cache_vtable const *vtable,
+		uint32_t ttl, uint32_t expiration_interval) {
 	ASSERT(vtable);
 
 	NEW(struct cache, cache);
@@ -39,11 +60,22 @@ cache *cache_create(struct cache_vtable const *vtable, uint32_t ttl,
 	cache->expiration_interval = expiration_interval;
 	cache->table = la_hash_new(vtable->cache_key_hash, vtable->cache_key_compare,
 			vtable->cache_key_destroy, cache_entry_destroy);
+	cache->name = strdup(cache_name);
+
+	// Construct statsd metric name and initialize the counter
+#ifdef WITH_STATSD
+	cache->statsd_metric_name__entry_count = la_vstring_new();
+	la_vstring_append_sprintf(cache->statsd_metric_name__entry_count,
+			"cache.%s.entries", cache_name ? cache_name : CACHE_DEFAULT_NAME);
+	char *counter_set[] = { cache->statsd_metric_name__entry_count->str, NULL };
+	statsd_initialize_counter_set(counter_set);
+#endif
+
 	cache->last_expiration_time = time(NULL);
 	return cache;
 }
 
-void cache_entry_create(cache const *c, void *key, void *value, time_t created_time) {
+void cache_entry_create(cache *c, void *key, void *value, time_t created_time) {
 	ASSERT(c);
 	ASSERT(key);
 	// NULL 'value' ptr is allowed
@@ -53,13 +85,18 @@ void cache_entry_create(cache const *c, void *key, void *value, time_t created_t
 	entry->created_time = created_time;
 	entry->data_destroy = c->vtable->cache_entry_data_destroy;
 	la_hash_insert(c->table, key, entry);
+	CACHE_ENTRY_COUNT_ADD(c, 1);
 }
 
-bool cache_entry_delete(cache const *c, void *key) {
+bool cache_entry_delete(cache *c, void *key) {
 	ASSERT(c);
 	ASSERT(key);
 
-	return la_hash_remove(c->table, key);
+	bool result = la_hash_remove(c->table, key);
+	if(result) {
+		CACHE_ENTRY_COUNT_ADD(c, -1);
+	}
+	return result;
 }
 
 void *cache_entry_lookup(cache *c, void const *key) {
@@ -70,9 +107,9 @@ void *cache_entry_lookup(cache *c, void const *key) {
 	time_t now = time(NULL);
 	if(c->last_expiration_time + c->expiration_interval <= now) {
 		int expired_cnt = cache_expire(c, now);
-//		AC_CACHE_ENTRY_COUNT_ADD(-expired_cnt);
-		debug_print(D_CACHE, "last_gc: %ld, now: %ld, expired %d cache entries\n",
-				c->last_expiration_time, now, expired_cnt);
+		CACHE_ENTRY_COUNT_ADD(c, -expired_cnt);
+		debug_print(D_CACHE, "%s: last_gc: %ld, now: %ld, expired %d cache entries\n",
+				c->name, c->last_expiration_time, now, expired_cnt);
 		c->last_expiration_time = now;
 	}
 
@@ -80,7 +117,7 @@ void *cache_entry_lookup(cache *c, void const *key) {
 	if(e == NULL) {
 		return NULL;
 	} else if(e->created_time + c->ttl < now) {
-		debug_print(D_CACHE, "key %p: entry expired\n", key);
+		debug_print(D_CACHE, "%s: key %p: entry expired\n", c->name, key);
 		return NULL;
 	}
 	return e->data;
@@ -96,6 +133,7 @@ int32_t cache_expire(cache *c, time_t current_timestamp) {
 void cache_destroy(cache *c) {
 	if(c != NULL) {
 		la_hash_destroy(c->table);
+		la_vstring_destroy(c->statsd_metric_name__entry_count, true);
 		XFREE(c);
 	}
 }

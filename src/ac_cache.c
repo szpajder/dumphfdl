@@ -61,8 +61,8 @@ static bool ac_cache_entry_perform_delete(ac_cache const *cache, int32_t freq,
 
 ac_cache *ac_cache_create(void) {
 	NEW(ac_cache, cache);
-	cache->fwd_cache = cache_create(&ac_cache_fwd_vtable, AC_CACHE_TTL, AC_CACHE_EXPIRATION_INTERVAL);
-	cache->inv_cache = cache_create(&ac_cache_inv_vtable, AC_CACHE_TTL, AC_CACHE_EXPIRATION_INTERVAL);
+	cache->fwd_cache = cache_create("ac_fwd", &ac_cache_fwd_vtable, AC_CACHE_TTL, AC_CACHE_EXPIRATION_INTERVAL);
+	cache->inv_cache = cache_create("ac_inv", &ac_cache_inv_vtable, AC_CACHE_TTL, AC_CACHE_EXPIRATION_INTERVAL);
 	return cache;
 }
 
