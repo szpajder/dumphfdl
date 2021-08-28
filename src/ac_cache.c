@@ -39,7 +39,7 @@ struct ac_cache_inv_entry {
 	uint8_t id;
 };
 
-#define AC_CACHE_TTL 14400L
+#define AC_CACHE_TTL 3600L
 #define AC_CACHE_EXPIRATION_INTERVAL 309L
 
 /******************************
