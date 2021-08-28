@@ -13,6 +13,7 @@
 #include <time.h>           // time_t, time()
 #include <sqlite3.h>
 #include "cache.h"          // cache_*
+#include "statsd.h"         // statsd_*
 
 struct ac_data {
 	cache *cache;
@@ -23,16 +24,6 @@ struct ac_data {
 #define AC_DATA_TTL 1800L
 #define AC_DATA_EXPIRATION_INTERVAL 305L
 #define BS_DB_COLUMNS "Registration,ICAOTypeCode,OperatorFlagCode,Manufacturer,Type,RegisteredOwners"
-/*
-#define AC_CACHE_ENTRY_COUNT_ADD(x) do { \
-	if((x) < 0 && ac_cache_entry_count < (unsigned long)(-(x))) { \
-		ac_cache_entry_count = 0; \
-	} else { \
-		ac_cache_entry_count += (x); \
-	} \
-	statsd_set("ac_data.cache.entries", ac_cache_entry_count); \
-} while(0)
-*/
 
 /******************************
  * Forward declarations
@@ -42,18 +33,17 @@ static struct cache_vtable ac_data_vtable;
 static struct ac_data_entry *ac_data_entry_fetch_from_db(struct ac_data *ac_data, uint32_t icao_address);
 static void ac_data_entry_create(ac_data *ac_data, uint32_t icao_address, struct ac_data_entry *entry);
 
-/*
+// XXX: statsd counters are global across all ac_data objects
+// For dumphfdl this is not an issue , since there is only one such object in every program run.
 #ifdef WITH_STATSD
 static char *ac_data_counters[] = {
-	"ac_data.cache.hits",
-	"ac_data.cache.misses",
 	"ac_data.db.hits",
 	"ac_data.db.misses",
 	"ac_data.db.errors",
 	NULL
 };
+static bool statsd_counters_initialized = false;
 #endif
-*/
 
 struct ac_data *ac_data_create(char const *bs_db_file) {
 	if(bs_db_file == NULL) {
@@ -74,9 +64,11 @@ struct ac_data *ac_data_create(char const *bs_db_file) {
 	}
 	ac_data->cache = cache_create(&ac_data_vtable, AC_DATA_TTL, AC_DATA_EXPIRATION_INTERVAL);
 	ASSERT(ac_data->cache != NULL);
-//#ifdef WITH_STATSD
-//	statsd_initialize_counter_set(ac_data_counters);
-//#endif
+// XXX: statsd counters are global across all ac_data objects
+	if(statsd_counters_initialized == false) {
+		statsd_initialize_counter_set(ac_data_counters);
+		statsd_counters_initialized = true;
+	}
 	if(ac_data_entry_lookup(ac_data, 0) == NULL) {
 		fprintf(stderr, "%s: test query failed, database is unusable.\n", bs_db_file);
 		goto fail;
@@ -156,13 +148,13 @@ static struct ac_data_entry *ac_data_entry_fetch_from_db(struct ac_data *ac_data
 	int rc = sqlite3_reset(ac_data->stmt);
 	if(rc != SQLITE_OK) {
 		debug_print(D_CACHE, "sqlite3_reset() returned error %d\n", rc);
-//		statsd_increment("ac_data.db.errors");
+		statsd_increment("ac_data.db.errors");
 		goto fail;
 	}
 	rc = sqlite3_bind_text(ac_data->stmt, 1, hex_address, -1, SQLITE_STATIC);
 	if(rc != SQLITE_OK) {
 		debug_print(D_CACHE, "sqlite3_bind_text('%s') returned error %d\n", hex_address, rc);
-//		statsd_increment("ac_data.db.errors");
+		statsd_increment("ac_data.db.errors");
 		goto fail;
 	}
 	rc = sqlite3_step(ac_data->stmt);
@@ -171,7 +163,7 @@ static struct ac_data_entry *ac_data_entry_fetch_from_db(struct ac_data *ac_data
 			debug_print(D_CACHE, "%s: not enough columns in the query result\n", hex_address);
 			goto fail;
 		}
-//		statsd_increment("ac_data.db.hits");
+		statsd_increment("ac_data.db.hits");
 		char const *field = NULL;
 		if((field = (char *)sqlite3_column_text(ac_data->stmt, 0)) != NULL) entry->registration = strdup(field);
 		if((field = (char *)sqlite3_column_text(ac_data->stmt, 1)) != NULL) entry->icaotypecode = strdup(field);
@@ -183,10 +175,10 @@ static struct ac_data_entry *ac_data_entry_fetch_from_db(struct ac_data *ac_data
 	} else if(rc == SQLITE_DONE) {
 		// No rows found
 		entry->exists = false;
-//		statsd_increment("ac_data.db.misses");
+		statsd_increment("ac_data.db.misses");
 	} else {
 		debug_print(D_CACHE, "%s: unexpected query return code %d\n", hex_address, rc);
-//		statsd_increment("ac_data.db.errors");
+		statsd_increment("ac_data.db.errors");
 	}
 	return entry;
 fail:
