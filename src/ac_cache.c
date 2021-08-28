@@ -20,13 +20,13 @@ struct ac_cache {
 };
 
 // Hash key definitions.
-// Both hashes are keyed with channel frequency and aircraft identifier:
-// - forward hash: by ID
-// - inverse hash: by ICAO address
+// Forward hash is keyed by frequency+ID, as IDs are channel-specific.
 struct ac_cache_fwd_key {
 	int32_t freq;
 	uint8_t id;
 };
+// Inverse hash is keyed with icao_address only, as every aircraft may
+// be logged on on a single frequency at a time.
 struct ac_cache_inv_key {
 	uint32_t icao_address;
 };
