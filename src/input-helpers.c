@@ -8,6 +8,8 @@
 #include "input-common.h"       // struct input
 #include "util.h"               // ASSERT, debug_print
 
+void complex_samples_produce(struct circ_buffer *circ_buffer, float complex *samples, size_t num_samples);
+
 static void convert_cf32(struct input *input, void *buf, size_t len) {
 	ASSERT(input);
 	ASSERT(buf);
@@ -21,8 +23,8 @@ static void convert_cf32(struct input *input, void *buf, size_t len) {
 	}
 	float *fbuf = (float *)buf;
 	size_t fbuf_len = len / sizeof(float);
-	size_t complex_sample_cnt = len / input->bytes_per_sample;
-	float complex cf32_buf[complex_sample_cnt];
+	size_t num_samples = len / input->bytes_per_sample;
+	float complex cf32_buf[num_samples];
 	size_t cf32_buf_idx = 0;
 	float re = 0.f, im = 0.f;
 	float const full_scale = input->full_scale;
@@ -32,18 +34,7 @@ static void convert_cf32(struct input *input, void *buf, size_t len) {
 		im = fbuf[i++] / full_scale;
 		cf32_buf[cf32_buf_idx++] = CMPLXF(re, im);
 	}
-	// TODO: conversion function shall not deal with producing output
-	struct circ_buffer *circ_buffer = &input->block.producer.out->circ_buffer;
-	pthread_mutex_lock(circ_buffer->mutex);
-	size_t cbuf_available = cbuffercf_space_available(circ_buffer->buf);
-	if(cbuf_available < complex_sample_cnt) {
-		fprintf(stderr, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
-				complex_sample_cnt, cbuf_available, complex_sample_cnt - cbuf_available);
-		complex_sample_cnt = cbuf_available;
-	}
-	cbuffercf_write(circ_buffer->buf, cf32_buf, complex_sample_cnt);
-	pthread_mutex_unlock(circ_buffer->mutex);
-	pthread_cond_signal(circ_buffer->cond);
+	complex_samples_produce(&input->block.producer.out->circ_buffer, cf32_buf, num_samples);
 }
 
 static void convert_cs16(struct input *input, void *buf, size_t len) {
@@ -59,8 +50,8 @@ static void convert_cs16(struct input *input, void *buf, size_t len) {
 	}
 	int16_t *bbuf = (int16_t *)buf;
 	size_t blen = len / sizeof(int16_t);
-	size_t complex_sample_cnt = len / input->bytes_per_sample;
-	float complex csbuf[complex_sample_cnt];
+	size_t num_samples = len / input->bytes_per_sample;
+	float complex csbuf[num_samples];
 	size_t csbuf_idx = 0;
 	float re = 0.f, im = 0.f;
 	float const full_scale = input->full_scale;
@@ -70,18 +61,7 @@ static void convert_cs16(struct input *input, void *buf, size_t len) {
 		im = (float)bbuf[i++] / full_scale;
 		csbuf[csbuf_idx++] = CMPLXF(re, im);
 	}
-	// TODO: conversion function shall not deal with producing output
-	struct circ_buffer *circ_buffer = &input->block.producer.out->circ_buffer;
-	pthread_mutex_lock(circ_buffer->mutex);
-	size_t cbuf_available = cbuffercf_space_available(circ_buffer->buf);
-	if(cbuf_available < complex_sample_cnt) {
-		fprintf(stderr, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
-				complex_sample_cnt, cbuf_available, complex_sample_cnt - cbuf_available);
-		complex_sample_cnt = cbuf_available;
-	}
-	cbuffercf_write(circ_buffer->buf, csbuf, complex_sample_cnt);
-	pthread_mutex_unlock(circ_buffer->mutex);
-	pthread_cond_signal(circ_buffer->cond);
+	complex_samples_produce(&input->block.producer.out->circ_buffer, csbuf, num_samples);
 }
 
 static void convert_cu8(struct input *input, void *buf, size_t len) {
@@ -97,8 +77,8 @@ static void convert_cu8(struct input *input, void *buf, size_t len) {
 	}
 	uint8_t *bytebuf = (uint8_t *)buf;
 	size_t bytebuf_len = len / sizeof(uint8_t);
-	size_t complex_sample_cnt = len / input->bytes_per_sample;
-	float complex cf32_buf[complex_sample_cnt];
+	size_t num_samples = len / input->bytes_per_sample;
+	float complex cf32_buf[num_samples];
 	size_t cf32_buf_idx = 0;
 	float re = 0.f, im = 0.f;
 	float const full_scale = input->full_scale;
@@ -109,16 +89,18 @@ static void convert_cu8(struct input *input, void *buf, size_t len) {
 		im = (bytebuf[i++] - shift) / full_scale;
 		cf32_buf[cf32_buf_idx++] = CMPLXF(re, im);
 	}
-	// TODO: conversion function shall not deal with producing output
-	struct circ_buffer *circ_buffer = &input->block.producer.out->circ_buffer;
+	complex_samples_produce(&input->block.producer.out->circ_buffer, cf32_buf, num_samples);
+}
+
+void complex_samples_produce(struct circ_buffer *circ_buffer, float complex *samples, size_t num_samples) {
 	pthread_mutex_lock(circ_buffer->mutex);
 	size_t cbuf_available = cbuffercf_space_available(circ_buffer->buf);
-	if(cbuf_available < complex_sample_cnt) {
+	if(cbuf_available < num_samples) {
 		fprintf(stderr, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
-				complex_sample_cnt, cbuf_available, complex_sample_cnt - cbuf_available);
-		complex_sample_cnt = cbuf_available;
+				num_samples, cbuf_available, num_samples - cbuf_available);
+		num_samples = cbuf_available;
 	}
-	cbuffercf_write(circ_buffer->buf, cf32_buf, complex_sample_cnt);
+	cbuffercf_write(circ_buffer->buf, samples, num_samples);
 	pthread_mutex_unlock(circ_buffer->mutex);
 	pthread_cond_signal(circ_buffer->cond);
 }
