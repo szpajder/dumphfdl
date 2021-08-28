@@ -62,13 +62,10 @@ cache *cache_create(char const *cache_name, struct cache_vtable const *vtable,
 			vtable->cache_key_destroy, cache_entry_destroy);
 	cache->name = strdup(cache_name);
 
-	// Construct statsd metric name and initialize the counter
 #ifdef WITH_STATSD
 	cache->statsd_metric_name__entry_count = la_vstring_new();
 	la_vstring_append_sprintf(cache->statsd_metric_name__entry_count,
 			"cache.%s.entries", cache_name ? cache_name : CACHE_DEFAULT_NAME);
-	char *counter_set[] = { cache->statsd_metric_name__entry_count->str, NULL };
-	statsd_initialize_counter_set(counter_set);
 #endif
 
 	cache->last_expiration_time = time(NULL);
