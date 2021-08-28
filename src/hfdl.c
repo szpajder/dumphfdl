@@ -1072,6 +1072,7 @@ static void *pdu_decoder_thread(void *ctx) {
 				}
 				if(decoding_status == DECODING_SUCCESS) {
 					for(la_list *lpdu = lpdu_list; lpdu != NULL; lpdu = la_list_next(lpdu)) {
+						ASSERT(lpdu->data != NULL);
 						struct octet_string *serialized_msg = fmtr->td->format_decoded_msg(q->metadata, lpdu->data);
 						// First check if the formatter actually returned something.
 						// A formatter might be suitable only for a particular message type. If this is the case.
