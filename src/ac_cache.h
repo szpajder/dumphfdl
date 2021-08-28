@@ -12,9 +12,9 @@ struct ac_cache_entry {
 };
 
 ac_cache *ac_cache_create(void);
-void ac_cache_entry_create(ac_cache const *cache, int32_t freq,
+void ac_cache_entry_create(ac_cache *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address);
-bool ac_cache_entry_delete(ac_cache const *cache, int32_t freq,
+bool ac_cache_entry_delete(ac_cache *cache, int32_t freq,
 		uint32_t icao_address);
 struct ac_cache_entry *ac_cache_entry_lookup(ac_cache *cache,
 		int32_t freq, uint8_t id);

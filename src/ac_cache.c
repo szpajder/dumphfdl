@@ -28,7 +28,6 @@ struct ac_cache_fwd_key {
 	uint8_t id;
 };
 struct ac_cache_inv_key {
-	int32_t freq;
 	uint32_t icao_address;
 };
 
@@ -36,6 +35,7 @@ struct ac_cache_inv_key {
 // This one is used for internal purposes only, so it's defined here
 // rather than in ac_cache.h.
 struct ac_cache_inv_entry {
+	int32_t freq;
 	uint8_t id;
 };
 
@@ -52,6 +52,8 @@ static void ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address, time_t created_time);
 static void ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address, time_t created_time);
+static bool ac_cache_entry_perform_delete(ac_cache const *cache, int32_t freq,
+		uint32_t icao_address, bool check_frequency);
 
 /******************************
  * Public methods
@@ -64,9 +66,30 @@ ac_cache *ac_cache_create(void) {
 	return cache;
 }
 
-void ac_cache_entry_create(ac_cache const *cache, int32_t freq,
+void ac_cache_entry_create(ac_cache *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address) {
 	ASSERT(cache != NULL);
+
+	// Check if there is an entry for this (freq,id) key in the cache.
+	// If there is, then delete it using ac_cache_entry_perform_delete()
+	// which makes sure that the entry gets deleted from both caches
+	// (forward and inverse). Just running ac_cache_fwd_entry_create()
+	// would cause the existing forward entry to be deleted, but it would
+	// leave a stray inverse entry.
+	struct ac_cache_entry *entry = ac_cache_entry_lookup(cache, freq, id);
+	if(entry != NULL) {
+		uint32_t icao_address = entry->icao_address;
+		if(ac_cache_entry_perform_delete(cache, freq, entry->icao_address, false)) {
+			debug_print(D_CACHE, "%hhu%d: Existing entry deleted (was for %06X)\n",
+					id, freq, icao_address);
+		}
+	}
+	// Check if there is an entry for this icao_address in the cache.
+	// If there is, then delete it (regardless of the frequency), since
+	// the aircraft can only be logged on on a single frequency at a time.
+	if(ac_cache_entry_perform_delete(cache, freq, icao_address, false) == true) {
+		debug_print(D_CACHE, "Existing entry for %06X deleted\n", icao_address);
+	}
 
 	time_t now = time(NULL);
 	ac_cache_fwd_entry_create(cache, freq, id, icao_address, now);
@@ -76,26 +99,11 @@ void ac_cache_entry_create(ac_cache const *cache, int32_t freq,
 			id, freq, icao_address);
 }
 
-bool ac_cache_entry_delete(ac_cache const *cache, int32_t freq,
+bool ac_cache_entry_delete(ac_cache *cache, int32_t freq,
 		uint32_t icao_address) {
 	ASSERT(cache != NULL);
 
-	bool result = false;
-	struct ac_cache_inv_key inv_key = { .freq = freq, .icao_address = icao_address };
-	struct ac_cache_inv_entry *e = cache_entry_lookup(cache->inv_cache, &inv_key);
-	if(e != NULL) {
-		struct ac_cache_fwd_key fwd_key = { .freq = freq, .id = e->id };
-		result  = cache_entry_delete(cache->inv_cache, &inv_key);
-		result |= cache_entry_delete(cache->fwd_cache, &fwd_key);
-		if(result) {
-			debug_print(D_CACHE, "entry deleted: %06X@%d: %hhu\n", icao_address, freq, e->id);
-		} else {
-			debug_print(D_CACHE, "entry deletion failed: %06X@%d: %hhu\n", icao_address, freq, e->id);
-		}
-	} else {
-		debug_print(D_CACHE, "entry not deleted: %06X@%d: not found\n", icao_address, freq);
-	}
-	return result;
+	return ac_cache_entry_perform_delete(cache, freq, icao_address, true);
 }
 
 struct ac_cache_entry *ac_cache_entry_lookup(ac_cache *cache, int32_t freq, uint8_t id) {
@@ -168,7 +176,7 @@ static void ac_cache_fwd_entry_destroy(void *data) {
 
 static uint32_t ac_cache_inv_key_hash(void const *key) {
 	struct ac_cache_inv_key const *k = key;
-	return k->freq + k->icao_address;
+	return k->icao_address;
 }
 
 static bool ac_cache_inv_key_compare(void const *key1, void const *key2) {
@@ -176,7 +184,7 @@ static bool ac_cache_inv_key_compare(void const *key1, void const *key2) {
 	ASSERT(key2);
 	struct ac_cache_inv_key const *k1 = key1;
 	struct ac_cache_inv_key const *k2 = key1;
-	return (k1->freq == k2->freq && k1->icao_address == k2->icao_address);
+	return (k1->icao_address == k2->icao_address);
 }
 
 static void ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
@@ -196,9 +204,36 @@ static void ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
 
 	NEW(struct ac_cache_inv_entry, inv_entry);
 	inv_entry->id = id;
+	inv_entry->freq = freq;
 	NEW(struct ac_cache_inv_key, inv_key);
-	inv_key->freq = freq;
 	inv_key->icao_address = icao_address;
 	cache_entry_create(cache->inv_cache, inv_key, inv_entry, created_time);
 }
 
+static bool ac_cache_entry_perform_delete(ac_cache const *cache, int32_t freq,
+		uint32_t icao_address, bool check_frequency) {
+	ASSERT(cache != NULL);
+
+	bool result = false;
+	struct ac_cache_inv_key inv_key = { .icao_address = icao_address };
+	struct ac_cache_inv_entry *e = cache_entry_lookup(cache->inv_cache, &inv_key);
+	if(e != NULL) {
+		if(check_frequency && e->freq != freq) {
+			debug_print(D_CACHE, "%06X: entry is on a different frequency (requested: %d cached %d), delete skipped\n",
+					icao_address, freq, e->freq);
+			result = false;
+		} else {
+			struct ac_cache_fwd_key fwd_key = { .freq = e->freq, .id = e->id };
+			result  = cache_entry_delete(cache->inv_cache, &inv_key);
+			result &= cache_entry_delete(cache->fwd_cache, &fwd_key);
+			if(result) {
+				debug_print(D_CACHE, "entry deleted: %06X@%d: %hhu\n", icao_address, fwd_key.freq, fwd_key.id);
+			} else {
+				debug_print(D_CACHE, "entry deletion failed: %06X@%d: %hhu\n", icao_address, fwd_key.freq, fwd_key.id);
+			}
+		}
+	} else {
+		debug_print(D_CACHE, "entry not deleted: %06X@%d: not found\n", icao_address, freq);
+	}
+	return result;
+}
