@@ -21,7 +21,7 @@ struct ac_data {
 	sqlite3_stmt *stmt;
 };
 
-#define AC_DATA_TTL 1800L
+#define AC_DATA_TTL 3600L
 #define AC_DATA_EXPIRATION_INTERVAL 305L
 #define BS_DB_COLUMNS "Registration,ICAOTypeCode,OperatorFlagCode,Manufacturer,Type,RegisteredOwners"
 
