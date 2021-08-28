@@ -65,10 +65,12 @@ struct ac_data *ac_data_create(char const *bs_db_file) {
 	ac_data->cache = cache_create(&ac_data_vtable, AC_DATA_TTL, AC_DATA_EXPIRATION_INTERVAL);
 	ASSERT(ac_data->cache != NULL);
 // XXX: statsd counters are global across all ac_data objects
+#ifdef WITH_STATSD
 	if(statsd_counters_initialized == false) {
 		statsd_initialize_counter_set(ac_data_counters);
 		statsd_counters_initialized = true;
 	}
+#endif
 	if(ac_data_entry_lookup(ac_data, 0) == NULL) {
 		fprintf(stderr, "%s: test query failed, database is unusable.\n", bs_db_file);
 		goto fail;
