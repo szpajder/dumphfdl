@@ -100,20 +100,10 @@ void *cache_entry_lookup(cache *c, void const *key) {
 	ASSERT(c);
 	ASSERT(key);
 
-	// Periodic cache expiration
-	time_t now = time(NULL);
-	if(c->last_expiration_time + c->expiration_interval <= now) {
-		int expired_cnt = cache_expire(c, now);
-		CACHE_ENTRY_COUNT_ADD(c, -expired_cnt);
-		debug_print(D_CACHE, "%s: last_gc: %ld, now: %ld, expired %d cache entries\n",
-				c->name, c->last_expiration_time, now, expired_cnt);
-		c->last_expiration_time = now;
-	}
-
 	struct cache_entry *e = la_hash_lookup(c->table, key);
 	if(e == NULL) {
 		return NULL;
-	} else if(e->created_time + c->ttl < now) {
+	} else if(e->created_time + c->ttl < time(NULL)) {
 		debug_print(D_CACHE, "%s: key %p: entry expired\n", c->name, key);
 		return NULL;
 	}
@@ -123,8 +113,17 @@ void *cache_entry_lookup(cache *c, void const *key) {
 int32_t cache_expire(cache *c, time_t current_timestamp) {
 	ASSERT(c);
 
-	time_t min_created_time = current_timestamp - c->ttl;
-	return la_hash_foreach_remove(c->table, is_cache_entry_expired, &min_created_time);
+	int expired_cnt = 0;
+	if(c->last_expiration_time + c->expiration_interval <= current_timestamp) {
+		time_t min_created_time = current_timestamp - c->ttl;
+		expired_cnt = la_hash_foreach_remove(c->table, is_cache_entry_expired,
+				&min_created_time);
+		CACHE_ENTRY_COUNT_ADD(c, -expired_cnt);
+		debug_print(D_CACHE, "%s: last_gc: %ld, current_timestamp: %ld, expired %d cache entries\n",
+				c->name, c->last_expiration_time, current_timestamp, expired_cnt);
+		c->last_expiration_time = current_timestamp;
+	}
+	return expired_cnt;
 }
 
 void cache_destroy(cache *c) {

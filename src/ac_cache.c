@@ -109,6 +109,11 @@ bool ac_cache_entry_delete(ac_cache *cache, int32_t freq,
 struct ac_cache_entry *ac_cache_entry_lookup(ac_cache *cache, int32_t freq, uint8_t id) {
 	ASSERT(cache != NULL);
 
+	// Periodic cache expiration
+	time_t now = time(NULL);
+	cache_expire(cache->fwd_cache, now);
+	cache_expire(cache->inv_cache, now);
+
 	struct ac_cache_fwd_key fwd_key = { .freq = freq, .id = id };
 	struct ac_cache_entry *e = cache_entry_lookup(cache->fwd_cache, &fwd_key);
 	if(e != NULL) {

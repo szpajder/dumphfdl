@@ -84,6 +84,10 @@ fail:
 
 struct ac_data_entry *ac_data_entry_lookup(ac_data *ac_data, uint32_t icao_address) {
 	ASSERT(ac_data);
+
+	// Periodic cache expiration
+	cache_expire(ac_data->cache, time(NULL));
+
 	struct ac_data_entry *entry = cache_entry_lookup(ac_data->cache, &icao_address);
 	if(entry != NULL) {
 		debug_print(D_CACHE, "%06X: %s cache hit\n", icao_address, entry->exists ? "positive" : "negative");
