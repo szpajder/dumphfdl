@@ -9,17 +9,9 @@
 #include "output-common.h"
 
 #include "fmtr-text.h"          // fmtr_DEF_text
-//#include "fmtr-pp_acars.h"      // fmtr_DEF_pp_acars
-//#ifdef WITH_PROTOBUF_C
-//#include "fmtr-binary.h"        // fmtr_DEF_binary
-//#endif
-//#include "fmtr-json.h"          // fmtr_DEF_json
+#include "fmtr-basestation.h"   // fmtr_DEF_basestation
 
 #include "output-file.h"        // out_DEF_file
-//#include "output-udp.h"         // out_DEF_udp
-//#ifdef WITH_ZMQ
-//#include "output-zmq.h"         // out_DEF_zmq
-//#endif
 
 static la_dict const fmtr_intype_names[] = {
 	{
@@ -44,20 +36,12 @@ static la_dict const fmtr_intype_names[] = {
 
 static la_dict const fmtr_descriptors[] = {
 	{ .id = OFMT_TEXT,                  .val = &fmtr_DEF_text },
-//	{ .id = OFMT_PP_ACARS,              .val = &fmtr_DEF_pp_acars },
-//#ifdef WITH_PROTOBUF_C
-//	{ .id = OFMT_BINARY,                .val = &fmtr_DEF_binary },
-//#endif
-//	{ .id = OFMT_JSON,                  .val = &fmtr_DEF_json },
+	{ .id = OFMT_BASESTATION,           .val = &fmtr_DEF_basestation },
 	{ .id = OFMT_UNKNOWN,               .val = NULL }
 };
 
 static output_descriptor_t * output_descriptors[] = {
 	&out_DEF_file,
-//	&out_DEF_udp,
-//#ifdef WITH_ZMQ
-//	&out_DEF_zmq,
-//#endif
 	NULL
 };
 

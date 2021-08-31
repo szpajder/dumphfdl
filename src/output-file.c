@@ -26,7 +26,7 @@ typedef struct {
 } out_file_ctx_t;
 
 static bool out_file_supports_format(output_format_t format) {
-	return(format == OFMT_TEXT);
+	return(format == OFMT_TEXT || format == OFMT_BASESTATION);
 }
 
 static void *out_file_configure(kvargs *kv) {

@@ -225,6 +225,7 @@ add_library (dumphfdl_base OBJECT
 	crc.c
 	fastddc.c
 	fft.c
+	fmtr-basestation.c
 	fmtr-text.c
 	globals.c
 	hfdl.c
@@ -242,6 +243,7 @@ add_library (dumphfdl_base OBJECT
 	options.c
 	output-common.c
 	output-file.c
+	position.c
 	spdu.c
 	systable.c
 	util.c
