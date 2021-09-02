@@ -4,7 +4,6 @@
 #include "globals.h"                    // AC_cache
 #include "output-common.h"              // fmtr_descriptor_t
 #include "position.h"                   // position_info_*
-#include "ac_cache.h"                   // ac_cache_lookup
 #include "util.h"                       // ASSERT, XCALLOC, XFREE, struct octet_string
 
 // FIXME: make this configurable
@@ -41,27 +40,10 @@ static struct octet_string *fmtr_basestation_format_decoded_msg(struct metadata 
 				pos_info->position.timestamp.t);
 		goto cleanup;
 	} else if(pos_info->position.timestamp.t + POSITION_MAX_AGE < now) {
-		debug_print(D_MISC, "pos_info rejected: timestamp %ld too old\n",
+		debug_print(D_MISC, "pos_info (%f, %f) rejected: timestamp %ld too old\n",
+				pos_info->position.location.lat,
+				pos_info->position.location.lon,
 				pos_info->position.timestamp.t);
-		goto cleanup;
-	}
-
-	// FIXME: move to lpdu.c
-	if(!pos_info->aircraft.icao_address_present) {
-		if(pos_info->aircraft.freq_present && pos_info->aircraft.ac_id_present) {
-			AC_cache_lock();
-			struct ac_cache_entry *entry = ac_cache_entry_lookup(AC_cache,
-					pos_info->aircraft.freq, pos_info->aircraft.ac_id);
-			if(entry != NULL) {
-				pos_info->aircraft.icao_address = entry->icao_address;
-				pos_info->aircraft.icao_address_present = true;
-			}
-			AC_cache_unlock();
-		}
-	}
-
-	if(!pos_info->aircraft.icao_address_present) {
-		debug_print(D_MISC, "pos_info rejected: unknown icao_address\n");
 		goto cleanup;
 	}
 

@@ -9,12 +9,8 @@
 struct ac_info {
 	char *flight_id;
 	uint32_t icao_address;
-	int32_t freq;
-	uint8_t ac_id;
 	bool flight_id_present;
 	bool icao_address_present;
-	bool freq_present;
-	bool ac_id_present;
 };
 
 struct timestamp {
@@ -24,9 +20,7 @@ struct timestamp {
 	bool tm_sec_present;
 	bool tm_min_present;
 	bool tm_hour_present;
-	bool tm_mday_present;
-	bool tm_mon_present;
-	bool tm_year_present;
+	bool tm_date_present;
 };
 
 struct position {

@@ -8,6 +8,7 @@
 #include <libacars/dict.h>          // la_dict
 #include "config.h"                 // WITH_STATSD
 #include "hfdl.h"                   // enum hfdl_pdu_direction
+#include "position.h"               // position_info
 #include "statsd.h"                 // statsd_*
 #include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, freq_list_format_text, gs_id_format_text
 
@@ -481,6 +482,60 @@ static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t inden
 		default:
 			break;
 	}
+}
+
+struct position_info *hfnpdu_position_info_extract(la_proto_node *tree) {
+	ASSERT(tree);
+
+	struct position_info *pos_info = NULL;
+	la_proto_node *hfnpdu_node = la_proto_tree_find_protocol(tree, &proto_DEF_hfdl_hfnpdu);
+	if(hfnpdu_node != NULL) {
+		struct hfdl_hfnpdu *hfnpdu = hfnpdu_node->data;
+		struct timestamp *ts = NULL;
+		struct location *loc = NULL;
+		switch(hfnpdu->type) {
+			case PERFORMANCE_DATA:
+				pos_info = position_info_create();
+				struct hfnpdu_perf_data *perf_data = &hfnpdu->data.perf_data;
+				pos_info->aircraft.flight_id = perf_data->flight_id;
+				if(pos_info->aircraft.flight_id[0] != '\0') {
+					pos_info->aircraft.flight_id_present = true;
+				}
+
+				ts = &pos_info->position.timestamp;
+				ts->tm.tm_hour = perf_data->utc_time.hour;
+				ts->tm.tm_min  = perf_data->utc_time.min;
+				ts->tm.tm_sec  = perf_data->utc_time.sec;
+				ts->tm_hour_present = ts->tm_min_present =
+					ts->tm_sec_present = true;
+
+				loc = &pos_info->position.location;
+				loc->lat = perf_data->location.lat;
+				loc->lon = perf_data->location.lon;
+				break;
+			case FREQUENCY_DATA:
+				pos_info = position_info_create();
+				struct hfnpdu_freq_data *freq_data = &hfnpdu->data.freq_data;
+				pos_info->aircraft.flight_id = freq_data->flight_id;
+				if(pos_info->aircraft.flight_id[0] != '\0') {
+					pos_info->aircraft.flight_id_present = true;
+				}
+				ts = &pos_info->position.timestamp;
+				ts->tm.tm_hour = freq_data->utc_time.hour;
+				ts->tm.tm_min  = freq_data->utc_time.min;
+				ts->tm.tm_sec  = freq_data->utc_time.sec;
+				ts->tm_hour_present = ts->tm_min_present =
+					ts->tm_sec_present = true;
+
+				loc = &pos_info->position.location;
+				loc->lat = freq_data->location.lat;
+				loc->lon = freq_data->location.lon;
+				break;
+			default:
+				break;
+		}
+	}
+	return pos_info;
 }
 
 la_type_descriptor const proto_DEF_hfdl_hfnpdu = {
