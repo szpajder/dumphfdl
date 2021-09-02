@@ -17,7 +17,7 @@ struct cache {
 	struct cache_vtable const *vtable;
 	la_hash *table;
 	la_vstring *statsd_metric_name__entry_count;
-	char const *name;
+	char *name;
 	time_t last_expiration_time;
 	uint32_t ttl;
 	uint32_t expiration_interval;
@@ -130,6 +130,7 @@ void cache_destroy(cache *c) {
 	if(c != NULL) {
 		la_hash_destroy(c->table);
 		la_vstring_destroy(c->statsd_metric_name__entry_count, true);
+		XFREE(c->name);
 		XFREE(c);
 	}
 }
