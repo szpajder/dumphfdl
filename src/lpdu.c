@@ -124,11 +124,6 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
 
 	int32_t freq = mpdu_header.freq;
 	statsd_increment_per_channel(freq, "lpdus.processed");
-	if(len < 3) {       // Need at least LPDU type + FCS
-		statsd_increment_per_channel(freq, "lpdu.errors.too_short");
-		debug_print(D_PROTO, "Too short: %u < 3\n", len);
-		return NULL;
-	}
 
 	NEW(struct hfdl_lpdu, lpdu);
 	lpdu->pdu = octet_string_new(buf, len);
@@ -136,6 +131,13 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
 	la_proto_node *node = la_proto_node_new();
 	node->td = &proto_DEF_hfdl_lpdu;
 	node->data = lpdu;
+
+	if(len < 3) {       // Need at least LPDU type + FCS
+		debug_print(D_PROTO, "Too short: %u < 3\n", len);
+		lpdu->err = true;
+		statsd_increment_per_channel(freq, "lpdu.errors.too_short");
+		goto end;
+	}
 
 	len -= 2;           // Strip FCS
 	lpdu->crc_ok = hfdl_pdu_fcs_check(buf, len);

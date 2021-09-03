@@ -135,8 +135,10 @@ static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 		uint32_t lpdu_len = *lpdu_len_ptr + 1;
 		if(data_ptr + lpdu_len <= endptr) {
 			debug_print(D_PROTO, "lpdu %u/%u: lpdu_len=%u\n", j + 1, lpdu_cnt, lpdu_len);
-			*lpdu_list = la_list_append(*lpdu_list, lpdu_parse(data_ptr, lpdu_len,
-						mpdu_header, reasm_ctx, rx_timestamp));
+			la_proto_node *node = lpdu_parse(data_ptr, lpdu_len, mpdu_header, reasm_ctx, rx_timestamp);
+			if(node != NULL) {
+				*lpdu_list = la_list_append(*lpdu_list, node);
+			}
 			data_ptr += lpdu_len;              // Move to the next LPDU
 			consumed_octets += lpdu_len;
 			lpdu_len_ptr++;
