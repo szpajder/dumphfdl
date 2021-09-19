@@ -484,6 +484,9 @@ struct position_info *hfnpdu_position_info_extract(la_proto_node *tree) {
 				loc->lat = freq_data->location.lat;
 				loc->lon = freq_data->location.lon;
 				break;
+			case ENVELOPED_DATA:
+				pos_info = acars_position_info_extract(tree);
+				break;
 			default:
 				break;
 		}
