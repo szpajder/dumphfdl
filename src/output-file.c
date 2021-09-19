@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-#include <stdio.h>                      // FILE, fprintf, fwrite, fputc
+#include <stdio.h>                      // FILE, fprintf, fwrite
 #include <string.h>                     // strcmp, strdup, strerror
 #include <time.h>                       // gmtime_r, localtime_r, strftime
 #include <errno.h>                      // errno
@@ -152,7 +152,6 @@ static void out_file_produce_text(out_file_ctx_t *self, struct metadata *metadat
 	ASSERT(self->fh != NULL);
 	UNUSED(metadata);
 	fwrite(msg->buf, sizeof(uint8_t), msg->len, self->fh);
-	fputc('\n', self->fh);
 	fflush(self->fh);
 }
 

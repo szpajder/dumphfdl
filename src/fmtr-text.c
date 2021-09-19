@@ -59,6 +59,7 @@ static struct octet_string *fmtr_text_format_decoded_msg(struct metadata *metada
 	EOL(vstr);
 
 	vstr = la_proto_tree_format_text(vstr, root);
+	EOL(vstr);
 	struct octet_string *ret = octet_string_new(vstr->str, vstr->len);
 	la_vstring_destroy(vstr, false);
 	return ret;

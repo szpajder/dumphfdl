@@ -50,7 +50,7 @@ static struct octet_string *fmtr_basestation_format_decoded_msg(struct metadata 
 	char *timestamp = format_timestamp(&pos_info->position.timestamp.tm);
 	la_vstring *vstr = la_vstring_new();
 
-	la_vstring_append_sprintf(vstr, "MSG,3,1,1,%06X,1,%s,%s,%s,,,,%f,%f,,,,,,0",
+	la_vstring_append_sprintf(vstr, "MSG,3,1,1,%06X,1,%s,%s,%s,,,,%f,%f,,,,,,0\n",
 			pos_info->aircraft.icao_address,
 			timestamp,
 			timestamp,
