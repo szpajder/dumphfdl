@@ -259,6 +259,19 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
 struct position_info *lpdu_position_info_extract(la_proto_node *tree) {
 	ASSERT(tree);
 
+	// Don't bother with analyzing uplinks.
+	la_proto_node *lpdu_node = la_proto_tree_find_protocol(tree, &proto_DEF_hfdl_lpdu);
+	if(lpdu_node == NULL) {
+		debug_print(D_MISC, "No LPDU node in the tree\n");
+		return NULL;
+	}
+	debug_print(D_MISC, "LPDU node found\n");
+	struct hfdl_lpdu const *lpdu = lpdu_node->data;
+	if(lpdu->mpdu_header.direction != DOWNLINK_PDU) {
+		debug_print(D_MISC, "Not a downlink PDU - rejecting\n");
+		return NULL;
+	}
+
 	// LPDUs never contain position information, hence we
 	// go looking for it in the HFNPDU straight away.
 	struct position_info *pos_info = hfnpdu_position_info_extract(tree);
@@ -268,35 +281,31 @@ struct position_info *lpdu_position_info_extract(la_proto_node *tree) {
 	// Position information has been found. Check for any missing fields
 	// and fill them in, if possible.
 	if(pos_info->aircraft.icao_address_present == false) {
-		la_proto_node *lpdu_node = la_proto_tree_find_protocol(tree, &proto_DEF_hfdl_lpdu);
-		if(lpdu_node != NULL) {
-			struct hfdl_lpdu const *lpdu = lpdu_node->data;
-			switch(lpdu->type) {
-				// These LPDU types have ICAO given directly
-				case LOGON_RESUME:
-				case LOGON_REQUEST_NORMAL:
-				case LOGON_REQUEST_DLS:
-					pos_info->aircraft.icao_address = lpdu->data.logon_request.icao_address;
-					pos_info->aircraft.icao_address_present = true;
-					debug_print(D_MISC, "icao_address: %06X (from LPDU)\n",
-							pos_info->aircraft.icao_address);
-					break;
+		switch(lpdu->type) {
+			// These LPDU types have ICAO given directly
+			case LOGON_RESUME:
+			case LOGON_REQUEST_NORMAL:
+			case LOGON_REQUEST_DLS:
+				pos_info->aircraft.icao_address = lpdu->data.logon_request.icao_address;
+				pos_info->aircraft.icao_address_present = true;
+				debug_print(D_MISC, "icao_address: %06X (from LPDU)\n",
+						pos_info->aircraft.icao_address);
+				break;
 				// For other LPDU types we need to look up the ICAO in the AC cache
-				default:
-					AC_cache_lock();
-					uint8_t ac_id = lpdu->mpdu_header.direction == UPLINK_PDU ?
-						lpdu->mpdu_header.dst_id : lpdu->mpdu_header.src_id;
-					struct ac_cache_entry *entry = ac_cache_entry_lookup(AC_cache,
-							lpdu->mpdu_header.freq, ac_id);
-					if(entry != NULL) {
-						pos_info->aircraft.icao_address = entry->icao_address;
-						pos_info->aircraft.icao_address_present = true;
-						debug_print(D_MISC, "icao_address: %06X (from cache)\n",
-								pos_info->aircraft.icao_address);
-					}
-					AC_cache_unlock();
-					break;
-			}
+			default:
+				AC_cache_lock();
+				uint8_t ac_id = lpdu->mpdu_header.direction == UPLINK_PDU ?
+					lpdu->mpdu_header.dst_id : lpdu->mpdu_header.src_id;
+				struct ac_cache_entry *entry = ac_cache_entry_lookup(AC_cache,
+						lpdu->mpdu_header.freq, ac_id);
+				if(entry != NULL) {
+					pos_info->aircraft.icao_address = entry->icao_address;
+					pos_info->aircraft.icao_address_present = true;
+					debug_print(D_MISC, "icao_address: %06X (from cache)\n",
+							pos_info->aircraft.icao_address);
+				}
+				AC_cache_unlock();
+				break;
 		}
 	}
 	if(pos_info->aircraft.icao_address_present == true) {
