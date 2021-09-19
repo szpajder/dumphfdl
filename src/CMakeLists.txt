@@ -244,6 +244,7 @@ add_library (dumphfdl_base OBJECT
 	options.c
 	output-common.c
 	output-file.c
+	output-tcp.c
 	position.c
 	spdu.c
 	systable.c
