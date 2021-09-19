@@ -262,13 +262,10 @@ struct position_info *lpdu_position_info_extract(la_proto_node *tree) {
 	// Don't bother with analyzing uplinks.
 	la_proto_node *lpdu_node = la_proto_tree_find_protocol(tree, &proto_DEF_hfdl_lpdu);
 	if(lpdu_node == NULL) {
-		debug_print(D_MISC, "No LPDU node in the tree\n");
 		return NULL;
 	}
-	debug_print(D_MISC, "LPDU node found\n");
 	struct hfdl_lpdu const *lpdu = lpdu_node->data;
 	if(lpdu->mpdu_header.direction != DOWNLINK_PDU) {
-		debug_print(D_MISC, "Not a downlink PDU - rejecting\n");
 		return NULL;
 	}
 
