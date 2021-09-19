@@ -220,6 +220,7 @@ add_subdirectory (libfec)
 add_library (dumphfdl_base OBJECT
 	ac_cache.c
 	ac_data.c
+	acars.c
 	block.c
 	cache.c
 	crc.c
