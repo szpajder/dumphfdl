@@ -194,7 +194,7 @@ end:
 	return node;
 }
 
-static void lpdu_format_text(la_vstring *vstr, void const *data, int indent) {
+static void lpdu_format_text(la_vstring *vstr, void const *data, int32_t indent) {
 	ASSERT(vstr != NULL);
 	ASSERT(data);
 	ASSERT(indent >= 0);

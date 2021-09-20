@@ -32,7 +32,7 @@ static void soapysdr_verbose_device_search() {
 	// enumerate devices
 	SoapySDRKwargs *results = SoapySDRDevice_enumerate(NULL, &length);
 	for(size_t i = 0; i < length; i++) {
-		fprintf(stderr, "Found device #%d:\n", (int)i);
+		fprintf(stderr, "Found device #%d:\n", (int32_t)i);
 		for(size_t j = 0; j < results[i].size; j++) {
 			fprintf(stderr, "  %s = %s\n", results[i].keys[j], results[i].vals[j]);
 		}
@@ -83,7 +83,7 @@ struct sample_format_search_result soapysdr_choose_sample_format(SoapySDRDevice 
 	return result;
 }
 
-int soapysdr_input_init(struct input *input) {
+int32_t soapysdr_input_init(struct input *input) {
 	ASSERT(input != NULL);
 	struct soapysdr_input *soapysdr_input = container_of(input, struct soapysdr_input, input);
 	soapysdr_verbose_device_search();
@@ -215,7 +215,7 @@ void *soapysdr_input_thread(void *ctx) {
 	struct soapysdr_input *soapysdr_input = container_of(input, struct soapysdr_input, input);
 	void *inbuf = XCALLOC(input->block.producer.max_tu, input->bytes_per_sample);
 	float complex *outbuf = XCALLOC(input->block.producer.max_tu, sizeof(float complex));
-	int ret;
+	int32_t ret;
 	if((ret = SoapySDRDevice_activateStream(soapysdr_input->sdr, soapysdr_input->stream, 0, 0, 0)) != 0) {
 		fprintf(stderr, "Failed to activate stream for SoapySDR device '%s': %s (ret=%d)\n",
 			input->config->device_string, SoapySDRDevice_lastError(), ret);
@@ -224,9 +224,9 @@ void *soapysdr_input_thread(void *ctx) {
 	usleep(100000);
 
 	while(do_exit == 0) {
-		int flags;
+		int32_t flags;
 		long long timeNs;
-		int samples_read = SoapySDRDevice_readStream(soapysdr_input->sdr, soapysdr_input->stream, &inbuf,
+		int32_t samples_read = SoapySDRDevice_readStream(soapysdr_input->sdr, soapysdr_input->stream, &inbuf,
 			input->block.producer.max_tu, &flags, &timeNs, SOAPYSDR_READSTREAM_TIMEOUT_US);
 		if(samples_read < 0) {	// when it's negative, it's the error code
 			fprintf(stderr, "SoapySDR device '%s': readStream failed: %s\n",

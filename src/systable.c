@@ -246,7 +246,7 @@ double systable_get_station_frequency(systable const *st, int32_t gs_id, int32_t
 					"frequencies");
 		config_setting_t *freq = config_setting_get_elem(frequencies, freq_id);
 		if(freq != NULL) {
-			int type = config_setting_type(freq);
+			int32_t type = config_setting_type(freq);
 			if(type == CONFIG_TYPE_FLOAT) {
 				return config_setting_get_float(freq);
 			} else if(type == CONFIG_TYPE_INT) {

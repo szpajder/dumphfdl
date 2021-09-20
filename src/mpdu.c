@@ -151,7 +151,7 @@ static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,
 	return consumed_octets;
 }
 
-static void mpdu_format_text(la_vstring *vstr, void const *data, int indent) {
+static void mpdu_format_text(la_vstring *vstr, void const *data, int32_t indent) {
 	ASSERT(vstr != NULL);
 	ASSERT(data);
 	ASSERT(indent >= 0);

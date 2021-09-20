@@ -33,12 +33,12 @@ shift_addition_data_t shift_addition_init(float rate)
 	return out;
 }
 
-shift_addition_data_t decimating_shift_addition_init(float rate, int decimation)
+shift_addition_data_t decimating_shift_addition_init(float rate, int32_t decimation)
 {
 	return shift_addition_init(rate*decimation);
 }
 
-decimating_shift_addition_status_t decimating_shift_addition_cc(float complex *input, float complex* output, int input_size, shift_addition_data_t d, int decimation, decimating_shift_addition_status_t s)
+decimating_shift_addition_status_t decimating_shift_addition_cc(float complex *input, float complex* output, int32_t input_size, shift_addition_data_t d, int32_t decimation, decimating_shift_addition_status_t s)
 {
 	//The original idea was taken from wdsp:
 	//http://svn.tapr.org/repos_sdr_hpsdr/trunk/W5WC/PowerSDR_HPSDR_mRX_PS/Source/wdsp/shift.c
@@ -47,8 +47,8 @@ decimating_shift_addition_status_t decimating_shift_addition_cc(float complex *i
 	float cosphi=cos(s.starting_phase);
 	float sinphi=sin(s.starting_phase);
 	float cosphi_last, sinphi_last;
-	int i;
-	int k=0;
+	int32_t i;
+	int32_t k=0;
 	for(i=s.decimation_remain;i<input_size;i+=decimation) //@shift_addition_cc: work
 	{
 

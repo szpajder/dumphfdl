@@ -15,7 +15,7 @@ struct kvargs_s {
 #define KV_ERR_NO_KEY       2
 #define KV_ERR_NO_VALUE     3
 
-char const *kvargs_get_errstr(int err) {
+char const *kvargs_get_errstr(int32_t err) {
 	static la_dict const kvargs_error_strings[] = {
 		{ .id = KV_ERR_NO_ERROR,  .val = "success" },
 		{ .id = KV_ERR_NO_INPUT,  .val = "no key-value string given" },
@@ -35,7 +35,7 @@ kvargs *kvargs_new() {
 
 kvargs_parse_result kvargs_from_string(char *string) {
 	kvargs *kv = NULL;
-	int err = 0;
+	int32_t err = 0;
 	ptrdiff_t err_pos = 0;
 
 	if(string == NULL) {

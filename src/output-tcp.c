@@ -25,7 +25,7 @@ typedef struct {
 	char *address;
 	char *port;
 	time_t next_reconnect_time;
-	int sockfd;
+	int32_t sockfd;
 } out_tcp_ctx_t;
 
 static bool out_tcp_supports_format(output_format_t format) {
@@ -51,7 +51,7 @@ fail:
 	return NULL;
 }
 
-static int out_tcp_reconnect(void *selfptr) {
+static int32_t out_tcp_reconnect(void *selfptr) {
 	ASSERT(selfptr != NULL);
 	out_tcp_ctx_t *self = selfptr;
 
@@ -66,7 +66,7 @@ static int out_tcp_reconnect(void *selfptr) {
 	hints.ai_flags = 0;
 	hints.ai_protocol = 0;
 	fprintf(stderr, "Connecting to %s:%s...\n", self->address, self->port);
-	int ret = getaddrinfo(self->address, self->port, &hints, &result);
+	int32_t ret = getaddrinfo(self->address, self->port, &hints, &result);
 	if(ret != 0) {
 		fprintf(stderr, "Could not resolve address %s:%s: %s\n", self->address, self->port,
 				gai_strerror(ret));
@@ -103,7 +103,7 @@ fail:
 	return -1;
 }
 
-static int out_tcp_init(void *selfptr) {
+static int32_t out_tcp_init(void *selfptr) {
 	ASSERT(selfptr != NULL);
 	out_tcp_ctx_t *self = selfptr;
 	self->next_reconnect_time = 0;      // Force reconnection now
@@ -114,7 +114,7 @@ static int out_tcp_init(void *selfptr) {
 	return 0;
 }
 
-static int out_tcp_produce_text(out_tcp_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
+static int32_t out_tcp_produce_text(out_tcp_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
 	UNUSED(metadata);
 	ASSERT(msg != NULL);
 	ASSERT(self->sockfd != 0);
@@ -127,10 +127,10 @@ static int out_tcp_produce_text(out_tcp_ctx_t *self, struct metadata *metadata, 
 	return 0;
 }
 
-static int out_tcp_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
+static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_tcp_ctx_t *self = selfptr;
-	int result = 0;
+	int32_t result = 0;
 	if(self->sockfd == 0) {         // No connection?
 		if(out_tcp_reconnect(selfptr) < 0) {
 			return 0;               // If unable to reconnect, then discard the message silently

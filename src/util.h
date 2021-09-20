@@ -92,13 +92,13 @@
 // Reverse bit order in a byte (http://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits)
 #define REVERSE_BYTE(x) (uint8_t)((((x) * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32)
 
-void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const *func);
-void *xrealloc(void *ptr, size_t size, char const *file, int line, char const *func);
-int start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ctx);
+void *xcalloc(size_t nmemb, size_t size, char const *file, int32_t line, char const *func);
+void *xrealloc(void *ptr, size_t size, char const *file, int32_t line, char const *func);
+int32_t start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ctx);
 void stop_thread(pthread_t pth);
-int pthread_barrier_create(pthread_barrier_t *barrier, unsigned count);
-int pthread_cond_initialize(pthread_cond_t *cond);
-int pthread_mutex_initialize(pthread_mutex_t *mutex);
+int32_t pthread_barrier_create(pthread_barrier_t *barrier, unsigned count);
+int32_t pthread_cond_initialize(pthread_cond_t *cond);
+int32_t pthread_mutex_initialize(pthread_mutex_t *mutex);
 
 struct octet_string {
 	uint8_t *buf;
@@ -108,7 +108,7 @@ struct octet_string *octet_string_new(void *buf, size_t len);
 struct octet_string *octet_string_copy(struct octet_string const *ostring);
 void octet_string_destroy(struct octet_string *ostring);
 
-void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int indent);
+void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int32_t indent);
 
 la_proto_node *unknown_proto_pdu_new(void *buf, size_t len);
 
@@ -118,7 +118,7 @@ uint32_t parse_icao_hex(uint8_t const buf[3]);
 void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id, uint32_t freqs);
 void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id);
 void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int32_t freq, uint8_t ac_id);
-void ac_data_format_text(la_vstring *vstr, int indent, uint32_t addr);
+void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr);
 
 struct location {
 	double lat, lon;

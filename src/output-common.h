@@ -55,8 +55,8 @@ typedef struct {
 
 typedef bool (output_format_check_fun_t)(output_format_t);
 typedef void* (output_configure_fun_t)(kvargs *);
-typedef int (output_init_fun_t)(void *);
-typedef int (output_produce_msg_fun_t)(void *, output_format_t, struct metadata *, struct octet_string *);
+typedef int32_t (output_init_fun_t)(void *);
+typedef int32_t (output_produce_msg_fun_t)(void *, output_format_t, struct metadata *, struct octet_string *);
 typedef void (output_shutdown_handler_fun_t)(void *);
 typedef void (output_failure_handler_fun_t)(void *);
 

@@ -48,7 +48,7 @@ void start_all_output_threads(la_list *fmtr_list);
 void start_all_output_threads_for_fmtr(void *p, void *ctx);
 void start_output_thread(void *p, void *ctx);
 
-void sighandler(int sig) {
+void sighandler(int32_t sig) {
 	fprintf(stderr, "Got signal %d, ", sig);
 	if(do_exit == 0) {
 		fprintf(stderr, "exiting gracefully (send signal once again to force quit)\n");
@@ -187,7 +187,7 @@ static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t source_rate,
 	ASSERT(cnt > 0);
 	int32_t freq_min, freq_max;
 	freq_min = freq_max = freqs[0];
-	for(int i = 0; i < cnt; i++) {
+	for(int32_t i = 0; i < cnt; i++) {
 		if(freqs[i] < freq_min) freq_min = freqs[i];
 		if(freqs[i] > freq_max) freq_max = freqs[i];
 	}
@@ -364,7 +364,7 @@ int32_t main(int32_t argc, char **argv) {
 
 	print_version();
 
-	int c = -1;
+	int32_t c = -1;
 	while((c = getopt_long(argc, argv, "", opts, NULL)) != -1) {
 		switch(c) {
 			case OPT_IQ_FILE:
@@ -547,9 +547,9 @@ int32_t main(int32_t argc, char **argv) {
 
 	csdr_fft_init();
 
-	int fft_decimation_rate = compute_fft_decimation_rate(input_cfg->sample_rate, HFDL_SYMBOL_RATE * SPS);
+	int32_t fft_decimation_rate = compute_fft_decimation_rate(input_cfg->sample_rate, HFDL_SYMBOL_RATE * SPS);
 	ASSERT(fft_decimation_rate > 0);
-	int sample_rate_post_fft = roundf((float)input_cfg->sample_rate / (float)fft_decimation_rate);
+	int32_t sample_rate_post_fft = roundf((float)input_cfg->sample_rate / (float)fft_decimation_rate);
 	float fftfilt_transition_bw = compute_filter_relative_transition_bw(input_cfg->sample_rate, HFDL_CHANNEL_TRANSITION_BW_HZ);
 	debug_print(D_DEMOD, "fft_decimation_rate: %d sample_rate_post_fft: %d transition_bw: %.f\n",
 			fft_decimation_rate, sample_rate_post_fft, fftfilt_transition_bw);
@@ -564,7 +564,7 @@ int32_t main(int32_t argc, char **argv) {
 		if(statsd_initialize(statsd_addr) < 0) {
 			fprintf(stderr, "Failed to initialize StatsD client - disabling\n");
 		} else {
-			for(int i = 0; i < channel_cnt; i++) {
+			for(int32_t i = 0; i < channel_cnt; i++) {
 				statsd_initialize_counters_per_channel(frequencies[i]);
 			}
 			statsd_initialize_counters_per_msgdir();

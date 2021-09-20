@@ -17,7 +17,7 @@
 // Forward declarations
 char *hexdump(uint8_t *data, size_t len);
 
-void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const *func) {
+void *xcalloc(size_t nmemb, size_t size, char const *file, int32_t line, char const *func) {
 	void *ptr = calloc(nmemb, size);
 	if(ptr == NULL) {
 		fprintf(stderr, "%s:%d: %s(): calloc(%zu, %zu) failed: %s\n",
@@ -27,7 +27,7 @@ void *xcalloc(size_t nmemb, size_t size, char const *file, int line, char const 
 	return ptr;
 }
 
-void *xrealloc(void *ptr, size_t size, char const *file, int line, char const *func) {
+void *xrealloc(void *ptr, size_t size, char const *file, int32_t line, char const *func) {
 	ptr = realloc(ptr, size);
 	if(ptr == NULL) {
 		fprintf(stderr, "%s:%d: %s(): realloc(%zu) failed: %s\n",
@@ -37,8 +37,8 @@ void *xrealloc(void *ptr, size_t size, char const *file, int line, char const *f
 	return ptr;
 }
 
-int start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ctx) {
-	int ret = 0;
+int32_t start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ctx) {
+	int32_t ret = 0;
 	if((ret = pthread_create(pth, NULL, start_routine, thread_ctx) != 0)) {
 		errno = ret;
 		perror("pthread_create() failed");
@@ -47,15 +47,15 @@ int start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ct
 }
 
 void stop_thread(pthread_t pth) {
-	int ret = 0;
+	int32_t ret = 0;
 	if((pthread_join(pth, NULL)) != 0) {
 		errno = ret;
 		perror("pthread_join failed");
 	}
 }
 
-int pthread_barrier_create(pthread_barrier_t *barrier, unsigned count) {
-	int ret;
+int32_t pthread_barrier_create(pthread_barrier_t *barrier, uint32_t count) {
+	int32_t ret;
 	if((ret = pthread_barrier_init(barrier, NULL, count)) != 0) {
 		errno = ret;
 		perror("pthread_barrier_init() failed");
@@ -63,8 +63,8 @@ int pthread_barrier_create(pthread_barrier_t *barrier, unsigned count) {
 	return ret;
 }
 
-int pthread_cond_initialize(pthread_cond_t *cond) {
-	int ret;
+int32_t pthread_cond_initialize(pthread_cond_t *cond) {
+	int32_t ret;
 	if((ret = pthread_cond_init(cond, NULL)) != 0) {
 		errno = ret;
 		perror("pthread_cond_init() failed");
@@ -72,8 +72,8 @@ int pthread_cond_initialize(pthread_cond_t *cond) {
 	return ret;
 }
 
-int pthread_mutex_initialize(pthread_mutex_t *mutex) {
-	int ret;
+int32_t pthread_mutex_initialize(pthread_mutex_t *mutex) {
+	int32_t ret;
 	if((ret = pthread_mutex_init(mutex, NULL)) != 0) {
 		errno = ret;
 		perror("pthread_mutex_init() failed");
@@ -161,7 +161,7 @@ char *hexdump(uint8_t *data, size_t len) {
 }
 
 
-void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int indent) {
+void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int32_t indent) {
 	ASSERT(vstr != NULL);
 	ASSERT(indent >= 0);
 	char *h = hexdump(data, len);
@@ -172,7 +172,7 @@ void append_hexdump_with_indent(la_vstring *vstr, uint8_t *data, size_t len, int
 // la_proto_node routines for unknown protocols
 // which are to be serialized as octet string (hex dump or hex string)
 
-static void unknown_proto_format_text(la_vstring *vstr, void const *data, int indent) {
+static void unknown_proto_format_text(la_vstring *vstr, void const *data, int32_t indent) {
 	ASSERT(vstr != NULL);
 	ASSERT(data != NULL);
 	ASSERT(indent >= 0);
@@ -270,7 +270,7 @@ void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int3
 	}
 }
 
-void ac_data_format_text(la_vstring *vstr, int indent, uint32_t addr) {
+void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr) {
 	if(Config.ac_data_available == true) {
 		struct ac_data_entry *ac = ac_data_entry_lookup(AC_data, addr);
 		if(Config.ac_data_details == AC_DETAILS_NORMAL) {

@@ -189,7 +189,7 @@ void *output_thread(void *arg) {
 		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
 			break;
 		}
-		int result = oi->td->produce(ctx->priv, q->format, q->metadata, q->msg);
+		int32_t result = oi->td->produce(ctx->priv, q->format, q->metadata, q->msg);
 		output_qentry_destroy(q);
 		if(result < 0) {
 			break;

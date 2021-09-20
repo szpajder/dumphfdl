@@ -113,7 +113,7 @@ void *cache_entry_lookup(cache *c, void const *key) {
 int32_t cache_expire(cache *c, time_t current_timestamp) {
 	ASSERT(c);
 
-	int expired_cnt = 0;
+	int32_t expired_cnt = 0;
 	if(c->last_expiration_time + c->expiration_interval <= current_timestamp) {
 		time_t min_created_time = current_timestamp - c->ttl;
 		expired_cnt = la_hash_foreach_remove(c->table, is_cache_entry_expired,

@@ -64,7 +64,7 @@ void *file_input_thread(void *ctx) {
 	return NULL;
 }
 
-int file_input_init(struct input *input) {
+int32_t file_input_init(struct input *input) {
 	ASSERT(input != NULL);
 	struct file_input *file_input = container_of(input, struct file_input, input);
 

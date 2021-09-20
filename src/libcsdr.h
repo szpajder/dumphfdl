@@ -41,8 +41,8 @@ typedef enum window_s
 
 #define WINDOW_DEFAULT WINDOW_HAMMING
 
-int next_pow2(int x);
-int firdes_filter_len(float transition_bw);
-void firdes_bandpass_c(float complex *output, int length, float lowcut, float highcut, window_t window);
+int32_t next_pow2(int32_t x);
+int32_t firdes_filter_len(float transition_bw);
+void firdes_bandpass_c(float complex *output, int32_t length, float lowcut, float highcut, window_t window);
 float compute_filter_relative_transition_bw(int32_t sample_rate, int32_t transition_bw_Hz);
-int compute_fft_decimation_rate(int32_t sample_rate, int32_t target_rate);
+int32_t compute_fft_decimation_rate(int32_t sample_rate, int32_t target_rate);

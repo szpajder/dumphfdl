@@ -20,6 +20,7 @@ This file is part of libcsdr.
 */
 
 #pragma once
+#include <stdint.h>
 #include <complex.h>
 
 typedef struct shift_addition_data_s
@@ -33,14 +34,14 @@ shift_addition_data_t shift_addition_init(float rate);
 
 typedef struct decimating_shift_addition_status_s
 {
-	int decimation_remain;
+	int32_t decimation_remain;
 	float starting_phase;
-	int output_size;
+	int32_t output_size;
 } decimating_shift_addition_status_t;
 
 decimating_shift_addition_status_t decimating_shift_addition_cc(float complex
-		*input, float complex* output, int input_size, shift_addition_data_t d,
-		int decimation, decimating_shift_addition_status_t s);
+		*input, float complex* output, int32_t input_size, shift_addition_data_t d,
+		int32_t decimation, decimating_shift_addition_status_t s);
 shift_addition_data_t decimating_shift_addition_init(float rate, int
 		decimation);
 

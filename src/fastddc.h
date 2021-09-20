@@ -7,22 +7,22 @@
 
 typedef struct fastddc_s
 {
-	int pre_decimation;
-	int post_decimation;
-	int taps_length;
-	int taps_min_length;
-	int overlap_length; //it is taps_length - 1
-	int fft_size;
-	int fft_inv_size;
-	int input_size;
-	int post_input_size;
+	int32_t pre_decimation;
+	int32_t post_decimation;
+	int32_t taps_length;
+	int32_t taps_min_length;
+	int32_t overlap_length; //it is taps_length - 1
+	int32_t fft_size;
+	int32_t fft_inv_size;
+	int32_t input_size;
+	int32_t post_input_size;
 	float pre_shift;
-	int startbin; //for pre_shift
-	int v; //step for pre_shift
-	int offsetbin;
+	int32_t startbin; //for pre_shift
+	int32_t v; //step for pre_shift
+	int32_t offsetbin;
 	float post_shift;
-	int output_scrape;
-	int scrap;
+	int32_t output_scrape;
+	int32_t scrap;
 	shift_addition_data_t dsadata;
 } fastddc_t;
 
@@ -35,8 +35,8 @@ typedef struct {
 } fft_channelizer_s;
 typedef fft_channelizer_s *fft_channelizer;
 
-int fastddc_init(fastddc_t *ddc, float transition_bw, int decimation, float shift_rate);
+int32_t fastddc_init(fastddc_t *ddc, float transition_bw, int32_t decimation, float shift_rate);
 decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float complex *output, fastddc_t *ddc, FFT_PLAN_T *plan_inverse, float complex *taps_fft, decimating_shift_addition_status_t shift_stat);
 void fastddc_print(fastddc_t *ddc, char *source);
-void fft_swap_sides(float complex *io, int fft_size);
-fft_channelizer fft_channelizer_create(int decimation, float transition_bw, float freq_shift);
+void fft_swap_sides(float complex *io, int32_t fft_size);
+fft_channelizer fft_channelizer_create(int32_t decimation, float transition_bw, float freq_shift);

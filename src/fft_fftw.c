@@ -11,7 +11,7 @@ void csdr_fft_init() {
 	fftwf_plan_with_nthreads(FFT_THREAD_CNT);
 }
 
-FFT_PLAN_T* csdr_make_fft_c2c(int size, float complex* input, float complex* output, int forward, int benchmark) {
+FFT_PLAN_T* csdr_make_fft_c2c(int32_t size, float complex* input, float complex* output, int32_t forward, int32_t benchmark) {
 	NEW(FFT_PLAN_T, plan);
 	// fftwf_complex is binary compatible with float complex
 	plan->plan = fftwf_plan_dft_1d(size, (fftwf_complex *)input, (fftwf_complex *)output, forward ? FFTW_FORWARD : FFTW_BACKWARD, benchmark ? FFTW_MEASURE : FFTW_ESTIMATE);

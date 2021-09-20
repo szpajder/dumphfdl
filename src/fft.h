@@ -6,7 +6,7 @@
 // FIXME: this should be hidden.
 // Need to provide getter function for input pointer (fastddc needs this)
 struct fft_plan_s {
-	int size;
+	int32_t size;
 	void *input;
 	void *output;
 	void *plan;
@@ -19,8 +19,8 @@ typedef struct fft_thread_ctx_s *fft_thread_ctx_t;
 
 // fft_fftw.c
 void csdr_fft_init();
-FFT_PLAN_T* csdr_make_fft_c2c(int size, float complex *input,
-		float complex *output, int forward, int benchmark);
+FFT_PLAN_T* csdr_make_fft_c2c(int32_t size, float complex *input,
+		float complex *output, int32_t forward, int32_t benchmark);
 void csdr_fft_execute(FFT_PLAN_T* plan);
 
 // fft.c

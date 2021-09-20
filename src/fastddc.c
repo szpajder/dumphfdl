@@ -40,9 +40,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //DDC implementation based on:
 //http://www.3db-labs.com/01598092_MultibandFilterbank.pdf
 
-inline int is_integer(float a) { return floorf(a) == a; }
+inline int32_t is_integer(float a) { return floorf(a) == a; }
 
-int fastddc_init(fastddc_t* ddc, float transition_bw, int decimation, float shift_rate)
+int32_t fastddc_init(fastddc_t* ddc, float transition_bw, int32_t decimation, float shift_rate)
 {
 	ddc->pre_decimation = 1; //this will be done in the frequency domain
 	ddc->post_decimation = decimation; //this will be done in the time domain
@@ -61,7 +61,7 @@ int fastddc_init(fastddc_t* ddc, float transition_bw, int decimation, float shif
 
 	//Shift operation in the frequency domain: we can shift by a multiple of v.
 	ddc->v = ddc->fft_size/ddc->overlap_length; //overlap factor | +-1 ? (or maybe ceil() this?)
-	int middlebin=ddc->fft_size / 2;
+	int32_t middlebin=ddc->fft_size / 2;
 	ddc->startbin = middlebin + middlebin * (-shift_rate) * 2;
 	//fprintf(stderr, "ddc->startbin=%g\n",(float)ddc->startbin);
 	ddc->startbin = ddc->v * round( ddc->startbin / (float)ddc->v );
@@ -94,11 +94,11 @@ void fastddc_print(fastddc_t* ddc, char* source)
 		ddc->post_input_size, ddc->scrap);
 }
 
-void fft_swap_sides(float complex *io, int fft_size)
+void fft_swap_sides(float complex *io, int32_t fft_size)
 {
-	int middle = fft_size / 2;
+	int32_t middle = fft_size / 2;
 	float complex temp;
-	for(int i = 0; i < middle; i++)
+	for(int32_t i = 0; i < middle; i++)
 	{
 		temp = io[i];
 		io[i] = io[i+middle];
@@ -117,7 +117,7 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 
 	//Initialize buffers for inverse FFT to zero
 	// FIXME: memset?
-	for(int i=0;i<plan_inverse->size;i++)
+	for(int32_t i=0;i<plan_inverse->size;i++)
 	{
 		inv_input[i] = 0.f;
 	}
@@ -130,17 +130,17 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	//fprintf(stderr, " === fastddc_inv_cc() ===\n");
 	//The problem is, we have to say that the output_index should be the _center_ of the spectrum when i is at startbin! (startbin is at the _center_ of the input to downconvert, not at its first bin!)
 #ifdef FASTDDC_DEBUG
-	static int first = 1;
+	static int32_t first = 1;
 	if(first) {
 		fprintf(stderr, "taps = [];\n");
-		for(int i = 0 ; i < ddc->fft_size; i++) {
+		for(int32_t i = 0 ; i < ddc->fft_size; i++) {
 			fprintf(stderr, "taps(%d)=%f+%f*i;\n", i+1, crealf(taps_fft[i]), cimagf(taps_fft[i]));
 		}
 	}
 #endif
-	for(int i=0;i<ddc->fft_size;i++)
+	for(int32_t i=0;i<ddc->fft_size;i++)
 	{
-		int output_index = (ddc->fft_size+i-ddc->offsetbin+(ddc->fft_inv_size/2))%plan_inverse->size;
+		int32_t output_index = (ddc->fft_size+i-ddc->offsetbin+(ddc->fft_inv_size/2))%plan_inverse->size;
 		//fprintf(stderr, "output_index = %d , tap_index = %d, input index = %d\n", output_index, tap_index, i);
 		//cmultadd(inv_input+output_index, input+i, taps_fft+tap_index); //cmultadd(output, input1, input2):   complex output += complex input1 * complex input 2
 		// (a+b*i)*(c+d*i) = (ac-bd)+(ad+bc)*i
@@ -158,21 +158,21 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 		//qof(inv_input,output_index) += qof(input,i);
 	}
 #ifdef FASTDDC_DEBUG
-	static int second = 2;
+	static int32_t second = 2;
 	if(second == 1) {
 		fprintf(stderr, "ddc_input = [];\n");
-		for(int i=0;i<ddc->fft_size;i++) {
+		for(int32_t i=0;i<ddc->fft_size;i++) {
 			fprintf(stderr, "ddc_input(%d)=%f+%f*i;\n", i+1, crealf(input[i]), cimagf(input[i]));
 		}
 		fprintf(stderr, "fft_input = [];\n");
-		for(int i = 0; i < plan_inverse->size; i++) {
+		for(int32_t i = 0; i < plan_inverse->size; i++) {
 			fprintf(stderr, "fft_input(%d)=%f+%f*i;\n", i+1, crealf(inv_input[i]), cimagf(inv_input[i]));
 		}
 	}
 #endif
 
 	//Normalize inv fft bins (now our output level is not higher than the input... but we may optimize this into the later loop when we normalize by size)
-	for(int i=0;i<plan_inverse->size;i++)
+	for(int32_t i=0;i<plan_inverse->size;i++)
 	{
 		inv_input[i] /= ddc->pre_decimation;
 	}
@@ -181,14 +181,14 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	csdr_fft_execute(plan_inverse);
 
 	//Normalize data
-	for(int i=0;i<plan_inverse->size;i++) //@fastddc_inv_cc: normalize by size
+	for(int32_t i=0;i<plan_inverse->size;i++) //@fastddc_inv_cc: normalize by size
 	{
 		inv_output[i] /= plan_inverse->size;
 	}
 #ifdef FASTDDC_DEBUG
 	if(second==1) {
 		fprintf(stderr, "fft_output = [];\n");
-		for(int i=0;i<plan_inverse->size;i++) {
+		for(int32_t i=0;i<plan_inverse->size;i++) {
 			fprintf(stderr, "fft_output(%d)=%f+%f*i;\n", i+1, crealf(inv_output[i]), cimagf(inv_output[i]));
 		}
 	}
@@ -204,7 +204,7 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	return shift_stat;
 }
 
-fft_channelizer fft_channelizer_create(int decimation, float transition_bw, float freq_shift) {
+fft_channelizer fft_channelizer_create(int32_t decimation, float transition_bw, float freq_shift) {
 	window_t window = WINDOW_HAMMING;
 
 	NEW(fft_channelizer_s, c);

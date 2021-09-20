@@ -57,7 +57,7 @@ fail:
 	return NULL;
 }
 
-static int out_file_open(out_file_ctx_t *self) {
+static int32_t out_file_open(out_file_ctx_t *self) {
 	char *filename = NULL;
 	char *fmt = NULL;
 	size_t tlen = 0;
@@ -96,7 +96,7 @@ static int out_file_open(out_file_ctx_t *self) {
 	return 0;
 }
 
-static int out_file_init(void *selfptr) {
+static int32_t out_file_init(void *selfptr) {
 	ASSERT(selfptr != NULL);
 	out_file_ctx_t *self = selfptr;
 	if(!strcmp(self->filename_prefix, "-")) {
@@ -127,7 +127,7 @@ static int out_file_init(void *selfptr) {
 	return 0;
 }
 
-static int out_file_rotate(out_file_ctx_t *self) {
+static int32_t out_file_rotate(out_file_ctx_t *self) {
 	// FIXME: rotation should be driven by message timestamp, not the current timestamp
 	struct tm new_tm;
 	time_t t = time(NULL);
@@ -173,7 +173,7 @@ static void out_file_produce_binary(out_file_ctx_t *self, struct metadata *metad
     fflush(self->fh);
 }
 
-static int out_file_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
+static int32_t out_file_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_file_ctx_t *self = selfptr;
 	if(self->rotate != ROT_NONE && out_file_rotate(self) < 0) {

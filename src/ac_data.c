@@ -52,7 +52,7 @@ struct ac_data *ac_data_create(char const *bs_db_file) {
 	NEW(struct ac_data, ac_data);
 	ac_data->db = NULL;
 
-	int rc = sqlite3_open_v2(bs_db_file, &ac_data->db, SQLITE_OPEN_READONLY, NULL);
+	int32_t rc = sqlite3_open_v2(bs_db_file, &ac_data->db, SQLITE_OPEN_READONLY, NULL);
 	if(rc != 0){
 		fprintf(stderr, "Can't open database %s: %s\n", bs_db_file, sqlite3_errmsg(ac_data->db));
 		goto fail;
@@ -151,7 +151,7 @@ static struct ac_data_entry *ac_data_entry_fetch_from_db(struct ac_data *ac_data
 		goto fail;
 	}
 
-	int rc = sqlite3_reset(ac_data->stmt);
+	int32_t rc = sqlite3_reset(ac_data->stmt);
 	if(rc != SQLITE_OK) {
 		debug_print(D_CACHE, "sqlite3_reset() returned error %d\n", rc);
 		statsd_increment("ac_data.db.errors");

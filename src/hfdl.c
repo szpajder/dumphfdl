@@ -432,7 +432,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	NEW(struct hfdl_channel, c);
 	c->resamp_rate = (float)(HFDL_SYMBOL_RATE * SPS) / ((float)sample_rate / (float)pre_decimation_rate);
 	c->resampler = msresamp_crcf_create(c->resamp_rate, 60.0f);
-	c->resampler_delay = (int)ceilf(msresamp_crcf_get_delay(c->resampler));
+	c->resampler_delay = (int32_t)ceilf(msresamp_crcf_get_delay(c->resampler));
 
 	c->chan_freq = frequency;
 	float freq_shift = (float)(centerfreq - (frequency + HFDL_SSB_CARRIER_OFFSET_HZ)) / (float)sample_rate;
