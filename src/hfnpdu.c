@@ -116,9 +116,9 @@ static int32_t systable_parse(uint8_t *buf, uint32_t len, struct hfnpdu_systable
 		debug_print(D_PROTO, "Too short: %u < %u\n", len, SYSTABLE_HFNPDU_MIN_LEN);
 		return -1;
 	}
-	result->total_pdu_cnt = ((buf[2] >> 4) & 0xF) + 1;
+	result->total_pdu_cnt = (buf[2] >> 4) + 1;
 	result->pdu_seq_num = buf[2] & 0xF;
-	result->systable_version = ((buf[3] >> 4) & 0xF) | buf[4] << 4;
+	result->systable_version = buf[3] >> 4 | buf[4] << 4;
 	return SYSTABLE_HFNPDU_MIN_LEN;
 }
 

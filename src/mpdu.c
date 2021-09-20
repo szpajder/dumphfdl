@@ -66,7 +66,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 				statsd_increment_per_channel(freq, "frame.errors.too_short");
 				goto end;
 			}
-			lpdu_cnt = (buf[hdr_len+1] >> 4) & 0xF;
+			lpdu_cnt = buf[hdr_len+1] >> 4;
 			hdr_len += 2 + lpdu_cnt;        // aircraft_id + NLP/DDR/P + LPDU size octets (one per LPDU)
 			debug_print(D_PROTO, "uplink: ac %u lpdu_cnt: %u hdr_len: %u\n", i, lpdu_cnt, hdr_len);
 		}

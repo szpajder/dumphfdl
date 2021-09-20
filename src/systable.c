@@ -644,7 +644,7 @@ static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint3
 
 	uint32_t coord = buf[1] | buf[2] << 8 | (buf[3] & 0xF) << 16;
 	result->gs_location.lat = parse_coordinate(coord);
-	coord = ((buf[3] >> 4) & 0xF) | buf[4] << 4 | buf[5] << 12;
+	coord = buf[3] >> 4 | buf[4] << 4 | buf[5] << 12;
 	result->gs_location.lon = parse_coordinate(coord);
 
 	result->spdu_version = buf[6] & 7;

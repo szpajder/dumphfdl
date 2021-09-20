@@ -75,14 +75,14 @@ la_list *spdu_parse(struct octet_string *pdu, int32_t freq) {
 	spdu->change_note = (buf[0] & 0xC0) >> 6;
 
 	spdu->frame_index = buf[2] | ((buf[3] & 0xF) << 8);
-	spdu->frame_offset = (buf[3] >> 4) & 0xF;
+	spdu->frame_offset = buf[3] >> 4;
 
 	spdu->min_priority = buf[52] & 0xF;
 	spdu->systable_version = buf[53] | ((buf[54] & 0xF) << 8);
 
 	spdu->gs_data[0].id = spdu->header.src_id;
 	spdu->gs_data[0].utc_sync = buf[1] & 0x80;
-	spdu->gs_data[0].freqs_in_use = (buf[54] & 0xF0) >> 4 | buf[55] << 4 | buf[56] << 12;
+	spdu->gs_data[0].freqs_in_use = buf[54] >> 4 | buf[55] << 4 | buf[56] << 12;
 	debug_print(D_PROTO, "gs_data: id %hhu utc %d freqs_in_use 0x%05x\n",
 			spdu->gs_data[0].id, spdu->gs_data[0].utc_sync, spdu->gs_data[0].freqs_in_use);
 
@@ -92,9 +92,9 @@ la_list *spdu_parse(struct octet_string *pdu, int32_t freq) {
 	debug_print(D_PROTO, "gs_data: id %hhu utc %d freqs_in_use 0x%05x\n",
 			spdu->gs_data[1].id, spdu->gs_data[1].utc_sync, spdu->gs_data[1].freqs_in_use);
 
-	spdu->gs_data[2].id = (buf[60] & 0xF0) >> 4 | (buf[61] & 0x7) << 4;
+	spdu->gs_data[2].id = buf[60] >> 4 | (buf[61] & 0x7) << 4;
 	spdu->gs_data[2].utc_sync = buf[61] & 0x8;
-	spdu->gs_data[2].freqs_in_use = (buf[61] & 0xF0) >> 4 | buf[62] << 4 | buf[63] << 12;
+	spdu->gs_data[2].freqs_in_use = buf[61] >> 4 | buf[62] << 4 | buf[63] << 12;
 	debug_print(D_PROTO, "gs_data: id %hhu utc %d freqs_in_use 0x%05x\n",
 			spdu->gs_data[2].id, spdu->gs_data[2].utc_sync, spdu->gs_data[2].freqs_in_use);
 
