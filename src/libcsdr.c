@@ -129,6 +129,7 @@ void firdes_bandpass_c(float complex *output, int32_t length, float lowcut, floa
         output[i] = CMPLXF(cosval*realtaps[i], sinval*realtaps[i]);
         //output[i] := realtaps[i] * e^j*w
     }
+    XFREE(realtaps);
 }
 
 float compute_filter_relative_transition_bw(int32_t sample_rate, int32_t transition_bw_Hz) {

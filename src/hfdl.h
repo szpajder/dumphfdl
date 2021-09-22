@@ -44,6 +44,7 @@ struct hfdl_pdu_qentry {
 void hfdl_init_globals(void);
 struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_rate,
 		float transition_bw, int32_t centerfreq, int32_t frequency);
+void hfdl_channel_destroy(struct block *channel_block);
 void hfdl_pdu_decoder_init(void);
 int32_t hfdl_pdu_decoder_start(void *ctx);
 void hfdl_pdu_decoder_stop(void);

@@ -250,6 +250,10 @@ static costas costas_cccf_create() {
 	return c;
 }
 
+static void costas_cccf_destroy(costas c) {
+	XFREE(c);
+}
+
 static void costas_cccf_execute(costas c, float complex in, float complex *out) {
 	*out = in * cexpf(-I * c->phi);
 }
@@ -304,6 +308,13 @@ static descrambler descrambler_create(uint32_t numbits, uint32_t genpoly, uint32
 	return d;
 }
 
+static void descrambler_destroy(descrambler d) {
+	if(d != NULL) {
+		msequence_destroy(d->ms);
+		XFREE(d);
+	}
+}
+
 static uint32_t descrambler_advance(descrambler d) {
 	ASSERT(d);
 	if(d->pos == d->len) {
@@ -340,6 +351,16 @@ static deinterleaver deinterleaver_create(int32_t M1) {
 	debug_print(D_BURST, "M1: %d column_cnt: %d total_size: %d column_shift: %d\n",
 			M1, d->column_cnt, d->column_cnt * DEINTERLEAVER_ROW_CNT, d->push_column_shift);
 	return d;
+}
+
+static void deinterleaver_destroy(deinterleaver d) {
+	if(d) {
+		for(int32_t i = 0; i < DEINTERLEAVER_ROW_CNT; i++) {
+			XFREE(d->table[i]);
+		}
+		XFREE(d->table);
+		XFREE(d);
+	}
 }
 
 static void deinterleaver_push(deinterleaver d, uint8_t val) {
@@ -486,6 +507,33 @@ fail:
 	XFREE(c);
 	return NULL;
 
+}
+
+void hfdl_channel_destroy(struct block *channel_block) {
+	if(channel_block == NULL) {
+		return;
+	}
+	struct hfdl_channel *c = container_of(channel_block, struct hfdl_channel, block);
+	msresamp_crcf_destroy(c->resampler);
+	fft_channelizer_destroy(c->channelizer);
+	agc_crcf_destroy(c->agc);
+	costas_cccf_destroy(c->loop);
+	firfilt_crcf_destroy(c->mf);
+	eqlms_cccf_destroy(c->eq);
+	modem_destroy(c->m[M_BPSK]);
+	modem_destroy(c->m[M_PSK4]);
+	modem_destroy(c->m[M_PSK8]);
+	symsync_crcf_destroy(c->ss);
+	bsequence_destroy(c->bits);
+	cbuffercf_destroy(c->training_symbols);
+	cbuffercf_destroy(c->data_symbols);
+	descrambler_destroy(c->descrambler);
+	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
+		deinterleaver_destroy(c->deinterleaver[i]);
+		delete_viterbi27(c->viterbi_ctx[i]);
+	}
+	bsequence_destroy(c->user_data);
+	XFREE(c);
 }
 
 void hfdl_pdu_decoder_init(void) {
@@ -871,6 +919,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 			}
 		}
 	}
+	XFREE(channelizer_output);
+	XFREE(resampled);
 	block->running = false;
 	return NULL;
 }
@@ -1044,7 +1094,7 @@ static void *pdu_decoder_thread(void *ctx) {
 		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
 			fprintf(stderr, "Shutting down decoder thread\n");
 			shutdown_outputs(fmtr_list);
-			pdu_decoder_thread_active = false;
+			XFREE(q);
 			break;
 		}
 		ASSERT(q->metadata != NULL);
@@ -1110,6 +1160,8 @@ static void *pdu_decoder_thread(void *ctx) {
 		XFREE(q->metadata);
 		XFREE(q);
 	}
+	la_reasm_ctx_destroy(reasm_ctx);
+	pdu_decoder_thread_active = false;
 	return NULL;
 }
 

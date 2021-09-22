@@ -40,3 +40,4 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 void fastddc_print(fastddc_t *ddc, char *source);
 void fft_swap_sides(float complex *io, int32_t fft_size);
 fft_channelizer fft_channelizer_create(int32_t decimation, float transition_bw, float freq_shift);
+void fft_channelizer_destroy(fft_channelizer c);

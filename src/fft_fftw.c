@@ -11,6 +11,10 @@ void csdr_fft_init() {
 	fftwf_plan_with_nthreads(FFT_THREAD_CNT);
 }
 
+void csdr_fft_destroy() {
+	fftwf_cleanup_threads();
+}
+
 FFT_PLAN_T* csdr_make_fft_c2c(int32_t size, float complex* input, float complex* output, int32_t forward, int32_t benchmark) {
 	NEW(FFT_PLAN_T, plan);
 	// fftwf_complex is binary compatible with float complex
@@ -19,6 +23,13 @@ FFT_PLAN_T* csdr_make_fft_c2c(int32_t size, float complex* input, float complex*
 	plan->input = input;
 	plan->output = output;
 	return plan;
+}
+
+void csdr_destroy_fft_c2c(FFT_PLAN_T *plan) {
+	if(plan) {
+		fftwf_destroy_plan(plan->plan);
+		XFREE(plan);
+	}
 }
 
 void csdr_fft_execute(FFT_PLAN_T* plan) {

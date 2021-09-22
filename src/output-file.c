@@ -57,6 +57,14 @@ fail:
 	return NULL;
 }
 
+static void out_file_ctx_destroy(void *ctxptr) {
+	if(ctxptr != NULL) {
+		out_file_ctx_t *ctx = ctxptr;
+		XFREE(ctx->filename_prefix);
+		XFREE(ctx);
+	}
+}
+
 static int32_t out_file_open(out_file_ctx_t *self) {
 	char *filename = NULL;
 	char *fmt = NULL;
@@ -227,6 +235,7 @@ output_descriptor_t out_DEF_file = {
 	.options = out_file_options,
 	.supports_format = out_file_supports_format,
 	.configure = out_file_configure,
+	.ctx_destroy = out_file_ctx_destroy,
 	.init = out_file_init,
 	.produce = out_file_produce,
 	.handle_shutdown = out_file_handle_shutdown,

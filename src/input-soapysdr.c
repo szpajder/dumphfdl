@@ -206,6 +206,13 @@ int32_t soapysdr_input_init(struct input *input) {
 	return 0;
 }
 
+void soapysdr_input_destroy(struct input *input) {
+	if(input != NULL) {
+		struct soapysdr_input *si = container_of(input, struct soapysdr_input, input);
+		XFREE(si);
+	}
+}
+
 #define SOAPYSDR_READSTREAM_TIMEOUT_US 1000000L
 
 void *soapysdr_input_thread(void *ctx) {
@@ -251,6 +258,7 @@ shutdown:
 struct input_vtable const soapysdr_input_vtable = {
 	.create = soapysdr_input_create,
 	.init = soapysdr_input_init,
+	.destroy = soapysdr_input_destroy,
 	.rx_thread_routine = soapysdr_input_thread
 };
 

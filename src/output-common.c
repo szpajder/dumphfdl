@@ -69,6 +69,13 @@ fmtr_instance_t *fmtr_instance_new(fmtr_descriptor_t *fmttd, fmtr_input_type_t i
 	return fmtr;
 }
 
+void fmtr_instance_destroy(fmtr_instance_t *fmtr) {
+	if(fmtr != NULL) {
+		la_list_free_full(fmtr->outputs, output_instance_destroy);
+		XFREE(fmtr);
+	}
+}
+
 output_format_t output_format_from_string(char const *str) {
 	for (la_dict const *d = fmtr_descriptors; d->val != NULL; d++) {
 		if (!strcmp(str, ((fmtr_descriptor_t *)d->val)->name)) {
@@ -102,6 +109,22 @@ output_instance_t *output_instance_new(output_descriptor_t *outtd, output_format
 	output->ctx = ctx;
 	output->output_thread = XCALLOC(1, sizeof(pthread_t));
 	return output;
+}
+
+void output_instance_destroy(output_instance_t *output) {
+	if(output) {
+		if(output->ctx) {
+			g_async_queue_unref(output->ctx->q);
+			if(output->td->ctx_destroy) {
+				output->td->ctx_destroy(output->ctx->priv);
+			} else {
+				XFREE(output->ctx->priv);
+			}
+			XFREE(output->ctx);
+		}
+		XFREE(output->output_thread);
+		XFREE(output);
+	}
 }
 
 output_qentry_t *output_qentry_copy(output_qentry_t const *q) {
@@ -187,6 +210,7 @@ void *output_thread(void *arg) {
 		output_qentry_t *q = g_async_queue_pop(ctx->q);
 		ASSERT(q != NULL);
 		if(q->flags & OUT_FLAG_ORDERED_SHUTDOWN) {
+			output_qentry_destroy(q);
 			break;
 		}
 		int32_t result = oi->td->produce(ctx->priv, q->format, q->metadata, q->msg);

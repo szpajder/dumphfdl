@@ -37,13 +37,24 @@ void *xrealloc(void *ptr, size_t size, char const *file, int32_t line, char cons
 	return ptr;
 }
 
+static int32_t detach_thread(pthread_t *pth) {
+	ASSERT(pth);
+	int32_t ret = 0;
+	if((ret = pthread_detach(*pth) != 0)) {
+		errno = ret;
+		perror("pthread_detach() failed");
+	}
+	return ret;
+}
+
 int32_t start_thread(pthread_t *pth, void *(*start_routine)(void *), void *thread_ctx) {
 	int32_t ret = 0;
 	if((ret = pthread_create(pth, NULL, start_routine, thread_ctx) != 0)) {
 		errno = ret;
 		perror("pthread_create() failed");
+		return ret;
 	}
-	return ret;
+	return detach_thread(pth);
 }
 
 void stop_thread(pthread_t pth) {

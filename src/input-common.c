@@ -30,6 +30,10 @@ struct input_cfg *input_cfg_create() {
 	return cfg;
 }
 
+void input_cfg_destroy(struct input_cfg *cfg) {
+	XFREE(cfg);
+}
+
 struct block *input_create(struct input_cfg *cfg) {
 	if(cfg == NULL) {
 		return NULL;
@@ -77,3 +81,12 @@ end:
 	return ret;
 }
 
+void input_destroy(struct block *block) {
+	if(block != NULL) {
+		struct input *input = container_of(block, struct input, block);
+		ASSERT(input != NULL);
+		if(input->vtable != NULL && input->vtable->destroy != NULL) {
+			input->vtable->destroy(input);
+		}
+	}
+}

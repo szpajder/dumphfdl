@@ -55,6 +55,7 @@ typedef struct {
 
 typedef bool (output_format_check_fun_t)(output_format_t);
 typedef void* (output_configure_fun_t)(kvargs *);
+typedef void (output_ctx_destroy_fun_t)(void *);
 typedef int32_t (output_init_fun_t)(void *);
 typedef int32_t (output_produce_msg_fun_t)(void *, output_format_t, struct metadata *, struct octet_string *);
 typedef void (output_shutdown_handler_fun_t)(void *);
@@ -67,6 +68,7 @@ typedef struct {
 	option_descr_t const *options;
 	output_format_check_fun_t *supports_format;
 	output_configure_fun_t *configure;
+	output_ctx_destroy_fun_t *ctx_destroy;
 	output_init_fun_t *init;
 	output_produce_msg_fun_t *produce;
 	output_shutdown_handler_fun_t *handle_shutdown;
@@ -102,10 +104,12 @@ typedef struct {
 fmtr_input_type_t fmtr_input_type_from_string(char const *str);
 fmtr_descriptor_t *fmtr_descriptor_get(output_format_t fmt);
 fmtr_instance_t *fmtr_instance_new(fmtr_descriptor_t *fmttd, fmtr_input_type_t intype);
+void fmtr_instance_destroy(fmtr_instance_t *fmtr);
 
 output_format_t output_format_from_string(char const *str);
 output_descriptor_t *output_descriptor_get(char const *output_name);
 output_instance_t *output_instance_new(output_descriptor_t *outtd, output_format_t format, void *priv);
+void output_instance_destroy(output_instance_t *output);
 output_qentry_t *output_qentry_copy(output_qentry_t const *q);
 void output_qentry_destroy(output_qentry_t *q);
 void output_queue_drain(GAsyncQueue *q);

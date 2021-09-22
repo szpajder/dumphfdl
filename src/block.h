@@ -66,6 +66,8 @@ struct block {
 // block.c
 int32_t block_connect_one2one(struct block *source, struct block *sink);
 int32_t block_connect_one2many(struct block *source, size_t sink_count, struct block *sinks[sink_count]);
+void block_disconnect_one2one(struct block *source, struct block *sink);
+void block_disconnect_one2many(struct block *source, size_t sink_count, struct block *sinks[sink_count]);
 int32_t block_start(struct block *block);
 int32_t block_set_start(size_t block_cnt, struct block *block[block_cnt]);
 void block_connection_one2one_shutdown(struct block_connection *connection);

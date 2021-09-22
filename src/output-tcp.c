@@ -51,6 +51,15 @@ fail:
 	return NULL;
 }
 
+static void out_tcp_ctx_destroy(void *ctxptr) {
+	if(ctxptr != NULL) {
+		out_tcp_ctx_t *ctx = ctxptr;
+		XFREE(ctx->address);
+		XFREE(ctx->port);
+		XFREE(ctx);
+	}
+}
+
 static int32_t out_tcp_reconnect(void *selfptr) {
 	ASSERT(selfptr != NULL);
 	out_tcp_ctx_t *self = selfptr;
@@ -189,6 +198,7 @@ output_descriptor_t out_DEF_tcp = {
 	.options = out_tcp_options,
 	.supports_format = out_tcp_supports_format,
 	.configure = out_tcp_configure,
+	.ctx_destroy = out_tcp_ctx_destroy,
 	.init = out_tcp_init,
 	.produce = out_tcp_produce,
 	.handle_shutdown = out_tcp_handle_shutdown,

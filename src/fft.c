@@ -6,6 +6,7 @@
 #include <liquid/liquid.h>  // cbuffercf_*
 #include "block.h"          // block_*
 #include "fastddc.h"        // fastddc_t
+#include "fft.h"
 #include "util.h"           // XCALLOC, NEW
 
 struct fft {
@@ -57,6 +58,7 @@ void *fft_thread(void *ctx) {
 	}
 shutdown:
 	block_connection_one2many_shutdown(block->producer.out);
+	csdr_destroy_fft_c2c(fwd_plan);
 	block->running = false;
 	return NULL;
 }
@@ -79,3 +81,11 @@ struct block *fft_create(int32_t decimation, float transition_bw) {
 	return &fft->block;
 }
 
+void fft_destroy(struct block *fft_block) {
+	if(fft_block != NULL) {
+		struct fft *fft = container_of(fft_block, struct fft, block);
+		XFREE(fft->input);
+		XFREE(fft->ddc);
+		XFREE(fft);
+	}
+}

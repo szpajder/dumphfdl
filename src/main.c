@@ -19,7 +19,7 @@
 #include "globals.h"            // do_exit, Systable
 #include "block.h"              // block_*
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
-#include "fft.h"                // csdr_fft_init, fft_create
+#include "fft.h"                // csdr_fft_init, csdr_fft_destroy, fft_create
 #include "util.h"               // ASSERT
 #include "ac_cache.h"           // ac_cache_create, ac_cache_destroy
 #include "ac_data.h"            // ac_data_create, ac_data_destroy
@@ -40,11 +40,12 @@ typedef struct {
 } output_params;
 
 // Forward declarations
-la_list *setup_output(la_list *fmtr_list, char *output_spec);
+la_list *output_add(la_list *outputs, char *output_spec);
+void outputs_destroy(la_list *outputs);
 output_params output_params_from_string(char *output_spec);
-fmtr_instance_t *find_fmtr_instance(la_list *fmtr_list,
+fmtr_instance_t *find_fmtr_instance(la_list *outputs,
 		fmtr_descriptor_t *fmttd, fmtr_input_type_t intype);
-void start_all_output_threads(la_list *fmtr_list);
+void start_all_output_threads(la_list *outputs);
 void start_all_output_threads_for_fmtr(void *p, void *ctx);
 void start_output_thread(void *p, void *ctx);
 
@@ -352,7 +353,7 @@ int32_t main(int32_t argc, char **argv) {
 	struct input_cfg *input_cfg = input_cfg_create();
 	input_cfg->sfmt = SFMT_UNDEF;
 	input_cfg->type = INPUT_TYPE_UNDEF;
-	la_list *fmtr_list = NULL;
+	la_list *outputs = NULL;
 	char const *systable_file = NULL;
 	char const *systable_save_file = NULL;
 #ifdef WITH_STATSD
@@ -403,7 +404,7 @@ int32_t main(int32_t argc, char **argv) {
 				input_cfg->gain_elements = optarg;
 				break;
 			case OPT_OUTPUT:
-				fmtr_list = setup_output(fmtr_list, optarg);
+				outputs = output_add(outputs, optarg);
 				break;
 			case OPT_OUTPUT_QUEUE_HWM:
 				Config.output_queue_hwm = atoi(optarg);
@@ -530,10 +531,10 @@ int32_t main(int32_t argc, char **argv) {
 	}
 
 	// no --output given?
-	if(fmtr_list == NULL) {
-		fmtr_list = setup_output(fmtr_list, DEFAULT_OUTPUT);
+	if(outputs == NULL) {
+		outputs = output_add(outputs, DEFAULT_OUTPUT);
 	}
-	ASSERT(fmtr_list != NULL);
+	ASSERT(outputs != NULL);
 
 	struct block *input = input_create(input_cfg);
 	if(input == NULL) {
@@ -604,9 +605,9 @@ int32_t main(int32_t argc, char **argv) {
 		return 1;
 	}
 
-	start_all_output_threads(fmtr_list);
+	start_all_output_threads(outputs);
 	hfdl_pdu_decoder_init();
-	if(hfdl_pdu_decoder_start(fmtr_list) != 0) {
+	if(hfdl_pdu_decoder_start(outputs) != 0) {
 	    fprintf(stderr, "Failed to start decoder thread, aborting\n");
 	    return 1;
 	}
@@ -632,7 +633,7 @@ int32_t main(int32_t argc, char **argv) {
 			block_is_running(fft) ||
 			block_set_is_any_running(channel_cnt, channels) ||
 			hfdl_pdu_decoder_is_running() ||
-			output_thread_is_any_running(fmtr_list)
+			output_thread_is_any_running(outputs)
 			)) {
 		usleep(500000);
 	}
@@ -642,6 +643,19 @@ int32_t main(int32_t argc, char **argv) {
 #endif
 
 	hfdl_print_summary();
+
+	block_disconnect_one2many(fft, channel_cnt, channels);
+	block_disconnect_one2one(input, fft);
+	for(int32_t i = 0; i < channel_cnt; i++) {
+		hfdl_channel_destroy(channels[i]);
+	}
+	input_destroy(input);
+	input_cfg_destroy(input_cfg);
+
+	fft_destroy(fft);
+	csdr_fft_destroy();
+
+	outputs_destroy(outputs);
 
 	Systable_lock();
 	systable_destroy(Systable);
@@ -658,7 +672,7 @@ int32_t main(int32_t argc, char **argv) {
 	return 0;
 }
 
-la_list *setup_output(la_list *fmtr_list, char *output_spec) {
+la_list *output_add(la_list *outputs, char *output_spec) {
 	if(!strcmp(output_spec, "help")) {
 		output_usage();
 		_exit(0);
@@ -685,7 +699,7 @@ la_list *setup_output(la_list *fmtr_list, char *output_spec) {
 
 	fmtr_descriptor_t *fmttd = fmtr_descriptor_get(outfmt);
 	ASSERT(fmttd != NULL);
-	fmtr_instance_t *fmtr = find_fmtr_instance(fmtr_list, fmttd, intype);
+	fmtr_instance_t *fmtr = find_fmtr_instance(outputs, fmttd, intype);
 	if(fmtr == NULL) {      // we haven't added this formatter to the list yet
 		if(!fmttd->supports_data_type(intype)) {
 			fprintf(stderr,
@@ -695,7 +709,7 @@ la_list *setup_output(la_list *fmtr_list, char *output_spec) {
 		}
 		fmtr = fmtr_instance_new(fmttd, intype);
 		ASSERT(fmtr != NULL);
-		fmtr_list = la_list_append(fmtr_list, fmtr);
+		outputs = la_list_append(outputs, fmtr);
 	}
 
 	output_descriptor_t *otd = output_descriptor_get(oparams.outtype);
@@ -725,7 +739,11 @@ la_list *setup_output(la_list *fmtr_list, char *output_spec) {
 	XFREE(oparams.output_spec_string);
 	kvargs_destroy(oparams.outopts);
 
-	return fmtr_list;
+	return outputs;
+}
+
+void outputs_destroy(la_list *outputs) {
+	la_list_free_full(outputs, fmtr_instance_destroy);
 }
 
 #define SCAN_FIELD_OR_FAIL(str, field_name, errstr) \
@@ -778,11 +796,11 @@ end:
 	return out_params;
 }
 
-fmtr_instance_t *find_fmtr_instance(la_list *fmtr_list, fmtr_descriptor_t *fmttd, fmtr_input_type_t intype) {
-	if(fmtr_list == NULL) {
+fmtr_instance_t *find_fmtr_instance(la_list *outputs, fmtr_descriptor_t *fmttd, fmtr_input_type_t intype) {
+	if(outputs == NULL) {
 		return NULL;
 	}
-	for(la_list *p = fmtr_list; p != NULL; p = la_list_next(p)) {
+	for(la_list *p = outputs; p != NULL; p = la_list_next(p)) {
 		fmtr_instance_t *fmtr = p->data;
 		if(fmtr->td == fmttd && fmtr->intype == intype) {
 			return fmtr;
@@ -791,8 +809,8 @@ fmtr_instance_t *find_fmtr_instance(la_list *fmtr_list, fmtr_descriptor_t *fmttd
 	return NULL;
 }
 
-void start_all_output_threads(la_list *fmtr_list) {
-	la_list_foreach(fmtr_list, start_all_output_threads_for_fmtr, NULL);
+void start_all_output_threads(la_list *outputs) {
+	la_list_foreach(outputs, start_all_output_threads_for_fmtr, NULL);
 }
 
 void start_all_output_threads_for_fmtr(void *p, void *ctx) {
@@ -809,4 +827,3 @@ void start_output_thread(void *p, void *ctx) {
 	debug_print(D_OUTPUT, "starting thread for output %s\n", output->td->name);
 	start_thread(output->output_thread, output_thread, output);
 }
-

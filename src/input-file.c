@@ -25,6 +25,13 @@ struct input *file_input_create(struct input_cfg *cfg) {
 	return &file_input->input;
 }
 
+void file_input_destroy(struct input *input) {
+	if(input != NULL) {
+		struct file_input *fi = container_of(input, struct file_input, input);
+		XFREE(fi);
+	}
+}
+
 void *file_input_thread(void *ctx) {
 	ASSERT(ctx);
 	struct block *block = ctx;
@@ -91,6 +98,7 @@ int32_t file_input_init(struct input *input) {
 struct input_vtable const file_input_vtable = {
 	.create = file_input_create,
 	.init = file_input_init,
+	.destroy = file_input_destroy,
 	.rx_thread_routine = file_input_thread
 };
 

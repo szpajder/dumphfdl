@@ -227,6 +227,7 @@ fft_channelizer fft_channelizer_create(int32_t decimation, float transition_bw, 
 	firdes_bandpass_c(taps, c->ddc->taps_length, (-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, window);
 	csdr_fft_execute(filter_taps_plan);
 	fft_swap_sides(c->filtertaps_fft, c->ddc->fft_size);
+	csdr_destroy_fft_c2c(filter_taps_plan);
 	XFREE(taps);
 
 	//make FFT plan
@@ -238,4 +239,16 @@ fft_channelizer fft_channelizer_create(int32_t decimation, float transition_bw, 
 fail:
 	XFREE(c);
 	return NULL;
+}
+
+void fft_channelizer_destroy(fft_channelizer c) {
+	if(c == NULL) {
+		return;
+	}
+	csdr_destroy_fft_c2c(c->inv_plan);
+	XFREE(c->inv_output);
+	XFREE(c->inv_input);
+	XFREE(c->filtertaps_fft);
+	XFREE(c->ddc);
+	XFREE(c);
 }

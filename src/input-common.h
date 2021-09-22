@@ -37,6 +37,7 @@ struct input;   // forward declaration
 struct input_vtable {
 	struct input *(*create)(struct input_cfg *);
 	int32_t (*init)(struct input *);
+	void (*destroy)(struct input *);
 	void* (*rx_thread_routine)(void *);
 };
 
@@ -53,5 +54,7 @@ struct input {
 };
 
 struct input_cfg *input_cfg_create();
+void input_cfg_destroy(struct input_cfg *cfg);
 struct block *input_create(struct input_cfg *cfg);
 int32_t input_init(struct block *block);
+void input_destroy(struct block *block);

@@ -19,6 +19,15 @@ static int32_t block_circ_buffer_init(struct circ_buffer *buffer, size_t buf_siz
 	return pthread_cond_initialize(buffer->cond) || pthread_mutex_initialize(buffer->mutex);
 }
 
+static void block_circ_buffer_destroy(struct circ_buffer *buffer) {
+	if(buffer != NULL) {
+		cbuffercf_destroy(buffer->buf);
+		XFREE(buffer->cond);
+		XFREE(buffer->mutex);
+		// No XFREE(buffer) as this is a member of a struct allocated by the caller
+	}
+}
+
 static int32_t block_shared_buffer_init(struct shared_buffer *buffer, size_t buf_size, size_t thread_cnt) {
 	ASSERT(buffer);
 	ASSERT(thread_cnt > 0);
@@ -27,6 +36,15 @@ static int32_t block_shared_buffer_init(struct shared_buffer *buffer, size_t buf
 	buffer->consumers_ready = XCALLOC(1, sizeof(pthread_barrier_t));
 	return pthread_barrier_create(buffer->data_ready, thread_cnt) ||
 		pthread_barrier_create(buffer->consumers_ready, thread_cnt);
+}
+
+static void block_shared_buffer_destroy(struct shared_buffer *buffer) {
+	if(buffer != NULL) {
+		XFREE(buffer->buf);
+		XFREE(buffer->data_ready);
+		XFREE(buffer->consumers_ready);
+		// No XFREE(buffer) as this is a member of a struct allocated by the caller
+	}
 }
 
 // Returns the number of successful connections made
@@ -51,6 +69,18 @@ int32_t block_connect_one2one(struct block *source, struct block *sink) {
 	ret = 1;
 end:
 	return ret;
+}
+
+void block_disconnect_one2one(struct block *source, struct block *sink) {
+	ASSERT(source);
+	ASSERT(sink);
+	ASSERT(source->producer.type == PRODUCER_SINGLE);
+	ASSERT(sink->consumer.type == CONSUMER_SINGLE);
+	if(source->producer.out == sink->consumer.in) {
+		block_circ_buffer_destroy(&source->producer.out->circ_buffer);
+		XFREE(source->producer.out);
+		source->producer.out = sink->consumer.in = NULL;
+	}
 }
 
 int32_t block_connect_one2many(struct block *source, size_t sink_count, struct block *sinks[sink_count]) {
@@ -83,6 +113,21 @@ int32_t block_connect_one2many(struct block *source, size_t sink_count, struct b
 	}
 end:
 	return ret;
+}
+
+void block_disconnect_one2many(struct block *source, size_t sink_count, struct block *sinks[sink_count]) {
+	ASSERT(source);
+	ASSERT(sinks);
+	ASSERT(source->producer.type == PRODUCER_MULTI);
+
+	struct block_connection *connection = source->producer.out;
+	for(size_t i = 0; i < sink_count; i++) {
+		if(sinks[i]->consumer.in == connection) {
+			sinks[i]->consumer.in = NULL;
+		}
+	}
+	block_shared_buffer_destroy(&connection->shared_buffer);
+	XFREE(connection);
 }
 
 void block_connection_one2one_shutdown(struct block_connection *connection) {
