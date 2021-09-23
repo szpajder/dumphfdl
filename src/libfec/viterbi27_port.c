@@ -62,7 +62,7 @@ static inline int parity(int x){
 }
 
 /* Initialize Viterbi decoder for start of new frame */
-int init_viterbi27_port(void *p,int starting_state){
+int init_viterbi27(void *p,int starting_state){
 	struct v27 *vp = p;
 	int i;
 
@@ -78,7 +78,7 @@ int init_viterbi27_port(void *p,int starting_state){
 	return 0;
 }
 
-void set_viterbi27_polynomial_port(int polys[2]){
+void set_viterbi27_polynomial(int polys[2]){
 	int state;
 
 	for(state=0;state < 32;state++){
@@ -89,20 +89,20 @@ void set_viterbi27_polynomial_port(int polys[2]){
 }
 
 /* Create a new instance of a Viterbi decoder */
-void *create_viterbi27_port(int len){
+void *create_viterbi27(int len){
 	if(!Init){
 		int polys[2] = { V27POLYA, V27POLYB };
-		set_viterbi27_polynomial_port(polys);
+		set_viterbi27_polynomial(polys);
 	}
 	struct v27 *vp = calloc(1, sizeof(struct v27));
 	vp->decisions = calloc(len + 6, sizeof(decision_t));
-	init_viterbi27_port(vp,0);
+	init_viterbi27(vp,0);
 
 	return vp;
 }
 
 /* Viterbi chainback */
-int chainback_viterbi27_port(
+int chainback_viterbi27(
 		void *p,
 		unsigned char *data, /* Decoded output data */
 		unsigned int nbits, /* Number of data bits */
@@ -134,7 +134,7 @@ int chainback_viterbi27_port(
 }
 
 /* Delete instance of a Viterbi decoder */
-void delete_viterbi27_port(void *p){
+void delete_viterbi27(void *p){
 	struct v27 *vp = p;
 
 	if(vp != NULL){
@@ -163,7 +163,7 @@ void delete_viterbi27_port(void *p){
  * Note that nbits is the number of decoded data bits, not the number
  * of symbols!
  */
-int update_viterbi27_blk_port(void *p,unsigned char *syms,int nbits){
+int update_viterbi27_blk(void *p,unsigned char *syms,int nbits){
 	struct v27 *vp = p;
 	void *tmp;
 	decision_t *d;

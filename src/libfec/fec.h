@@ -20,11 +20,4 @@ int update_viterbi27_blk(void *vp,unsigned char sym[],int npairs);
 int chainback_viterbi27(void *vp, unsigned char *data,unsigned int nbits,unsigned int endstate);
 void delete_viterbi27(void *vp);
 
-void *create_viterbi27_port(int len);
-void set_viterbi27_polynomial_port(int polys[2]);
-int init_viterbi27_port(void *p,int starting_state);
-int chainback_viterbi27_port(void *p,unsigned char *data,unsigned int nbits,unsigned int endstate);
-void delete_viterbi27_port(void *p);
-int update_viterbi27_blk_port(void *p,unsigned char *syms,int nbits);
-
 #endif /* _FEC_H_ */
