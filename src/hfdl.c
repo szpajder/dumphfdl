@@ -606,7 +606,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 	size_t resampled_size = (c->channelizer->ddc->post_input_size + c->resampler_delay + 10) * c->resamp_rate;
 	float complex *resampled = XCALLOC(resampled_size, sizeof(float complex));
 	uint32_t resampled_cnt = 0;
-	float complex r, s, t;
+	float complex r, s;
 	float complex symbols[3];
 	uint32_t symbols_produced = 0;
 	uint32_t bits = 0;
@@ -654,8 +654,6 @@ static void *hfdl_decoder_thread(void *ctx) {
 #ifdef DUMP_FFT
 	fopen_cf32(f_fft_out);
 #endif
-	float evm_hat = 0.03f;
-	float complex d_prime;
 	struct shared_buffer *input = &block->consumer.in->shared_buffer;
 	static struct timeval ts_correction = {
 		.tv_sec = 0,
@@ -692,7 +690,6 @@ static void *hfdl_decoder_thread(void *ctx) {
 			write_cf32(f_mf_in, resampled[k]);
 			write_cf32(f_mf_out, s);
 #endif
-			t = s;
 #ifdef AGC_DEBUG
 			gain = agc_crcf_get_gain(c->agc);
 			rssi = agc_crcf_get_rssi(c->agc);
@@ -700,9 +697,9 @@ static void *hfdl_decoder_thread(void *ctx) {
 			write_rf32(f_agc_rssi, rssi);
 #endif
 #ifdef SYMSYNC_DEBUG
-			write_cf32(f_symsync_in, t);
+			write_cf32(f_symsync_in, s);
 #endif
-			symsync_crcf_execute(c->ss, &t, 1, symbols, &symbols_produced);
+			symsync_crcf_execute(c->ss, &s, 1, symbols, &symbols_produced);
 			if(symbols_produced == 0) {
 #ifdef SYMSYNC_DEBUG
 				write_nan_cf32(f_symsync_out);
@@ -722,7 +719,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 #ifdef SYMSYNC_DEBUG
 				write_cf32(f_symsync_out, symbols[i]);
 #endif
-				costas_cccf_execute(c->loop, t, &symbols[i]);
+				costas_cccf_execute(c->loop, s, &symbols[i]);
 				// Back-propagate framer state to compensate delay introduced by eqlms
 				// fr_state == DATA_1 -> Costas is now in DATA_2 (use current_mod_arity)
 				// fr_state == TRAIN && eq_train_seq_cnt == 1  -> Costas is now in DATA_1 (use current_mod_arity)
@@ -732,7 +729,6 @@ static void *hfdl_decoder_thread(void *ctx) {
 					modem_demodulate(c->m[c->data_mod_arity], symbols[i], &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->data_mod_arity]));
 				} else {
-					//debug_print(D_DEMOD, "costas adjust: M=1\n");
 					modem_demodulate(c->m[M_BPSK], symbols[i], &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[M_BPSK]));
 				}
@@ -752,24 +748,12 @@ static void *hfdl_decoder_thread(void *ctx) {
 				eqlms_cccf_execute(c->eq, &symbols[i]);
 				if(c->fr_state == FRAMER_EQ_TRAIN) {
 					eqlms_cccf_step(c->eq, T_seq[c->bitmask & 1][c->T_idx], symbols[i]);
-					//debug_print(D_DEMOD, "train: T[%d]: %f output: %f+%f*i\n",
-					//		c->T_idx, crealf(T_seq[c->bitmask & 1][c->T_idx]), crealf(symbols[i]), cimagf(symbols[i]));
 					c->T_idx++;
 				}
 #ifdef EQ_DEBUG
 				write_cf32(f_eq_out, symbols[i]);
 #endif
-
 				modem_demodulate(c->m[c->current_mod_arity], symbols[i], &bits);
-				if(c->fr_state >= FRAMER_EQ_TRAIN) {
-					modem_get_demodulator_sample(c->m[c->current_mod_arity], &d_prime);
-					float evm = crealf((d_prime - symbols[i]) * conjf(d_prime - symbols[i]));
-					evm_hat = 0.98f * evm_hat + 0.02f * evm;
-					//debug_print(D_DEMOD, "d_prime = %f+%f*i symbol=%f+%f*i rms error = %12.8f dB arity = %d\n",
-					//		crealf(d_prime), cimagf(d_prime), crealf(symbols[i]), cimagf(symbols[i]),
-					//		10*log10(evm_hat), c->current_mod_arity);
-				}
-
 #ifdef DUMP_CONST
 				if(c->fr_state >= FRAMER_EQ_TRAIN) {
 					fprintf(consts, "frame%lu(end+1,1)=%f+%f*i;\n", frame_id,
@@ -791,7 +775,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 
 				c->symbol_cnt++;
 				if(UNLIKELY(c->symbol_cnt >= max_symbols_without_frame && c->fr_state == FRAMER_A1_SEARCH)) {
-					chan_debug("Too long without a good frame (%" PRIu64 " symbols), resetting control loops\n", c->symbol_cnt);
+					chan_debug("Too long without a good frame (%" PRIu64 " symbols), resetting control loops\n",
+							c->symbol_cnt);
 					c->symbol_cnt = 0;
 					costas_cccf_reset(c->loop);
 					symsync_crcf_reset(c->ss);
@@ -853,7 +838,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 				case FRAMER_M1_SEARCH:
 					M1_match = match_sequence(M1, M_SHIFT_CNT, c->bits, &corr_M1);
 					if(fabsf(corr_M1) > CORR_THRESHOLD) {
-						chan_debug("M1 match at sample %" PRIu64 ": %d (corr=%f, costas_dphi=%f)\n", c->sample_cnt, M1_match, corr_M1, c->loop->dphi);
+						chan_debug("M1 match at sample %" PRIu64 ": %d (corr=%f, costas_dphi=%f)\n",
+								c->sample_cnt, M1_match, corr_M1, c->loop->dphi);
 						statsd_increment_per_channel(c->chan_freq, "demod.preamble.M1_found");
 						S.M1_found++;
 						S.M1_corr_total += fabsf(corr_M1);
@@ -950,7 +936,6 @@ static void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 		T_seq = (T_seq << 1) | bit;
 	}
 	int32_t error_cnt = count_bit_errors(T, T_seq);
-	//debug_print(D_DEMOD, "T[%d]: val: %x err_cnt: %d\n", c->eq_train_seq_cnt, T_seq, error_cnt);
 	S.train_bits_total += T_LEN;
 	S.train_bits_bad += error_cnt;
 	c->train_bits_total += T_LEN;
@@ -1001,7 +986,8 @@ static void decode_user_data(struct hfdl_channel *c) {
 		descrambler_bit = descrambler_advance(c->descrambler);
 		// Flip symbol phase by M_PI when descrambler outputs 1
 		// Flip symbol phase by M_PI when Costas loop synced in an opposite phase
-		modem_demodulate_soft(data_modem, symbol * phase_flip[descrambler_bit] * phase_flip[c->bitmask & 1], &bits, soft_bits);
+		modem_demodulate_soft(data_modem, symbol * phase_flip[descrambler_bit] * phase_flip[c->bitmask & 1],
+				&bits, soft_bits);
 		for(uint32_t j = 0; j < c->data_mod_arity; j++) {
 			deinterleaver_push(c->deinterleaver[M1], soft_bits[j]);
 		}
@@ -1062,7 +1048,6 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	hm->slot = p->data_segment_cnt == DATA_FRAME_CNT_SINGLE_SLOT ? 'S' : 'D';
 
 	uint32_t flags = 0;
-
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));
 	memcpy(copy, buf, len);
 	pdu_decoder_queue_push(m, octet_string_new(copy, len), flags);
