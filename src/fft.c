@@ -15,7 +15,7 @@ struct fft {
 	float complex *input;
 };
 
-void *fft_thread(void *ctx) {
+static void *fft_thread(void *ctx) {
 	struct block *block = ctx;
 	struct fft *fft = container_of(block, struct fft, block);
 	struct circ_buffer *circ_buffer = &block->consumer.in->circ_buffer;

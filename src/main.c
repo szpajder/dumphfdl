@@ -41,16 +41,16 @@ typedef struct {
 } output_params;
 
 // Forward declarations
-la_list *output_add(la_list *outputs, char *output_spec);
-void outputs_destroy(la_list *outputs);
-output_params output_params_from_string(char *output_spec);
-fmtr_instance_t *find_fmtr_instance(la_list *outputs,
+static la_list *output_add(la_list *outputs, char *output_spec);
+static void outputs_destroy(la_list *outputs);
+static output_params output_params_from_string(char *output_spec);
+static fmtr_instance_t *find_fmtr_instance(la_list *outputs,
 		fmtr_descriptor_t *fmttd, fmtr_input_type_t intype);
-void start_all_output_threads(la_list *outputs);
-void start_all_output_threads_for_fmtr(void *p, void *ctx);
-void start_output_thread(void *p, void *ctx);
+static void start_all_output_threads(la_list *outputs);
+static void start_all_output_threads_for_fmtr(void *p, void *ctx);
+static void start_output_thread(void *p, void *ctx);
 
-void sighandler(int32_t sig) {
+static void sighandler(int32_t sig) {
 	fprintf(stderr, "Got signal %d, ", sig);
 	if(do_exit == 0) {
 		fprintf(stderr, "exiting gracefully (send signal once again to force quit)\n");
@@ -72,7 +72,7 @@ static void setup_signals() {
 	sigaction(SIGTERM, &sigact, NULL);
 }
 
-void print_version() {
+static void print_version() {
 	fprintf(stderr, "dumphfdl %s\n", DUMPHFDL_VERSION);
 }
 
@@ -83,7 +83,7 @@ typedef struct {
 	char *description;
 } msg_filterspec_t;
 
-void print_msg_filterspec_list(msg_filterspec_t const *filters) {
+static void print_msg_filterspec_list(msg_filterspec_t const *filters) {
 	for(msg_filterspec_t const *ptr = filters; ptr->token != NULL; ptr++) {
 		describe_option(ptr->token, ptr->description, 2);
 	}
@@ -203,7 +203,7 @@ static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t source_rate,
 	return true;
 }
 
-void usage() {
+static void usage() {
 	fprintf(stderr, "Usage:\n");
 #ifdef WITH_SOAPYSDR
 	fprintf(stderr, "\nSOAPYSDR compatible receiver:\n\n"
@@ -673,7 +673,7 @@ int32_t main(int32_t argc, char **argv) {
 	return 0;
 }
 
-la_list *output_add(la_list *outputs, char *output_spec) {
+static la_list *output_add(la_list *outputs, char *output_spec) {
 	if(!strcmp(output_spec, "help")) {
 		output_usage();
 		_exit(0);
@@ -743,7 +743,7 @@ la_list *output_add(la_list *outputs, char *output_spec) {
 	return outputs;
 }
 
-void outputs_destroy(la_list *outputs) {
+static void outputs_destroy(la_list *outputs) {
 	la_list_free_full(outputs, fmtr_instance_destroy);
 }
 
@@ -757,7 +757,7 @@ void outputs_destroy(la_list *outputs) {
 		goto fail; \
 	}
 
-output_params output_params_from_string(char *output_spec) {
+static output_params output_params_from_string(char *output_spec) {
 	output_params out_params = {
 		.intype = NULL, .outformat = NULL, .outtype = NULL, .outopts = NULL,
 		.errstr = NULL, .err = false
@@ -797,7 +797,7 @@ end:
 	return out_params;
 }
 
-fmtr_instance_t *find_fmtr_instance(la_list *outputs, fmtr_descriptor_t *fmttd, fmtr_input_type_t intype) {
+static fmtr_instance_t *find_fmtr_instance(la_list *outputs, fmtr_descriptor_t *fmttd, fmtr_input_type_t intype) {
 	if(outputs == NULL) {
 		return NULL;
 	}
@@ -810,18 +810,18 @@ fmtr_instance_t *find_fmtr_instance(la_list *outputs, fmtr_descriptor_t *fmttd, 
 	return NULL;
 }
 
-void start_all_output_threads(la_list *outputs) {
+static void start_all_output_threads(la_list *outputs) {
 	la_list_foreach(outputs, start_all_output_threads_for_fmtr, NULL);
 }
 
-void start_all_output_threads_for_fmtr(void *p, void *ctx) {
+static void start_all_output_threads_for_fmtr(void *p, void *ctx) {
 	UNUSED(ctx);
 	ASSERT(p != NULL);
 	fmtr_instance_t *fmtr = p;
 	la_list_foreach(fmtr->outputs, start_output_thread, NULL);
 }
 
-void start_output_thread(void *p, void *ctx) {
+static void start_output_thread(void *p, void *ctx) {
 	UNUSED(ctx);
 	ASSERT(p != NULL);
 	output_instance_t *output = p;
