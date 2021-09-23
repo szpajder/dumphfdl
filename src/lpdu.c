@@ -4,7 +4,7 @@
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node
 #include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/dict.h>          // la_dict
-#include "hfdl.h"                   // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
+#include "pdu.h"                    // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "hfnpdu.h"                 // hfnpdu_parse
 #include "ac_cache.h"               // ac_cache_entry_create, ac_cache_entry_delete
 #include "globals.h"                // AC_cache, AC_cache_lock

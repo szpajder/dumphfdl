@@ -28,6 +28,7 @@
 #include "output-common.h"      // output_*, fmtr_*
 #include "kvargs.h"             // kvargs
 #include "hfdl.h"               // hfdl_channel_create
+#include "pdu.h"                // hfdl_pdu_*
 #include "systable.h"           // systable_*
 #include "statsd.h"             // statsd_*
 

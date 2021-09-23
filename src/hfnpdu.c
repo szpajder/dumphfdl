@@ -5,7 +5,7 @@
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node, LA_MSG_DIR_*
 #include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/dict.h>          // la_dict
-#include "hfdl.h"                   // enum hfdl_pdu_direction
+#include "pdu.h"                    // enum hfdl_pdu_direction
 #include "acars.h"                  // acars_parse
 #include "position.h"               // position_info
 #include "util.h"                   // ASSERT, NEW, XCALLOC, XFREE, freq_list_format_text, gs_id_format_text

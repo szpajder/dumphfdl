@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <libacars/libacars.h>          // la_type_descriptor, la_proto_node
 #include <libacars/reassembly.h>        // la_reasm_ctx
-#include "hfdl.h"                       // struct hfdl_pdu_hdr_data
+#include "pdu.h"                        // struct hfdl_pdu_hdr_data
 #include "position.h"                   // struct position_info
 
 la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data

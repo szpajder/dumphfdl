@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/list.h>          // la_list
-#include "hfdl.h"                   // hfdl_*
+#include "pdu.h"                    // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "spdu.h"
 #include "statsd.h"                 // statsd_*
 #include "util.h"                   // NEW, ASSERT, struct octet_string, freq_list_format_text, gs_id_format_text

@@ -4,7 +4,7 @@
 #include <libacars/libacars.h>              // la_type_descriptor, la_proto_node
 #include <libacars/reassembly.h>            // la_reasm_ctx
 #include <libacars/list.h>                  // la_list
-#include "hfdl.h"                           // hfdl_*
+#include "pdu.h"                            // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "lpdu.h"                           // lpdu_parse
 #include "statsd.h"                         // statsd_*
 #include "util.h"                           // NEW, ASSERT, struct octet_string, {ac,gs}_id_format_text

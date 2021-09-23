@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/reassembly.h>    // la_reasm_ctx
-#include "hfdl.h"                   // enum hfdl_pdu_direction
+#include "pdu.h"                    // enum hfdl_pdu_direction
 #include "position.h"               // struct position_info
 
 la_proto_node *acars_parse(uint8_t *buf, uint32_t len, enum hfdl_pdu_direction direction,

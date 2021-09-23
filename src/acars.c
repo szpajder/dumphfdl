@@ -7,7 +7,7 @@
 #include <libacars/dict.h>          // la_dict
 #include <libacars/list.h>          // la_list
 #include "config.h"                 // WITH_STATSD
-#include "hfdl.h"                   // enum hfdl_pdu_direction
+#include "pdu.h"                    // enum hfdl_pdu_direction
 #include "position.h"               // position_info
 #include "statsd.h"                 // statsd_*
 #include "util.h"                   // ASSERT
