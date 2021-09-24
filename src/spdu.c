@@ -44,18 +44,18 @@ la_list *spdu_parse(struct octet_string *pdu, int32_t freq) {
 	ASSERT(pdu->len > 0);
 
 	la_list *spdu_list = NULL;
+	NEW(struct hfdl_spdu, spdu);
+	spdu->pdu = pdu;
+	la_proto_node *spdu_node = la_proto_node_new();
+	spdu_node->data = spdu;
+	spdu_node->td = &proto_DEF_hfdl_spdu;
+
 	if(pdu->len < SPDU_LEN) {
 		statsd_increment_per_channel(freq, "frame.errors.too_short");
 		debug_print(D_PROTO, "Too short: %zu < %u\n", pdu->len, SPDU_LEN);
 		goto end;
 	}
 
-	NEW(struct hfdl_spdu, spdu);
-	spdu->pdu = pdu;
-	la_proto_node *node = la_proto_node_new();
-	node->data = spdu;
-	node->td = &proto_DEF_hfdl_spdu;
-	spdu_list = la_list_append(spdu_list, node);
 
 	if(hfdl_pdu_fcs_check(pdu->buf, 64u)) {
 		spdu->header.crc_ok = true;
@@ -99,6 +99,11 @@ la_list *spdu_parse(struct octet_string *pdu, int32_t freq) {
 			spdu->gs_data[2].id, spdu->gs_data[2].utc_sync, spdu->gs_data[2].freqs_in_use);
 
 end:
+	if(spdu->header.crc_ok || Config.output_corrupted_pdus) {
+		spdu_list = la_list_append(spdu_list, spdu_node);
+	} else {
+		la_proto_tree_destroy(spdu_node);
+	}
 	return spdu_list;
 }
 

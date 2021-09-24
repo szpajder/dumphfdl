@@ -25,6 +25,7 @@ struct dumphfdl_config {
 	bool milliseconds;
 	bool output_raw_frames;
 	bool output_mpdus;
+	bool output_corrupted_pdus;
 	bool ac_data_available;
 };
 

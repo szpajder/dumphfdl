@@ -33,15 +33,16 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 	ASSERT(pdu->buf);
 	ASSERT(pdu->len > 0);
 
+	la_list *result = NULL;
 	la_list *lpdu_list = NULL;
+	la_proto_node *mpdu_node = NULL;
 	struct hfdl_mpdu *mpdu = NULL;
 	if(Config.output_mpdus) {
 		mpdu = XCALLOC(1, sizeof(struct hfdl_mpdu));
 		mpdu->pdu = pdu;
-		la_proto_node *node = la_proto_node_new();
-		node->data = mpdu;
-		node->td = &proto_DEF_hfdl_mpdu;
-		lpdu_list = la_list_append(lpdu_list, node);
+		mpdu_node = la_proto_node_new();
+		mpdu_node->data = mpdu;
+		mpdu_node->td = &proto_DEF_hfdl_mpdu;
 	}
 
 	struct hfdl_pdu_hdr_data mpdu_header = {0};
@@ -120,10 +121,15 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 	}
 
 end:
-	if(Config.output_mpdus == true) {
+	if(Config.output_mpdus && (mpdu_header.crc_ok || Config.output_corrupted_pdus)) {
 		mpdu->header = mpdu_header;
+		result = la_list_append(result, mpdu_node);
+		result->next = lpdu_list;
+	} else {
+		la_proto_tree_destroy(mpdu_node);
+		result = lpdu_list;
 	}
-	return lpdu_list;
+	return result;
 }
 
 static int32_t parse_lpdu_list(uint8_t *lpdu_len_ptr, uint8_t *data_ptr,

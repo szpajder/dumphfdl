@@ -128,9 +128,9 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
 	NEW(struct hfdl_lpdu, lpdu);
 	lpdu->pdu = octet_string_new(buf, len);
 	lpdu->mpdu_header = mpdu_header;
-	la_proto_node *node = la_proto_node_new();
-	node->td = &proto_DEF_hfdl_lpdu;
-	node->data = lpdu;
+	la_proto_node *lpdu_node = la_proto_node_new();
+	lpdu_node->td = &proto_DEF_hfdl_lpdu;
+	lpdu_node->data = lpdu;
 
 	if(len < 3) {       // Need at least LPDU type + FCS
 		debug_print(D_PROTO, "Too short: %u < 3\n", len);
@@ -180,18 +180,22 @@ la_proto_node *lpdu_parse(uint8_t *buf, uint32_t len, struct hfdl_pdu_hdr_data
 			consumed_len = logon_request_parse(buf, len, &lpdu->data.logon_request);
 			break;
 		default:
-			node->next = unknown_proto_pdu_new(buf, len);
+			lpdu_node->next = unknown_proto_pdu_new(buf, len);
 			consumed_len = len;
 			break;
 	}
 	if(consumed_len < 0) {
 		lpdu->err = true;
 	} else if((uint32_t)consumed_len < len) {
-		node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len, mpdu_header.direction,
+		lpdu_node->next = hfnpdu_parse(buf + consumed_len, len - consumed_len, mpdu_header.direction,
 				reasm_ctx, rx_timestamp);
 	}
 end:
-	return node;
+	if(lpdu->err && !Config.output_corrupted_pdus) {
+		la_proto_tree_destroy(lpdu_node);
+		lpdu_node = NULL;
+	}
+	return lpdu_node;
 }
 
 static void lpdu_format_text(la_vstring *vstr, void const *data, int32_t indent) {

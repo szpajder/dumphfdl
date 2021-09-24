@@ -247,6 +247,7 @@ static void usage() {
 	describe_option("--output-queue-hwm <integer>", "High water mark value for output queues (0 = no limit)", 1);
 	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file or --raw-frames-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
 	describe_option("--output-mpdus", "Include media access control protocol data units in the output (default: false)", 1);
+	describe_option("--output-corrupted-pdus", "Include corrupted / unparseable PDUs in the output (default: false)", 1);
 #ifdef WITH_SQLITE
 	describe_option("--bs-db <file>", "Read aircraft info from Basestation database <file> (SQLite)", 1);
 	describe_option("--ac-details normal|verbose", "Aircraft info detail level (default: normal)", 1);
@@ -257,7 +258,7 @@ static void usage() {
 	fprintf(stderr, "\nText output formatting options:\n");
 	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
 	describe_option("--milliseconds", "Print milliseconds in timestamps", 1);
-	describe_option("--raw-frames", "Print raw AVLC frame as hex", 1);
+	describe_option("--raw-frames", "Print raw data as hex", 1);
 	describe_option("--prettify-xml", "Pretty-print XML payloads in ACARS and MIAM CORE PDUs", 1);
 
 	fprintf(stderr, "\nSystem table options:\n");
@@ -297,6 +298,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_PRETTIFY_XML 47
 #define OPT_STATION_ID 48
 #define OPT_OUTPUT_MPDUS 49
+#define OPT_OUTPUT_CORRUPTED_PDUS 50
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -335,6 +337,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
+		{ "output-corrupted-pdus", no_argument,     NULL,   OPT_OUTPUT_CORRUPTED_PDUS },
 #ifdef WITH_SQLITE
 		{ "bs-db",              required_argument,  NULL,   OPT_BS_DB },
 		{ "ac-details",         required_argument,  NULL,   OPT_AC_DETAILS },
@@ -431,6 +434,9 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_OUTPUT_MPDUS:
 				Config.output_mpdus = true;
+				break;
+			case OPT_OUTPUT_CORRUPTED_PDUS:
+				Config.output_corrupted_pdus = true;
 				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;
