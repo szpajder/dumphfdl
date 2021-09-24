@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <stdio.h>
+#include <string.h>             // memset
 #include <complex.h>
 #include "config.h"             // FASTDDC_DEBUG
 #include "fastddc.h"
@@ -115,17 +116,9 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	float complex *inv_input = plan_inverse->input;
 	float complex *inv_output = plan_inverse->output;
 
-	//Initialize buffers for inverse FFT to zero
-	// FIXME: memset?
-	for(int32_t i=0;i<plan_inverse->size;i++)
-	{
-		inv_input[i] = 0.f;
-	}
+	memset(inv_input, 0, plan_inverse->size * sizeof(float complex));
 
 	//Alias & shift & filter at once
-
-	// Moved to fft_thread_fun() to allow multichannel operation
-	//fft_swap_sides(input, ddc->fft_size); //TODO this is not very optimal, but now we stick with this slow solution until we got the algorithm working
 
 	//fprintf(stderr, " === fastddc_inv_cc() ===\n");
 	//The problem is, we have to say that the output_index should be the _center_ of the spectrum when i is at startbin! (startbin is at the _center_ of the input to downconvert, not at its first bin!)
