@@ -4,6 +4,7 @@
 #include <stdlib.h>             // strtol, strtof
 #define _GNU_SOURCE             // getopt_long
 #include <getopt.h>
+#include <errno.h>              // errno, ERANGE
 #include <signal.h>             // sigaction, SIG*
 #include <string.h>             // strlen, strsep
 #include <math.h>               // roundf
