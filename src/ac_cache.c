@@ -188,7 +188,7 @@ static bool ac_cache_inv_key_compare(void const *key1, void const *key2) {
 	ASSERT(key1);
 	ASSERT(key2);
 	struct ac_cache_inv_key const *k1 = key1;
-	struct ac_cache_inv_key const *k2 = key1;
+	struct ac_cache_inv_key const *k2 = key2;
 	return (k1->icao_address == k2->icao_address);
 }
 
