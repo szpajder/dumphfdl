@@ -161,7 +161,8 @@ static uint32_t parse_msg_filterspec(msg_filterspec_t const *filters, void (*hel
 }
 #endif      // DEBUG
 
-static bool parse_double(char *str, double *result) {
+static bool parse_double(char const *str, double *result) {
+	ASSERT(str != NULL);
 	ASSERT(result != NULL);
 	char *endptr = NULL;
 	double val = strtof(str, &endptr);
@@ -176,27 +177,21 @@ static bool parse_double(char *str, double *result) {
 	return true;
 }
 
-static bool parse_frequency(char const *freq_str, int32_t *result) {
-	ASSERT(result);
-	char *endptr = NULL;
-	float val = strtof(freq_str, &endptr);
-	int32_t ret = 0;
-	if(endptr == freq_str) {
-		fprintf(stderr, "'%s': not a valid frequency value (must be a numeric value in kHz)\n", freq_str);
+static bool parse_frequency(char const *str, int32_t *result) {
+	ASSERT(str != NULL);
+	ASSERT(result != NULL);
+	double val = 0;
+	if(parse_double(str, &val) == false) {
 		return false;
-	} else if(errno == ERANGE) {
-		goto overflow;
 	}
-	ret = (int32_t)(1e3 * val);
+	int32_t ret = (int32_t)(1e3 * val);
 	if(ret == INT_MAX || ret == INT_MIN) {
-		goto overflow;
+		fprintf(stderr, "'%s': value too large\n", str);
+		return false;
 	}
-	debug_print(D_MISC, "str: %s val: %d\n", freq_str, ret);
+	debug_print(D_MISC, "str: %s val: %d\n", str, ret);
 	*result = ret;
 	return true;
-overflow:
-	fprintf(stderr, "'%s': not a valid frequency value (overflow)\n", freq_str);
-	return false;
 }
 
 static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t source_rate, int32_t *result) {
