@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>             // atoi, strtof
+#include <stdlib.h>             // strtol, strtof
 #define _GNU_SOURCE             // getopt_long
 #include <getopt.h>
 #include <signal.h>             // sigaction, SIG*
@@ -174,6 +174,23 @@ static bool parse_double(char const *str, double *result) {
 		return false;
 	}
 	*result = val;
+	return true;
+}
+
+static bool parse_int32(char const *str, int32_t *result) {
+	ASSERT(str != NULL);
+	ASSERT(result != NULL);
+	char *endptr = NULL;
+	long val = strtol(str, &endptr, 10);
+	if(endptr == str || endptr[0] != '\0') {
+		fprintf(stderr, "Parameter error: '%s': not a valid decimal integer number\n", str);
+		return false;
+	} else if(errno == ERANGE || val >= INT_MAX || val <= INT_MIN) {
+		fprintf(stderr, "Parameter error: '%s': value too large\n", str);
+		return false;
+	}
+	*result = val;
+	printf("result: %d\n", *result);
 	return true;
 }
 
@@ -411,7 +428,9 @@ int32_t main(int32_t argc, char **argv) {
 				}
 				break;
 			case OPT_SAMPLE_RATE:
-				input_cfg->sample_rate = atoi(optarg);
+				if(parse_int32(optarg, &input_cfg->sample_rate) == false) {
+					return 1;
+				}
 				break;
 			case OPT_CENTERFREQ:
 				if(parse_frequency(optarg, &input_cfg->centerfreq) == false) {
@@ -441,7 +460,9 @@ int32_t main(int32_t argc, char **argv) {
 				outputs = output_add(outputs, optarg);
 				break;
 			case OPT_OUTPUT_QUEUE_HWM:
-				Config.output_queue_hwm = atoi(optarg);
+				if(parse_int32(optarg, &Config.output_queue_hwm) == false) {
+					return 1;
+				}
 				break;
 			case OPT_UTC:
 				Config.utc = true;
