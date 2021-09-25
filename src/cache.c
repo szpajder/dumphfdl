@@ -33,6 +33,7 @@ struct cache {
 		(cache)->num_entries += (n); \
 	} \
 	statsd_set((cache)->statsd_metric_name__entry_count->str, (cache)->num_entries); \
+	debug_print(D_CACHE, "%s: num_entries: %u\n", (cache)->name, (cache)->num_entries); \
 } while(0)
 #else
 #define CACHE_ENTRY_COUNT_ADD(cache, n) nop()
