@@ -52,7 +52,7 @@ static struct octet_string *fmtr_basestation_format_decoded_msg(struct metadata 
 			pos_info->aircraft.icao_address,
 			timestamp,
 			timestamp,
-			pos_info->aircraft.flight_id,
+			pos_info->aircraft.flight_id != NULL ? pos_info->aircraft.flight_id : "",
 			pos_info->position.location.lat,
 			pos_info->position.location.lon
 			);
