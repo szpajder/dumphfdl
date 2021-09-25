@@ -85,7 +85,7 @@ void fastddc_print(fastddc_t* ddc, char* source)
 	UNUSED(ddc);
 	UNUSED(source);
 #endif
-	debug_print(D_DEMOD,
+	debug_print(D_DSP,
 		"%s: (fft_size = %d) = (taps_length = %d) + (input_size = %d) - 1\n"
 		"  overlap     ::  (overlap_length = %d) = taps_length - 1, taps_min_length = %d\n"
 		"  decimation  ::  decimation = (pre_decimation = %d) * (post_decimation = %d), fft_inv_size = %d\n"
@@ -148,7 +148,7 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 		inv_input[output_index] += input[i] * taps_fft[i];
 #ifdef FASTDDC_DEBUG
 		if(first) {
-			debug_print(D_DEMOD, "%d -> %d: %f, %f\n", i, output_index, crealf(inv_input[output_index]), cimagf(inv_input[output_index]));
+			debug_print(D_DSP, "%d -> %d: %f, %f\n", i, output_index, crealf(inv_input[output_index]), cimagf(inv_input[output_index]));
 		}
 #endif
 		//iof(inv_input,output_index) += iof(input,i); //no filter
@@ -219,7 +219,7 @@ fft_channelizer fft_channelizer_create(int32_t decimation, float transition_bw, 
 
 	//make the filter
 	float filter_half_bw = 0.5f / decimation;
-	debug_print(D_DEMOD, "preparing a bandpass filter of [%g, %g] cutoff rates. Real transition bandwidth is: %g\n",
+	debug_print(D_DSP, "preparing a bandpass filter of [%g, %g] cutoff rates. Real transition bandwidth is: %g\n",
 			(-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, 4.0 / c->ddc->taps_length);
 	firdes_bandpass_c(taps, c->ddc->taps_length, (-freq_shift) - filter_half_bw, (-freq_shift) + filter_half_bw, window);
 	csdr_fft_execute(filter_taps_plan);

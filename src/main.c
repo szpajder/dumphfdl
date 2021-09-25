@@ -90,18 +90,18 @@ static void print_msg_filterspec_list(msg_filterspec_t const *filters) {
 }
 
 static msg_filterspec_t const debug_filters[] = {
-	{ "none",               D_NONE,                         "No messages" },
-	{ "all",                D_ALL,                          "All messages" },
+	{ "none",               D_NONE,                         "No debug output" },
+	{ "all",                D_ALL,                          "All debug classes" },
 	{ "sdr",                D_SDR,                          "SDR device handling" },
-	{ "demod",              D_DEMOD,                        "DSP and demodulation" },
-	{ "demod_detail",       D_DEMOD_DETAIL,                 "DSP and demodulation - details with raw data dumps" },
-	{ "burst",              D_BURST,                        "HFDL burst decoding" },
-	{ "burst_detail",       D_BURST_DETAIL,                 "HFDL burst decoding - details with raw data dumps" },
-	{ "proto",              D_PROTO,                        "Frame payload decoding" },
-	{ "proto_detail",       D_PROTO_DETAIL,                 "Frame payload decoding - details with raw data dumps" },
+	{ "dsp",                D_DSP,                          "DSP and demodulation" },
+	{ "dsp_detail",         D_DSP_DETAIL,                   "DSP and demodulation - details with raw data dumps" },
+	{ "frame",              D_FRAME,                        "HFDL frame decoding" },
+	{ "frame_detail",       D_FRAME_DETAIL,                 "HFDL frame decoding - details with raw data dumps" },
+	{ "proto",              D_PROTO,                        "Higher-level protocols decoding" },
+	{ "proto_detail",       D_PROTO_DETAIL,                 "Higher-level protocols decoding - details with raw data dumps" },
 	{ "stats",              D_STATS,                        "Statistics generation" },
 	{ "cache",              D_CACHE,                        "Operations on caches" },
-	{ "output",             D_OUTPUT,                       "Data output operations" },
+	{ "output",             D_OUTPUT,                       "Output operations" },
 	{ "misc",               D_MISC,                         "Messages not falling into other categories" },
 	{ 0,                    0,                              0 }
 };
@@ -612,7 +612,7 @@ int32_t main(int32_t argc, char **argv) {
 	int32_t sample_rate_post_fft = roundf((float)input_cfg->sample_rate / (float)fft_decimation_rate);
 #endif
 	float fftfilt_transition_bw = compute_filter_relative_transition_bw(input_cfg->sample_rate, HFDL_CHANNEL_TRANSITION_BW_HZ);
-	debug_print(D_DEMOD, "fft_decimation_rate: %d sample_rate_post_fft: %d transition_bw: %.f\n",
+	debug_print(D_DSP, "fft_decimation_rate: %d sample_rate_post_fft: %d transition_bw: %.f\n",
 			fft_decimation_rate, sample_rate_post_fft, fftfilt_transition_bw);
 
 	struct block *fft = fft_create(fft_decimation_rate, fftfilt_transition_bw);

@@ -333,7 +333,7 @@ static deinterleaver deinterleaver_create(int32_t M1) {
 		d->table[i] = XCALLOC(d->column_cnt, sizeof(uint8_t));
 	}
 	d->push_column_shift = hfdl_frame_params[M1].deinterleaver_push_column_shift;
-	debug_print(D_BURST, "M1: %d column_cnt: %d total_size: %d column_shift: %d\n",
+	debug_print(D_FRAME, "M1: %d column_cnt: %d total_size: %d column_shift: %d\n",
 			M1, d->column_cnt, d->column_cnt * DEINTERLEAVER_ROW_CNT, d->push_column_shift);
 	return d;
 }
@@ -349,7 +349,7 @@ static void deinterleaver_destroy(deinterleaver d) {
 }
 
 static void deinterleaver_push(deinterleaver d, uint8_t val) {
-	debug_print(D_BURST_DETAIL, "push:%d:%d:%hhu\n", d->row, d->col, val);
+	debug_print(D_FRAME_DETAIL, "push:%d:%d:%hhu\n", d->row, d->col, val);
 	d->table[d->row][d->col] = val;
 	d->row++;
 	if(d->row == DEINTERLEAVER_ROW_CNT) {
@@ -364,7 +364,7 @@ static void deinterleaver_push(deinterleaver d, uint8_t val) {
 
 static uint8_t deinterleaver_pop(deinterleaver d) {
 	uint8_t ret = d->table[d->row][d->col];
-	debug_print(D_BURST_DETAIL, "pop:%d:%d:%hhu\n", d->row, d->col, ret);
+	debug_print(D_FRAME_DETAIL, "pop:%d:%d:%hhu\n", d->row, d->col, ret);
 	d->row = (d->row + DEINTERLEAVER_POP_ROW_SHIFT) % DEINTERLEAVER_ROW_CNT;
 	if(d->row == 0) {
 		d->col++;
@@ -437,7 +437,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 
 	c->chan_freq = frequency;
 	float freq_shift = (float)(centerfreq - (frequency + HFDL_SSB_CARRIER_OFFSET_HZ)) / (float)sample_rate;
-	debug_print(D_DEMOD, "create: centerfreq=%d frequency=%d freq_shift=%f\n",
+	debug_print(D_DSP, "create: centerfreq=%d frequency=%d freq_shift=%f\n",
 			centerfreq, frequency, freq_shift);
 
 	c->channelizer = fft_channelizer_create(pre_decimation_rate, transition_bw, freq_shift);
@@ -468,7 +468,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 		c->deinterleaver[i] = deinterleaver_create(i);
 		struct hfdl_params const p = hfdl_frame_params[i];
 		int32_t user_data_bits_cnt = p.data_segment_cnt * DATA_FRAME_LEN * p.scheme / p.code_rate;
-		debug_print(D_DEMOD, "user_data_bits_cnt[%d]: %d\n", i, user_data_bits_cnt);
+		debug_print(D_DSP, "user_data_bits_cnt[%d]: %d\n", i, user_data_bits_cnt);
 		c->viterbi_ctx[i] = create_viterbi27(user_data_bits_cnt);
 	}
 
@@ -531,7 +531,7 @@ void hfdl_print_summary(void) {
  **********************************/
 
 #define chan_debug(fmt, ...) { \
-	debug_print(D_DEMOD, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
+	debug_print(D_DSP, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
 }
 
 #ifdef DATADUMPS
@@ -638,7 +638,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 		msresamp_crcf_execute(c->resampler, channelizer_output, c->channelizer->shift_status.output_size,
 				resampled, &resampled_cnt);
 		if(resampled_cnt < 1) {
-			debug_print(D_DEMOD, "ERROR: resampled_cnt is 0\n");
+			debug_print(D_DSP, "ERROR: resampled_cnt is 0\n");
 			continue;
 		}
 		for(size_t k = 0; k < resampled_cnt; k++, c->sample_cnt++) {
@@ -684,7 +684,6 @@ static void *hfdl_decoder_thread(void *ctx) {
 				// fr_state == TRAIN && eq_train_seq_cnt == 1  -> Costas is now in DATA_1 (use current_mod_arity)
 				// fr_state == other -> Costas is now in A1_SEARCH, A2_SEARCH or M1_SEARCH or TRAIN (use BPSK)
 				if((c->fr_state == FRAMER_EQ_TRAIN && c->eq_train_seq_cnt == 1) || c->fr_state == FRAMER_DATA_1) {
-					//debug_print(D_DEMOD, "costas adjust: M=%d\n", c->data_mod_arity);
 					modem_demodulate(c->m[c->data_mod_arity], symbols[i], &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->data_mod_arity]));
 				} else {
@@ -972,7 +971,7 @@ static void decode_user_data(struct hfdl_channel *c) {
 			viterbi_input[i] = deinterleaver_pop(c->deinterleaver[M1]);
 		}
 	}
-	debug_print_buf_hex(D_BURST_DETAIL, viterbi_input, viterbi_input_len, "viterbi_input:\n");
+	debug_print_buf_hex(D_FRAME_DETAIL, viterbi_input, viterbi_input_len, "viterbi_input:\n");
 
 	void *v = c->viterbi_ctx[M1];
 	uint32_t viterbi_output_len = viterbi_input_len / CONV_CODE_RATE;
@@ -981,13 +980,13 @@ static void decode_user_data(struct hfdl_channel *c) {
 	init_viterbi27(v, 0);
 	update_viterbi27_blk(v, viterbi_input, viterbi_output_len);
 	chainback_viterbi27(v, viterbi_output, viterbi_output_len, 0);
-	debug_print(D_BURST, "code_rate: 1/%d num_encoded_bits: %u viterbi_input_len: %u viterbi_output_len: %u, viterbi_output_len_octets: %u\n",
+	debug_print(D_FRAME, "code_rate: 1/%d num_encoded_bits: %u viterbi_input_len: %u viterbi_output_len: %u, viterbi_output_len_octets: %u\n",
 			hfdl_frame_params[M1].code_rate, num_encoded_bits, viterbi_input_len, viterbi_output_len, viterbi_output_len_octets);
-	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output:\n");
+	debug_print_buf_hex(D_FRAME_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output:\n");
 	for(uint32_t i = 0; i < viterbi_output_len_octets; i++) {
 		viterbi_output[i] = REVERSE_BYTE(viterbi_output[i]);
 	}
-	debug_print_buf_hex(D_BURST_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output (reversed):\n");
+	debug_print_buf_hex(D_FRAME_DETAIL, viterbi_output, viterbi_output_len_octets, "viterbi_output (reversed):\n");
 	dispatch_pdu(c, viterbi_output, viterbi_output_len_octets);
 }
 
