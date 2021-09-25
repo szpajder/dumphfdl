@@ -221,8 +221,9 @@ void *soapysdr_input_thread(void *ctx) {
 	float complex *outbuf = XCALLOC(input->block.producer.max_tu, sizeof(float complex));
 	int32_t ret;
 	if((ret = SoapySDRDevice_activateStream(soapysdr_input->sdr, soapysdr_input->stream, 0, 0, 0)) != 0) {
-		fprintf(stderr, "Failed to activate stream for SoapySDR device '%s': %s (ret=%d)\n",
-			input->config->device_string, SoapySDRDevice_lastError(), ret);
+		fprintf(stderr, "Failed to activate stream for SoapySDR device '%s': %s\n",
+			input->config->device_string, SoapySDR_errToStr(ret));
+		do_exit = 1;
 		goto shutdown;
 	}
 	usleep(100000);
