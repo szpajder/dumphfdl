@@ -372,11 +372,6 @@ static uint8_t deinterleaver_pop(deinterleaver d) {
 	return ret;
 }
 
-static uint32_t deinterleaver_table_size(deinterleaver d) {
-	ASSERT(d);
-	return d->column_cnt * DEINTERLEAVER_ROW_CNT;
-}
-
 static void deinterleaver_reset(deinterleaver d) {
 	d->row = d->col = 0;
 }
@@ -932,6 +927,7 @@ static void framer_reset(struct hfdl_channel *c) {
 }
 
 static void decode_user_data(struct hfdl_channel *c) {
+#define deinterleaver_table_size(d) (uint32_t)((d)->column_cnt * DEINTERLEAVER_ROW_CNT)
 	static float const phase_flip[2] = { [0] = 1.0f, [1] = -1.0f };
 	int32_t M1 = c->M1;
 	uint32_t num_symbols = hfdl_frame_params[M1].data_segment_cnt * DATA_FRAME_LEN;

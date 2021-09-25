@@ -78,10 +78,12 @@ void ac_cache_entry_create(ac_cache *cache, int32_t freq,
 	// leave a stray inverse entry.
 	struct ac_cache_entry *entry = ac_cache_entry_lookup(cache, freq, id);
 	if(entry != NULL) {
-		uint32_t icao_address = entry->icao_address;
-		if(ac_cache_entry_perform_delete(cache, freq, entry->icao_address, false)) {
+		// Get a copy of the address, so that it's still accessible
+		// to debug_print() after ac_cache_entry_perform_delete() destroys the entry.
+		uint32_t icao_address_copy = entry->icao_address;
+		if(ac_cache_entry_perform_delete(cache, freq, icao_address_copy, false)) {
 			debug_print(D_CACHE, "%hhu%d: Existing entry deleted (was for %06X)\n",
-					id, freq, icao_address);
+					id, freq, icao_address_copy);
 		}
 	}
 	// Check if there is an entry for this icao_address in the cache.

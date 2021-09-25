@@ -557,7 +557,9 @@ int32_t main(int32_t argc, char **argv) {
 
 	int32_t fft_decimation_rate = compute_fft_decimation_rate(input_cfg->sample_rate, HFDL_SYMBOL_RATE * SPS);
 	ASSERT(fft_decimation_rate > 0);
+#ifdef DEBUG
 	int32_t sample_rate_post_fft = roundf((float)input_cfg->sample_rate / (float)fft_decimation_rate);
+#endif
 	float fftfilt_transition_bw = compute_filter_relative_transition_bw(input_cfg->sample_rate, HFDL_CHANNEL_TRANSITION_BW_HZ);
 	debug_print(D_DEMOD, "fft_decimation_rate: %d sample_rate_post_fft: %d transition_bw: %.f\n",
 			fft_decimation_rate, sample_rate_post_fft, fftfilt_transition_bw);

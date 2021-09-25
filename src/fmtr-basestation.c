@@ -6,7 +6,6 @@
 #include "position.h"                   // position_info_*
 #include "util.h"                       // ASSERT, XCALLOC, XFREE, struct octet_string
 
-// FIXME: make this configurable
 #define POSITION_MAX_AGE 300            // seconds
 
 static bool fmtr_basestation_supports_data_type(fmtr_input_type_t type) {
@@ -18,14 +17,13 @@ static char *format_timestamp(struct tm *tm) {
 
 	size_t bufsize = 30;
 	char *tbuf = XCALLOC(bufsize, sizeof(char));
-	size_t len = strftime(tbuf, bufsize, "%Y/%m/%d,%T.000", tm);
-	ASSERT(len != 0);
+	strftime(tbuf, bufsize, "%Y/%m/%d,%T.000", tm);
 	return tbuf;
 }
 
 static struct octet_string *fmtr_basestation_format_decoded_msg(struct metadata *metadata,
 		la_proto_node *root) {
-	ASSERT(metadata != NULL);
+	UNUSED(metadata);
 	ASSERT(root != NULL);
 
 	struct position_info *pos_info = position_info_extract(root);

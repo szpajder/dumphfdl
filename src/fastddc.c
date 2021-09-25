@@ -81,6 +81,10 @@ int32_t fastddc_init(fastddc_t* ddc, float transition_bw, int32_t decimation, fl
 
 void fastddc_print(fastddc_t* ddc, char* source)
 {
+#ifndef DEBUG
+	UNUSED(ddc);
+	UNUSED(source);
+#endif
 	debug_print(D_DEMOD,
 		"%s: (fft_size = %d) = (taps_length = %d) + (input_size = %d) - 1\n"
 		"  overlap     ::  (overlap_length = %d) = taps_length - 1, taps_min_length = %d\n"

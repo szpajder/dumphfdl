@@ -163,24 +163,6 @@ static void out_file_produce_text(out_file_ctx_t *self, struct metadata *metadat
 	fflush(self->fh);
 }
 
-static void out_file_produce_binary(out_file_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
-	ASSERT(msg != NULL);
-	ASSERT(self->fh != NULL);
-	UNUSED(metadata);
-
-    size_t frame_len = msg->len + OUT_BINARY_FRAME_LEN_OCTETS;
-    if (frame_len > OUT_BINARY_FRAME_LEN_MAX) {
-        fprintf(stderr, "output_file: encoded payload too large: %zu > %d\n",
-                frame_len, OUT_BINARY_FRAME_LEN_MAX);
-        return;
-    }
-    uint16_t frame_len_be = htons((uint16_t)frame_len);
-    debug_print(D_OUTPUT, "len: %zu frame_len_be: 0x%04x\n", frame_len, frame_len_be);
-    fwrite(&frame_len_be, OUT_BINARY_FRAME_LEN_OCTETS, 1, self->fh);
-    fwrite(msg->buf, sizeof(uint8_t), msg->len, self->fh);
-    fflush(self->fh);
-}
-
 static int32_t out_file_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_file_ctx_t *self = selfptr;
