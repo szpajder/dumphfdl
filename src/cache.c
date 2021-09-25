@@ -19,8 +19,8 @@ struct cache {
 	la_vstring *statsd_metric_name__entry_count;
 	char *name;
 	time_t last_expiration_time;
-	uint32_t ttl;
-	uint32_t expiration_interval;
+	time_t ttl;
+	time_t expiration_interval;
 	uint32_t num_entries;
 };
 
@@ -51,7 +51,7 @@ static void cache_entry_destroy(void *entry);
  ******************************/
 
 cache *cache_create(char const *cache_name, struct cache_vtable const *vtable,
-		uint32_t ttl, uint32_t expiration_interval) {
+		time_t ttl, time_t expiration_interval) {
 	ASSERT(vtable);
 
 	NEW(struct cache, cache);
