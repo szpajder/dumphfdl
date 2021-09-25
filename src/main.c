@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>             // atoi, atof
+#include <stdlib.h>             // atoi, strtof
 #define _GNU_SOURCE             // getopt_long
 #include <getopt.h>
 #include <signal.h>             // sigaction, SIG*
@@ -166,7 +166,7 @@ static bool parse_double(char const *str, double *result) {
 	ASSERT(result != NULL);
 	char *endptr = NULL;
 	double val = strtof(str, &endptr);
-	if(endptr == str) {
+	if(endptr == str || endptr[0] != '\0') {
 		fprintf(stderr, "Parameter error: '%s': not a valid floating-point number\n", str);
 		return false;
 	} else if(errno == ERANGE) {
