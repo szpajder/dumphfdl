@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdio.h>              // fprintf()
+#include <math.h>               // isnan()
 #include <stdint.h>
 #include <stdlib.h>             // atof()
 #include <string.h>             // strcmp()
@@ -8,7 +9,6 @@
 #include <SoapySDR/Types.h>     // SoapySDRKwargs_*
 #include <SoapySDR/Device.h>    // SoapySDRStream, SoapySDRDevice_*
 #include <SoapySDR/Formats.h>   // SoapySDR_formatToSize()
-#include <liquid/liquid.h>      // cbuffercf_create
 #include "globals.h"            // do_exit
 #include "block.h"              // block_*
 #include "input-common.h"       // input, sample_format, input_vtable
@@ -102,9 +102,11 @@ int32_t soapysdr_input_init(struct input *input) {
 		fprintf(stderr, "%s: setFrequency failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 		return -1;
 	}
-	if(SoapySDRDevice_setFrequencyCorrection(sdr, SOAPY_SDR_RX, 0, cfg->correction) != 0) {
-		fprintf(stderr, "%s: setFrequencyCorrection failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
-		return -1;
+	if(!isnan(cfg->correction)) {
+		if(SoapySDRDevice_setFrequencyCorrection(sdr, SOAPY_SDR_RX, 0, cfg->correction) != 0) {
+			fprintf(stderr, "%s: setFrequencyCorrection failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
+			return -1;
+		}
 	}
 	if(SoapySDRDevice_hasDCOffsetMode(sdr, SOAPY_SDR_RX, 0)) {
 		if(SoapySDRDevice_setDCOffsetMode(sdr, SOAPY_SDR_RX, 0, true) != 0) {
@@ -114,6 +116,7 @@ int32_t soapysdr_input_init(struct input *input) {
 	}
 
 	// If both --gain and --soapy-gain are present, the latter takes precedence.
+	// If neither is present, auto gain is enabled.
 	if(cfg->gain_elements != NULL) {
 		SoapySDRKwargs gains = SoapySDRKwargs_fromString(cfg->gain_elements);
 		if(gains.size < 1) {
@@ -129,54 +132,48 @@ int32_t soapysdr_input_init(struct input *input) {
 
 		}
 		SoapySDRKwargs_clear(&gains);
-	} else {
-		if(cfg->gain == AUTO_GAIN) {
-			if(SoapySDRDevice_hasGainMode(sdr, SOAPY_SDR_RX, 0) == false) {
-				fprintf(stderr, "%s: device does not support auto gain. "
-						"Please specify gain manually.\n", cfg->device_string);
-				return -1;
-			}
-			if(SoapySDRDevice_setGainMode(sdr, SOAPY_SDR_RX, 0, true) != 0) {
-				fprintf(stderr, "%s: could not enable auto gain: %s\n", cfg->device_string, SoapySDRDevice_lastError());
-				return -1;
-			}
-			fprintf(stderr, "%s: auto gain enabled\n", cfg->device_string);
-		} else {
-			if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, 0, cfg->gain) != 0) {
-				fprintf(stderr, "%s: could not set gain: %s\n", cfg->device_string, SoapySDRDevice_lastError());
-				return -1;
-			}
-			fprintf(stderr, "%s: gain set to %.2f dB\n", cfg->device_string, cfg->gain);
-		}
-	}
-// TODO: re-enable this when device-agnostic configuration framework is implemented.
-/*
-	if(antenna != NULL) {
-		if(SoapySDRDevice_setAntenna(sdr, SOAPY_SDR_RX, 0, antenna) != 0) {
-			fprintf(stderr, "Could not select antenna %s: %s\n", antenna, SoapySDRDevice_lastError());
+	} else if(!isnan(cfg->gain)) {
+		if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, 0, cfg->gain) != 0) {
+			fprintf(stderr, "%s: could not set gain: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 			return -1;
 		}
-		XFREE(antenna);
+		fprintf(stderr, "%s: gain set to %.2f dB\n", cfg->device_string, cfg->gain);
+	} else {
+		if(SoapySDRDevice_hasGainMode(sdr, SOAPY_SDR_RX, 0) == false) {
+			fprintf(stderr, "%s: device does not support auto gain. "
+					"Please specify gain manually.\n", cfg->device_string);
+			return -1;
+		}
+		if(SoapySDRDevice_setGainMode(sdr, SOAPY_SDR_RX, 0, true) != 0) {
+			fprintf(stderr, "%s: could not enable auto gain: %s\n", cfg->device_string, SoapySDRDevice_lastError());
+			return -1;
+		}
+		fprintf(stderr, "%s: auto gain enabled\n", cfg->device_string);
+	}
+	if(cfg->antenna != NULL) {
+		if(SoapySDRDevice_setAntenna(sdr, SOAPY_SDR_RX, 0, cfg->antenna) != 0) {
+			fprintf(stderr, "could not select antenna %s: %s\n", cfg->antenna, SoapySDRDevice_lastError());
+			return -1;
+		}
 	}
 	fprintf(stderr, "Antenna: %s\n", SoapySDRDevice_getAntenna(sdr, SOAPY_SDR_RX, 0));
 
-	if(settings != NULL) {
-		SoapySDRKwargs settings_param = SoapySDRKwargs_fromString(settings);
+	if(cfg->device_settings != NULL) {
+		SoapySDRKwargs settings_param = SoapySDRKwargs_fromString(cfg->device_settings);
 		if(settings_param.size < 1) {
-			fprintf(stderr, "Unable to parse settings string, must be a sequence of 'name1=value1,name2=value2,...'.\n");
+			fprintf(stderr, "unable to parse --device-settings argument, "
+					"must be a sequence of 'name1=value1,name2=value2,...'.\n");
 			return -1;
 		}
 		for(size_t i = 0; i < settings_param.size; i++) {
 			SoapySDRDevice_writeSetting(sdr, settings_param.keys[i], settings_param.vals[i]);
-			//debug_print(D_SDR, "Set param %s to %s\n", settings_param.keys[i], settings_param.vals[i]);
 			char *setting_value = SoapySDRDevice_readSetting(sdr, settings_param.keys[i]);
-			fprintf(stderr, "Setting %s is %s => %s\n", settings_param.keys[i], setting_value,
+			fprintf(stderr, "%s: setting %s to %s %s\n", cfg->device_string, settings_param.keys[i],
+					setting_value,
 					(strcmp(settings_param.vals[i], setting_value) == 0) ? "done" : "failed");
 		}
 		SoapySDRKwargs_clear(&settings_param);
-		XFREE(settings);
 	}
-*/
 	struct sample_format_search_result chosen = soapysdr_choose_sample_format(sdr, cfg->device_string);
 	if(chosen.sfmt == SFMT_UNDEF) {
 		fprintf(stderr, "%s: Could not find a suitable sample format; unable to use this device\n",
@@ -186,8 +183,8 @@ int32_t soapysdr_input_init(struct input *input) {
 	cfg->sfmt = chosen.sfmt;
 	input->full_scale = chosen.full_scale;
 	input->bytes_per_sample = chosen.sample_size;
-	debug_print(D_SDR, "sfmt: %d soapy_sfmt: %s full_scale: %.3f sample_size: %d\n",
-			cfg->sfmt, chosen.soapy_sfmt, input->full_scale, input->bytes_per_sample);
+	debug_print(D_SDR, "%s: sfmt: %d soapy_sfmt: %s full_scale: %.3f sample_size: %d\n",
+			cfg->device_string, cfg->sfmt, chosen.soapy_sfmt, input->full_scale, input->bytes_per_sample);
 
 	SoapySDRStream *stream = NULL;
 #if SOAPY_SDR_API_VERSION < 0x00080000

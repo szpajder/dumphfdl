@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>             // atoi
+#include <stdlib.h>             // atoi, atof
 #define _GNU_SOURCE             // getopt_long
 #include <getopt.h>
 #include <signal.h>             // sigaction, SIG*
@@ -224,13 +224,13 @@ static void usage() {
 #ifdef WITH_SOAPYSDR
 	fprintf(stderr, "\nsoapysdr_options:\n");
 	describe_option("--soapysdr <device_string>", "Use SoapySDR compatible device identified with the given string", 1);
-	//describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
+	describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
 	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
 	describe_option("--centerfreq <center_frequency>", "Center frequency of the receiver, in kHz (default: auto)", 1);
 	describe_option("--gain <gain>", "Set end-to-end gain (decibels)", 1);
 	describe_option("--gain-elements <gain1=val1,gain2=val2,...>", "Set gain elements (default: none)", 1);
-	//describe_option("--correction <correction>", "Set freq correction (ppm)", 1);
-	//describe_option("--soapy-antenna <antenna>", "Set antenna port selection (default: RX)", 1);
+	describe_option("--freq-correction <correction>", "Set freq correction (ppm)", 1);
+	describe_option("--antenna <antenna>", "Set antenna port selection (default: RX)", 1);
 #endif
 	fprintf(stderr, "\nfile_options:\n");
 	describe_option("--iq-file <input_file>", "Read I/Q samples from file", 1);
@@ -245,7 +245,7 @@ static void usage() {
 	describe_option("--output <output_specifier>", "Output specification (default: " DEFAULT_OUTPUT ")", 1);
 	describe_option("", "(See \"--output help\" for details)", 1);
 	describe_option("--output-queue-hwm <integer>", "High water mark value for output queues (0 = no limit)", 1);
-	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file or --raw-frames-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
+	fprintf(stderr, "%*s(default: %d messages, not applicable when using --iq-file)\n", USAGE_OPT_NAME_COLWIDTH, "", OUTPUT_QUEUE_HWM_DEFAULT);
 	describe_option("--output-mpdus", "Include media access control protocol data units in the output (default: false)", 1);
 	describe_option("--output-corrupted-pdus", "Include corrupted / unparseable PDUs in the output (default: false)", 1);
 #ifdef WITH_SQLITE
@@ -289,6 +289,9 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_CENTERFREQ 22
 #define OPT_GAIN 23
 #define OPT_GAIN_ELEMENTS 24
+#define OPT_FREQ_CORRECTION 25
+#define OPT_ANTENNA 26
+#define OPT_DEVICE_SETTINGS 27
 
 #define OPT_OUTPUT 40
 #define OPT_OUTPUT_QUEUE_HWM 41
@@ -329,6 +332,9 @@ int32_t main(int32_t argc, char **argv) {
 		{ "centerfreq",         required_argument,  NULL,   OPT_CENTERFREQ },
 		{ "gain",               required_argument,  NULL,   OPT_GAIN },
 		{ "gain-elements",      required_argument,  NULL,   OPT_GAIN_ELEMENTS },
+		{ "freq-correction",    required_argument,  NULL,   OPT_FREQ_CORRECTION },
+		{ "antenna",            required_argument,  NULL,   OPT_ANTENNA },
+		{ "device-settings",    required_argument,  NULL,   OPT_DEVICE_SETTINGS },
 		{ "output",             required_argument,  NULL,   OPT_OUTPUT },
 		{ "output-queue-hwm",   required_argument,  NULL,   OPT_OUTPUT_QUEUE_HWM },
 		{ "utc",                no_argument,        NULL,   OPT_UTC },
@@ -373,6 +379,7 @@ int32_t main(int32_t argc, char **argv) {
 	while((c = getopt_long(argc, argv, "", opts, NULL)) != -1) {
 		switch(c) {
 			case OPT_IQ_FILE:
+				Config.output_queue_hwm = OUTPUT_QUEUE_HWM_NONE;
 				input_cfg->device_string = optarg;
 				input_cfg->type = INPUT_TYPE_FILE;
 				break;
@@ -402,10 +409,19 @@ int32_t main(int32_t argc, char **argv) {
 				}
 				break;
 			case OPT_GAIN:
-				// TODO
+				input_cfg->gain = atof(optarg);
 				break;
 			case OPT_GAIN_ELEMENTS:
 				input_cfg->gain_elements = optarg;
+				break;
+			case OPT_FREQ_CORRECTION:
+				input_cfg->correction = atof(optarg);
+				break;
+			case OPT_ANTENNA:
+				input_cfg->antenna = optarg;
+				break;
+			case OPT_DEVICE_SETTINGS:
+				input_cfg->device_settings = optarg;
 				break;
 			case OPT_OUTPUT:
 				outputs = output_add(outputs, optarg);

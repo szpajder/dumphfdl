@@ -4,8 +4,6 @@
 #include <stddef.h>         // size_t
 #include "block.h"          // struct block, struct producer
 
-#define AUTO_GAIN -100
-
 typedef enum {
 	INPUT_TYPE_UNDEF,
 	INPUT_TYPE_SOAPYSDR,
@@ -24,10 +22,12 @@ typedef enum {
 struct input_cfg {
 	char *device_string;
 	char *gain_elements;
-	float gain;
+	char *antenna;
+	char *device_settings;
+	double gain;
+	double correction;
 	int32_t sample_rate;
 	int32_t centerfreq;
-	int32_t correction;
 	input_type type;
 	sample_format sfmt;
 };

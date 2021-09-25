@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
 #include <stdio.h>              // fprintf
+#include <math.h>               // NAN
 #include "util.h"               // ASSERT, XCALLOC, NEW, container_of
 #include "input-common.h"
 #include "input-helpers.h"      // get_sample_converter
@@ -26,7 +27,8 @@ struct input_cfg *input_cfg_create() {
 	cfg->centerfreq= -1;
 	cfg->sample_rate = -1;
 	cfg->sfmt = SFMT_UNDEF;
-	cfg->gain = AUTO_GAIN;
+	cfg->gain = NAN;
+	cfg->correction = NAN;
 	return cfg;
 }
 
