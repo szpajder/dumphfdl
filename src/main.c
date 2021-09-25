@@ -161,6 +161,21 @@ static uint32_t parse_msg_filterspec(msg_filterspec_t const *filters, void (*hel
 }
 #endif      // DEBUG
 
+static bool parse_double(char *str, double *result) {
+	ASSERT(result != NULL);
+	char *endptr = NULL;
+	double val = strtof(str, &endptr);
+	if(endptr == str) {
+		fprintf(stderr, "Parameter error: '%s': not a valid floating-point number\n", str);
+		return false;
+	} else if(errno == ERANGE) {
+		fprintf(stderr, "Parameter error: '%s': value too large\n", str);
+		return false;
+	}
+	*result = val;
+	return true;
+}
+
 static bool parse_frequency(char const *freq_str, int32_t *result) {
 	ASSERT(result);
 	char *endptr = NULL;
@@ -409,13 +424,17 @@ int32_t main(int32_t argc, char **argv) {
 				}
 				break;
 			case OPT_GAIN:
-				input_cfg->gain = atof(optarg);
+				if(parse_double(optarg, &input_cfg->gain) == false) {
+					return 1;
+				}
 				break;
 			case OPT_GAIN_ELEMENTS:
 				input_cfg->gain_elements = optarg;
 				break;
 			case OPT_FREQ_CORRECTION:
-				input_cfg->correction = atof(optarg);
+				if(parse_double(optarg, &input_cfg->correction) == false) {
+					return 1;
+				}
 				break;
 			case OPT_ANTENNA:
 				input_cfg->antenna = optarg;

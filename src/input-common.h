@@ -19,6 +19,8 @@ typedef enum {
 	SFMT_MAX
 } sample_format;
 
+#define AUTO_GAIN -100
+
 struct input_cfg {
 	char *device_string;
 	char *gain_elements;

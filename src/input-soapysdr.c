@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdio.h>              // fprintf()
-#include <math.h>               // isnan()
 #include <stdint.h>
 #include <stdlib.h>             // atof()
 #include <string.h>             // strcmp()
@@ -57,7 +56,7 @@ struct sample_format_search_result soapysdr_choose_sample_format(SoapySDRDevice 
 	if((result.sfmt = sample_format_from_string(fmt)) != SFMT_UNDEF &&
 			(result.sample_size = SoapySDR_formatToSize(fmt)) == get_sample_size(result.sfmt) &&
 			(result.full_scale = fullscale) > 0.0) {
-		fprintf(stderr, "%s: Using native sample format %s (full_scale: %.3f)\n", device_string, fmt,
+		fprintf(stderr, "%s: using native sample format %s (full_scale: %.3f)\n", device_string, fmt,
 				result.full_scale);
 		result.soapy_sfmt = fmt;
 		return result;
@@ -75,7 +74,7 @@ struct sample_format_search_result soapysdr_choose_sample_format(SoapySDRDevice 
 			(result.sample_size = SoapySDR_formatToSize(formats[i])) == get_sample_size(result.sfmt)) {
 			result.full_scale = get_sample_full_scale_value(result.sfmt);
 			result.soapy_sfmt = formats[i];
-			fprintf(stderr, "%s: Using non-native sample format %s (assuming full_scale=%.3f)\n",
+			fprintf(stderr, "%s: using non-native sample format %s (assuming full_scale=%.3f)\n",
 				device_string, formats[i], result.full_scale);
 			break;
 		}
@@ -102,12 +101,11 @@ int32_t soapysdr_input_init(struct input *input) {
 		fprintf(stderr, "%s: setFrequency failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 		return -1;
 	}
-	if(!isnan(cfg->correction)) {
-		if(SoapySDRDevice_setFrequencyCorrection(sdr, SOAPY_SDR_RX, 0, cfg->correction) != 0) {
-			fprintf(stderr, "%s: setFrequencyCorrection failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
-			return -1;
-		}
+	if(SoapySDRDevice_setFrequencyCorrection(sdr, SOAPY_SDR_RX, 0, cfg->correction) != 0) {
+		fprintf(stderr, "%s: setFrequencyCorrection failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
+		return -1;
 	}
+	fprintf(stderr, "%s: frequency correction set to %.2f dB\n", cfg->device_string, cfg->correction);
 	if(SoapySDRDevice_hasDCOffsetMode(sdr, SOAPY_SDR_RX, 0)) {
 		if(SoapySDRDevice_setDCOffsetMode(sdr, SOAPY_SDR_RX, 0, true) != 0) {
 			fprintf(stderr, "%s: setDCOffsetMode failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
@@ -126,13 +124,12 @@ int32_t soapysdr_input_init(struct input *input) {
 		}
 		for(size_t i = 0; i < gains.size; i++) {
 			SoapySDRDevice_setGainElement(sdr, SOAPY_SDR_RX, 0, gains.keys[i], atof(gains.vals[i]));
-			debug_print(D_SDR, "Set gain %s to %.2f\n", gains.keys[i], atof(gains.vals[i]));
 			double gain_value = SoapySDRDevice_getGainElement(sdr, SOAPY_SDR_RX, 0, gains.keys[i]);
-			fprintf(stderr, "Gain element %s set to %.2f dB\n", gains.keys[i], gain_value);
+			fprintf(stderr, "%s: gain element %s set to %.2f dB\n", cfg->device_string, gains.keys[i], gain_value);
 
 		}
 		SoapySDRKwargs_clear(&gains);
-	} else if(!isnan(cfg->gain)) {
+	} else if(cfg->gain != AUTO_GAIN) {
 		if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, 0, cfg->gain) != 0) {
 			fprintf(stderr, "%s: could not set gain: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 			return -1;
@@ -156,13 +153,14 @@ int32_t soapysdr_input_init(struct input *input) {
 			return -1;
 		}
 	}
-	fprintf(stderr, "Antenna: %s\n", SoapySDRDevice_getAntenna(sdr, SOAPY_SDR_RX, 0));
+	fprintf(stderr, "%s: using antenna %s\n", cfg->device_string, SoapySDRDevice_getAntenna(sdr, SOAPY_SDR_RX, 0));
 
 	if(cfg->device_settings != NULL) {
 		SoapySDRKwargs settings_param = SoapySDRKwargs_fromString(cfg->device_settings);
 		if(settings_param.size < 1) {
-			fprintf(stderr, "unable to parse --device-settings argument, "
-					"must be a sequence of 'name1=value1,name2=value2,...'.\n");
+			fprintf(stderr, "%s: unable to parse --device-settings argument '%s' "
+					"(must be a sequence of 'name1=value1,name2=value2,...')\n",
+					cfg->device_string, cfg->device_settings);
 			return -1;
 		}
 		for(size_t i = 0; i < settings_param.size; i++) {
@@ -176,7 +174,7 @@ int32_t soapysdr_input_init(struct input *input) {
 	}
 	struct sample_format_search_result chosen = soapysdr_choose_sample_format(sdr, cfg->device_string);
 	if(chosen.sfmt == SFMT_UNDEF) {
-		fprintf(stderr, "%s: Could not find a suitable sample format; unable to use this device\n",
+		fprintf(stderr, "%s: could not find a suitable sample format; unable to use this device\n",
 				cfg->device_string);
 		return -1;
 	}
