@@ -247,26 +247,26 @@ static void usage() {
 	describe_option("--debug <filter_spec>", "Debug message classes to display (default: none) (\"--debug help\" for details)", 1);
 #endif
 	fprintf(stderr, "common options:\n");
-	describe_option("<freq_1> [<freq_2> [...]]", "HFDL channel frequencies, in kHz", 1);
+	describe_option("<freq_1> [<freq_2> [...]]", "HFDL channel frequencies, in kHz, as floating point numbers", 1);
 #ifdef WITH_SOAPYSDR
 	fprintf(stderr, "\nsoapysdr_options:\n");
-	describe_option("--soapysdr <device_string>", "Use SoapySDR compatible device identified with the given string", 1);
+	describe_option("--soapysdr <string>", "Use SoapySDR compatible device identified with the given string", 1);
 	describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
-	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
-	describe_option("--centerfreq <center_frequency>", "Center frequency of the receiver, in kHz (default: auto)", 1);
-	describe_option("--gain <gain>", "Set end-to-end gain (decibels)", 1);
-	describe_option("--gain-elements <gain1=val1,gain2=val2,...>", "Set gain elements (default: none)", 1);
-	describe_option("--freq-correction <correction>", "Set freq correction (ppm)", 1);
-	describe_option("--antenna <antenna>", "Set antenna port selection (default: RX)", 1);
+	describe_option("--sample-rate <integer>", "Set sampling rate (samples per second)", 1);
+	describe_option("--centerfreq <float>", "Center frequency of the receiver, in kHz (default: auto)", 1);
+	describe_option("--gain <float>", "Set end-to-end gain (decibels)", 1);
+	describe_option("--gain-elements <elem1=val1,elem2=val2,...>", "Set gain elements (default: none)", 1);
+	describe_option("--freq-correction <float>", "Set freq correction (ppm)", 1);
+	describe_option("--antenna <string>", "Set antenna port selection (default: RX)", 1);
 #endif
 	fprintf(stderr, "\nfile_options:\n");
-	describe_option("--iq-file <input_file>", "Read I/Q samples from file", 1);
-	describe_option("--sample-rate <sample_rate>", "Set sampling rate (samples per second)", 1);
-	describe_option("--centerfreq <center_frequency>", "Center frequency of the input data, in kHz (default: auto)", 1);
+	describe_option("--iq-file <string>", "Read I/Q samples from file", 1);
+	describe_option("--sample-rate <integer>", "Set sampling rate (samples per second)", 1);
+	describe_option("--centerfreq <float>", "Center frequency of the input data, in kHz (default: auto)", 1);
 	describe_option("--sample-format <sample_format>", "Input sample format. Supported formats:", 1);
 	describe_option("CU8", "8-bit unsigned (eg. recorded with rtl_sdr)", 2);
 	describe_option("CS16", "16-bit signed, little-endian (eg. recorded with sdrplay)", 2);
-	describe_option("CF32", "32-bit float, little-endian", 2);
+	describe_option("CF32", "32-bit float, little-endian (eg. Airspy HF+)", 2);
 
 	fprintf(stderr, "\nOutput options:\n");
 	describe_option("--output <output_specifier>", "Output specification (default: " DEFAULT_OUTPUT ")", 1);
@@ -276,10 +276,10 @@ static void usage() {
 	describe_option("--output-mpdus", "Include media access control protocol data units in the output (default: false)", 1);
 	describe_option("--output-corrupted-pdus", "Include corrupted / unparseable PDUs in the output (default: false)", 1);
 #ifdef WITH_SQLITE
-	describe_option("--bs-db <file>", "Read aircraft info from Basestation database <file> (SQLite)", 1);
+	describe_option("--bs-db <string>", "Read aircraft info from the given Basestation database file (SQLite)", 1);
 	describe_option("--ac-details normal|verbose", "Aircraft info detail level (default: normal)", 1);
 #endif
-	describe_option("--station-id <name>", "Receiver site identifier", 1);
+	describe_option("--station-id <string>", "Receiver site identifier", 1);
 	fprintf(stderr, "%*sMaximum length: %u characters\n", USAGE_OPT_NAME_COLWIDTH, "", STATION_ID_LEN_MAX);
 
 	fprintf(stderr, "\nText output formatting options:\n");
@@ -289,8 +289,8 @@ static void usage() {
 	describe_option("--prettify-xml", "Pretty-print XML payloads in ACARS and MIAM CORE PDUs", 1);
 
 	fprintf(stderr, "\nSystem table options:\n");
-	describe_option("--system-table <file>", "Load system table from file", 1);
-	describe_option("--system-table-save <file>", "Save updated system table to the given file", 1);
+	describe_option("--system-table <string>", "Load system table from the given file", 1);
+	describe_option("--system-table-save <string>", "Save updated system table to the given file", 1);
 
 #ifdef WITH_STATSD
 	fprintf(stderr, "\nEtsy StatsD options:\n");
