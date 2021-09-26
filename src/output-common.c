@@ -13,6 +13,7 @@
 
 #include "output-file.h"        // out_DEF_file
 #include "output-tcp.h"         // out_DEF_tcp
+#include "output-zmq.h"         // out_DEF_zmq
 
 static la_dict const fmtr_intype_names[] = {
 	{
@@ -44,6 +45,7 @@ static la_dict const fmtr_descriptors[] = {
 static output_descriptor_t * output_descriptors[] = {
 	&out_DEF_file,
 	&out_DEF_tcp,
+	&out_DEF_zmq,
 	NULL
 };
 
