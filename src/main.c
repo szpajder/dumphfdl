@@ -191,7 +191,6 @@ static bool parse_int32(char const *str, int32_t *result) {
 		return false;
 	}
 	*result = val;
-	printf("result: %d\n", *result);
 	return true;
 }
 
