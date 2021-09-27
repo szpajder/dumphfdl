@@ -48,9 +48,9 @@ struct ac_cache_inv_entry {
 
 static struct cache_vtable ac_cache_fwd_vtable;
 static struct cache_vtable ac_cache_inv_vtable;
-static void ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
+static bool ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address, time_t created_time);
-static void ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
+static bool ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address, time_t created_time);
 static bool ac_cache_entry_perform_delete(ac_cache const *cache, int32_t freq,
 		uint32_t icao_address, bool check_frequency);
@@ -82,7 +82,7 @@ void ac_cache_entry_create(ac_cache *cache, int32_t freq,
 		// to debug_print() after ac_cache_entry_perform_delete() destroys the entry.
 		uint32_t icao_address_copy = entry->icao_address;
 		if(ac_cache_entry_perform_delete(cache, freq, icao_address_copy, false)) {
-			debug_print(D_CACHE, "%hhu%d: Existing entry deleted (was for %06X)\n",
+			debug_print(D_CACHE, "%hhu@%d: Existing entry deleted (was for %06X)\n",
 					id, freq, icao_address_copy);
 		}
 	}
@@ -94,8 +94,15 @@ void ac_cache_entry_create(ac_cache *cache, int32_t freq,
 	}
 
 	time_t now = time(NULL);
-	ac_cache_fwd_entry_create(cache, freq, id, icao_address, now);
-	ac_cache_inv_entry_create(cache, freq, id, icao_address, now);
+	bool result = ac_cache_fwd_entry_create(cache, freq, id, icao_address, now);
+	UNUSED(result);     // silence compiler warning when DEBUG=off
+	if(result) {
+		debug_print(D_CACHE, "%hhu@%d: warning: forward entry overwritten\n", id, freq);
+	}
+	result = ac_cache_inv_entry_create(cache, freq, id, icao_address, now);
+	if(result) {
+		debug_print(D_CACHE, "%06X: warning: inverse entry overwritten\n", icao_address);
+	}
 
 	debug_print(D_CACHE, "new entry: %hhu@%d: %06X\n",
 			id, freq, icao_address);
@@ -194,7 +201,7 @@ static bool ac_cache_inv_key_compare(void const *key1, void const *key2) {
 	return (k1->icao_address == k2->icao_address);
 }
 
-static void ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
+static bool ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address, time_t created_time) {
 	ASSERT(cache != NULL);
 	NEW(struct ac_cache_entry, fwd_entry);
@@ -202,10 +209,10 @@ static void ac_cache_fwd_entry_create(ac_cache const *cache, int32_t freq,
 	NEW(struct ac_cache_fwd_key, fwd_key);
 	fwd_key->freq = freq;
 	fwd_key->id = id;
-	cache_entry_create(cache->fwd_cache, fwd_key, fwd_entry, created_time);
+	return cache_entry_create(cache->fwd_cache, fwd_key, fwd_entry, created_time);
 }
 
-static void ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
+static bool ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
 		uint8_t id, uint32_t icao_address, time_t created_time) {
 	ASSERT(cache != NULL);
 
@@ -214,7 +221,7 @@ static void ac_cache_inv_entry_create(ac_cache const *cache, int32_t freq,
 	inv_entry->freq = freq;
 	NEW(struct ac_cache_inv_key, inv_key);
 	inv_key->icao_address = icao_address;
-	cache_entry_create(cache->inv_cache, inv_key, inv_entry, created_time);
+	return cache_entry_create(cache->inv_cache, inv_key, inv_entry, created_time);
 }
 
 static bool ac_cache_entry_perform_delete(ac_cache const *cache, int32_t freq,

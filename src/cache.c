@@ -73,7 +73,7 @@ cache *cache_create(char const *cache_name, struct cache_vtable const *vtable,
 	return cache;
 }
 
-void cache_entry_create(cache *c, void *key, void *value, time_t created_time) {
+bool cache_entry_create(cache *c, void *key, void *value, time_t created_time) {
 	ASSERT(c);
 	ASSERT(key);
 	// NULL 'value' ptr is allowed
@@ -82,8 +82,9 @@ void cache_entry_create(cache *c, void *key, void *value, time_t created_time) {
 	entry->data = value;
 	entry->created_time = created_time;
 	entry->data_destroy = c->vtable->cache_entry_data_destroy;
-	la_hash_insert(c->table, key, entry);
+	bool result = la_hash_insert(c->table, key, entry);
 	CACHE_ENTRY_COUNT_ADD(c, 1);
+	return result;
 }
 
 bool cache_entry_delete(cache *c, void *key) {

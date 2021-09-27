@@ -15,7 +15,7 @@ typedef struct cache cache;
 
 cache *cache_create(char const *cache_name, struct cache_vtable const *vtable,
 		time_t ttl, time_t expiration_interval);
-void cache_entry_create(cache *c, void *key, void *value,
+bool cache_entry_create(cache *c, void *key, void *value,
 		time_t created_time);
 bool cache_entry_delete(cache *c, void *key);
 void *cache_entry_lookup(cache *c, void const *key);
