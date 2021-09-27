@@ -211,7 +211,21 @@ static bool parse_frequency(char const *str, int32_t *result) {
 	return true;
 }
 
-static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t source_rate, int32_t *result) {
+static bool check_frequency_span(int32_t *freqs, int32_t cnt, int32_t centerfreq, int32_t source_rate) {
+	ASSERT(freqs);
+	int32_t half_bandwidth = source_rate / 2;
+	for(int32_t i = 0; i < cnt; i++) {
+		if(abs(centerfreq - freqs[i]) >= half_bandwidth) {
+			fprintf(stderr, "Error: channel frequency %.3f kHz is too far away from the center frequency (%.3f kHz).\n",
+					HZ_TO_KHZ(freqs[i]), HZ_TO_KHZ(centerfreq));
+			fprintf(stderr, "Maximum distance from the center frequency for sampling rate %d sps is %.3f kHz.\n", source_rate, HZ_TO_KHZ(half_bandwidth));
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t *result) {
 	ASSERT(result);
 	ASSERT(cnt > 0);
 	int32_t freq_min, freq_max;
@@ -219,12 +233,6 @@ static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t source_rate,
 	for(int32_t i = 0; i < cnt; i++) {
 		if(freqs[i] < freq_min) freq_min = freqs[i];
 		if(freqs[i] > freq_max) freq_max = freqs[i];
-	}
-	int32_t span = abs(freq_max - freq_min);
-	if(span >= source_rate) {
-		fprintf(stderr, "Error: channel frequencies are too far apart"
-				" (span is larger than receiver bandwidth)\n");
-		return false;
 	}
 	*result = freq_min + (freq_max - freq_min) / 2;
 	return true;
@@ -555,12 +563,15 @@ int32_t main(int32_t argc, char **argv) {
 	}
 
 	if(input_cfg->centerfreq < 0) {
-		if(compute_centerfreq(frequencies, channel_cnt, input_cfg->sample_rate, &input_cfg->centerfreq) == true) {
-			fprintf(stderr, "%s: computed center frequency: %d Hz\n", input_cfg->device_string, input_cfg->centerfreq);
+		if(compute_centerfreq(frequencies, channel_cnt, &input_cfg->centerfreq) == true) {
+			fprintf(stderr, "%s: computed center frequency: %.3f kHz\n", input_cfg->device_string, HZ_TO_KHZ(input_cfg->centerfreq));
 		} else {
 			fprintf(stderr, "%s: failed to compute center frequency\n", input_cfg->device_string);
 			return 2;
 		}
+	}
+	if(check_frequency_span(frequencies, channel_cnt, input_cfg->centerfreq, input_cfg->sample_rate) == false) {
+		return 1;
 	}
 	if(Config.output_queue_hwm < 0) {
 		fprintf(stderr, "Invalid --output-queue-hwm value: must be a non-negative integer\n");

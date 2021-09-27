@@ -88,6 +88,7 @@
 #define container_of(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define EOL(x) la_vstring_append_sprintf((x), "%s", "\n")
+#define HZ_TO_KHZ(f) ((f) / 1000.0)
 
 // Reverse bit order in a byte (http://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits)
 #define REVERSE_BYTE(x) (uint8_t)((((x) * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32)
