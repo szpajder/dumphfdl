@@ -1,0 +1,18 @@
+[Unit]
+Description=HFDL decoder
+Documentation=https://github.com/szpajder/dumphfdl/blob/master/README.md
+Wants=network.target
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/dumphfdl
+# If you don't want to run the program as root, then uncomment
+# the following line and put a desired user name in it.
+# Note that the user must have access to the SDR device.
+#User=pi
+ExecStart=/usr/local/bin/dumphfdl $DUMPVDL2_OPTIONS
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

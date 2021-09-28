@@ -1,0 +1,4 @@
+# This file is used by the dumphfdl systemd unit.
+# - Copy it to /etc/default
+# - Uncomment the following line and set your preferred command line options.
+#DUMPHFDL_OPTIONS="--output-mpdus --system-table /home/pi/hfdl/systable.conf --system-table-save /home/pi/hfdl/systable.conf.new --prettify-xml --output decoded:text:file:path=/home/pi/hfdl/hfdl.log,rotate=daily --soapysdr driver=airspyhf,serial=1111333355557777 --sample-rate 384000 11184 11306 11312 11318 11321 11348 11387"
