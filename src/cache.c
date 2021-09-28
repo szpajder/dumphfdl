@@ -83,7 +83,9 @@ bool cache_entry_create(cache *c, void *key, void *value, time_t created_time) {
 	entry->created_time = created_time;
 	entry->data_destroy = c->vtable->cache_entry_data_destroy;
 	bool result = la_hash_insert(c->table, key, entry);
-	CACHE_ENTRY_COUNT_ADD(c, 1);
+	if(!result) {       // increment entry count only when the entry was added, not replaced
+		CACHE_ENTRY_COUNT_ADD(c, 1);
+	}
 	return result;
 }
 
@@ -92,7 +94,7 @@ bool cache_entry_delete(cache *c, void *key) {
 	ASSERT(key);
 
 	bool result = la_hash_remove(c->table, key);
-	if(result) {
+	if(result) {        // decrement entry count only when we've actually deleted something
 		CACHE_ENTRY_COUNT_ADD(c, -1);
 	}
 	return result;
