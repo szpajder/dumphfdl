@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+#
+# hfdlgrep - a simple script for grepping dumphfdl log files.
+# Prints whole HFDL messages containing (or not containing) given text string.
+#
+# Copyright (c) Tomasz Lemiech <szpajder@gmail.com>
+
+use Getopt::Std;
+
+my %opts;
+
+use constant {
+	DIR_UNKNOWN => 0,
+	DIR_GND2AIR => 1,
+	DIR_AIR2GND => 2,
+	DIR_AIR2AIR => 3,
+	DIR_GND2GND => 4
+};
+
+sub usage {
+	print STDERR "$0 - a simple dumphfdl log file grepper\n\n";
+	print STDERR "Usage: $0 [options] <search_regex> [<file1> ...]\n";
+	print STDERR <<EOF
+
+Options:
+	-d		Search only downlinks
+	-i		Case-insensitive search
+	-u		Search only uplinks
+	-v		Invert search
+EOF
+;
+	exit 1;
+}
+
+sub print_if_matches {
+	my($msg, $dir, $print, $dont_print) = @_;
+	@$msg == 0 and return;
+	$dir == DIR_UNKNOWN and ($opts{u} or $opts{d}) and return;
+	$opts{u} and $dir != DIR_GND2AIR and return;
+	$opts{d} and $dir != DIR_AIR2GND and return;
+	if(($opts{v} && !$dont_print) || (!$opts{v} && $print)) {
+		print join('', @$msg);
+	}
+}
+
+sub grep_filehandle {
+	my($regex, $fh) = @_;
+	my($print, $dont_print) = (0,0);
+	my $dir = DIR_UNKNOWN;
+	my @msg = ();
+	while(<$fh>) {
+		if(/^\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d / && @msg > 0) {
+			print_if_matches(\@msg, $dir, $print, $dont_print);
+			$print = $dont_print = 0; @msg = (); $dir = DIR_UNKNOWN;
+		}
+		if($dir == DIR_UNKNOWN && /^(Up|Down)link .PDU/) {
+			if($1 eq "Down") {
+				$dir = DIR_AIR2GND;
+			} elsif($1 eq "Up") {
+				$dir = DIR_GND2AIR;
+			}
+		}
+		if(!$print && !$dont_print && /$regex/) {
+			if($opts{v}) {
+				$dont_print = 1;
+			} else {
+				$print = 1;
+			}
+		}
+		push @msg, $_;
+	}
+	print_if_matches(\@msg, $dir, $print, $dont_print);
+}
+
+
+getopts('diuv', \%opts) or usage;
+$opts{d} and $opts{u} and die "Options: -d and -u are exclusive\n";
+
+@ARGV < 1 and usage;
+
+my $regex = $opts{i} ? qr/$ARGV[0]/i : qr/$ARGV[0]/;
+shift @ARGV;
+if(@ARGV) {
+	my $fh;
+	for my $fname(@ARGV) {
+		if($fname =~ /\.(gz|bz2|xz|lzma)$/i) {
+			require IO::Uncompress::AnyUncompress;
+			unless($fh = IO::Uncompress::AnyUncompress->new($fname)) {
+				print STDERR "uncompress($fname): failed to initialize descompressor\n";
+				next;
+			}
+		} else {
+			unless(open($fh, "<$fname")) {
+				print STDERR "open($fname): $!\n";
+				next;
+			}
+		}
+		grep_filehandle($regex, $fh);
+		close($fh);
+	}
+} else {
+	grep_filehandle($regex, *STDIN);
+}
