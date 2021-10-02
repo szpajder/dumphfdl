@@ -6,6 +6,7 @@
 #cmakedefine WITH_STATSD
 #cmakedefine WITH_SQLITE
 #cmakedefine WITH_FFTW3F_THREADS
+#cmakedefine WITH_ZMQ
 #cmakedefine DATADUMPS
 #ifdef DATADUMPS
 #define COSTAS_DEBUG
