@@ -105,7 +105,7 @@ int32_t soapysdr_input_init(struct input *input) {
 		fprintf(stderr, "%s: setFrequencyCorrection failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 		return -1;
 	}
-	fprintf(stderr, "%s: frequency correction set to %.2f dB\n", cfg->device_string, cfg->correction);
+	fprintf(stderr, "%s: frequency correction set to %.2f ppm\n", cfg->device_string, cfg->correction);
 	if(SoapySDRDevice_hasDCOffsetMode(sdr, SOAPY_SDR_RX, 0)) {
 		if(SoapySDRDevice_setDCOffsetMode(sdr, SOAPY_SDR_RX, 0, true) != 0) {
 			fprintf(stderr, "%s: setDCOffsetMode failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
