@@ -2,6 +2,8 @@
 
  dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
 
+HFDL (High Frequency Data Link) is a protocol used for radio communications between aircraft and a network of ground stations using high frequency (HF) radio waves. It is used to carry ACARS and AOC messages as well as CPDLC (Controller-Pilot Data Link Communications) and ADS-C (Automatic Dependent Surveillance - Contract). Thanks to the ability of short waves to propagate over long distances, HFDL is particularly useful in remote areas (eg. over oceans or polar regions) where other ground-based communications services are out of range. While many aircraft prefer satellite communications these days, HFDL is still operational and in use.
+
 ## Features
 
 - Decodes multiple channels simultaneously, up to available CPU power and SDR bandwidth (no fixed channel count limit)
@@ -322,6 +324,8 @@ dumphfdl --soapysdr driver=sdrplay --sample-rate 250000 8834 8885 8894 8912 8927
 - Sampling rate is set to 250000 samples per second (this parameter is mandatory).
 - Then comes the list of 10 HFDL channel frequencies that should be monitored - each frequency must be specified in kHz. At least one channel must be specified. There is no upper limit on channel count - except the computing power of your machine, of course. All channels must fit in the bandwidth of the receiver, which is equal to the configured sampling rate.
 
+### Configuring the sampling rate
+
 Sampling rate is important. First of all, it must be actually supported by your radio! `SoapySDRUtil --probe=driver=sdrplay` will tell you that:
 
 ```sh
@@ -536,7 +540,7 @@ Parameters:
 
 - `address` (required) - host name or IP address of the remote host
 
-- `port` (required) - remote UDP port number
+- `port` (required) - remote TCP port number
 
 The primary purpose of the `tcp` output is to feed various plane tracking apps (like VRS) with aircraft position feed in `basestation` format.
 
@@ -837,11 +841,7 @@ For example, Raspberry Pi 3 runs fine with AirspyHF+ set to its maximum sample r
 
 ## Frequently Asked Questions
 
-### What is HFDL?
-
-HFDL (High Frequency Data Link) is a protocol used for radio communications between aircraft and a network of ground stations using high frequency (HF) radio waves. It is used to carry ACARS and AOC messages as well as CPDLC (Controller-Pilot Data Link Communications) and ADS-C (Automatic Dependent Surveillance - Contract). Thanks to the ability of short waves to propagate over long distances, HFDL is particularly useful in remote areas (eg. oceans) where other ground-based communications services are out of range. While many aircraft operators prefer satellite communications for this purpose, HFDL is still in use.
-
-### Is it used in my area?
+### Is HFDL used in my area?
 
 Definitely, as it has a global reach. At any time of day and year you should be able to receive something.
 
