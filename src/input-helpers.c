@@ -82,8 +82,8 @@ void complex_samples_produce(struct circ_buffer *circ_buffer,
 	pthread_mutex_lock(circ_buffer->mutex);
 	size_t cbuf_available = cbuffercf_space_available(circ_buffer->buf);
 	if(cbuf_available < num_samples) {
-		debug_print(D_SDR, "circ_buffer overrun (need %zu, has %zu free space, %zu samples lost)\n",
-				num_samples, cbuf_available, num_samples - cbuf_available);
+		fprintf(stderr, "Sample buffer overrun (%zu/%zu samples lost)\n",
+				num_samples - cbuf_available, num_samples);
 		num_samples = cbuf_available;
 	}
 	cbuffercf_write(circ_buffer->buf, samples, num_samples);
