@@ -770,7 +770,7 @@ dumphfdl --statsd 10.10.10.15:1234 ...
 The syntax is:
 
 ```sh
-dumphfdl --iq-file <file_name> --sample-rate <samples_per_sec> [--sample-format <sample_format>]
+dumphfdl --iq-file <file_name> --sample-rate <samples_per_sec> --sample-format <sample_format>
   [--centerfreq <center_frequency_in_kHz>] hfdl_freq_1 [hfdl_freq_2] [...]
 ```
 

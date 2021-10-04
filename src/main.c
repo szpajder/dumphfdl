@@ -241,12 +241,12 @@ static bool compute_centerfreq(int32_t *freqs, int32_t cnt, int32_t *result) {
 static void usage() {
 	fprintf(stderr, "Usage:\n");
 #ifdef WITH_SOAPYSDR
-	fprintf(stderr, "\nSOAPYSDR compatible receiver:\n\n"
-			"%*sdumphfdl [output_options] --soapysdr <device_string> [soapysdr_options] [<freq_1> [<freq_2> [...]]]\n",
+	fprintf(stderr, "\nSoapySDR-compatible receiver:\n\n"
+			"%*sdumphfdl [output_options] --soapysdr <device_string> [soapysdr_options] <freq_1> [<freq_2> [...]]\n",
 			IND(1), "");
 #endif
 	fprintf(stderr, "\nRead I/Q samples from file:\n\n"
-			"%*sdumphfdl [output_options] --iq-file <input_file> [file_options] [<freq_1> [<freq_2> [...]]]\n",
+			"%*sdumphfdl [output_options] --iq-file <input_iq_file> [iq_file_options] <freq_1> [<freq_2> [...]]\n",
 			IND(1), "");
 	fprintf(stderr, "\nGeneral options:\n");
 	describe_option("--help", "Displays this text", 1);
@@ -267,7 +267,7 @@ static void usage() {
 	describe_option("--freq-correction <float>", "Set freq correction (ppm)", 1);
 	describe_option("--antenna <string>", "Set antenna port selection (default: RX)", 1);
 #endif
-	fprintf(stderr, "\nfile_options:\n");
+	fprintf(stderr, "\niq_file_options:\n");
 	describe_option("--iq-file <string>", "Read I/Q samples from file", 1);
 	describe_option("--sample-rate <integer>", "Set sampling rate (samples per second)", 1);
 	describe_option("--centerfreq <float>", "Center frequency of the input data, in kHz (default: auto)", 1);
