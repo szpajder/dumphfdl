@@ -28,6 +28,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
 - file (with optional daily or hourly file rotation)
 - reliable network messaging via [ZeroMQ](https://zeromq.org/) - client and server mode
 - TCP connection - client mode
+- UDP socket
 
 ## Example
 
@@ -492,6 +493,7 @@ where:
 
   - `file` - output to a file
   - `tcp` - output to a remote server via TCP
+  - `udp` - output to a remote host via UDP network socket
   - `zmq` - output to a ZeroMQ publisher socket
 
 - `<output_parameters>` - specifies options for this output. The syntax is as follows:
@@ -543,6 +545,22 @@ Parameters:
 - `port` (required) - remote TCP port number
 
 The primary purpose of the `tcp` output is to feed various plane tracking apps (like VRS) with aircraft position feed in `basestation` format.
+
+#### `udp`
+
+Sends data to a remote host over network using UDP/IP.
+
+Supported formats: `text`, `basestation`
+
+Parameters:
+
+- `address` (required) - host name or IP address of the remote host
+
+- `port` (required) - remote UDP port number
+
+**Note:** UDP protocol does not guarantee successful message delivery (it works
+on a "fire and forget" principle, no retransmissions, no acknowledgements, etc).
+If you plan to use networked output for real, use `tcp` or `zmq` driver.
 
 #### `zmq`
 

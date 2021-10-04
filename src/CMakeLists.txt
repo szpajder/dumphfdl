@@ -210,6 +210,7 @@ add_library (dumphfdl_base OBJECT
 	output-common.c
 	output-file.c
 	output-tcp.c
+	output-udp.c
 	pdu.c
 	position.c
 	spdu.c
