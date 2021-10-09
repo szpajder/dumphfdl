@@ -30,6 +30,7 @@ struct input_cfg {
 	double correction;
 	int32_t sample_rate;
 	int32_t centerfreq;
+	int32_t freq_offset;
 	input_type type;
 	sample_format sfmt;
 };

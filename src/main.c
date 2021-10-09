@@ -265,6 +265,7 @@ static void usage() {
 	describe_option("--gain <float>", "Set end-to-end gain (decibels)", 1);
 	describe_option("--gain-elements <elem1=val1,elem2=val2,...>", "Set gain elements (default: none)", 1);
 	describe_option("--freq-correction <float>", "Set freq correction (ppm)", 1);
+	describe_option("--freq-offset <float>", "Frequency offset in kHz (to be used with upconverters)", 1);
 	describe_option("--antenna <string>", "Set antenna port selection (default: RX)", 1);
 #endif
 	fprintf(stderr, "\niq_file_options:\n");
@@ -327,6 +328,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_FREQ_CORRECTION 25
 #define OPT_ANTENNA 26
 #define OPT_DEVICE_SETTINGS 27
+#define OPT_FREQ_OFFSET 28
 
 #define OPT_OUTPUT 40
 #define OPT_OUTPUT_QUEUE_HWM 41
@@ -370,6 +372,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "freq-correction",    required_argument,  NULL,   OPT_FREQ_CORRECTION },
 		{ "antenna",            required_argument,  NULL,   OPT_ANTENNA },
 		{ "device-settings",    required_argument,  NULL,   OPT_DEVICE_SETTINGS },
+		{ "freq-offset",        required_argument,  NULL,   OPT_FREQ_OFFSET },
 		{ "output",             required_argument,  NULL,   OPT_OUTPUT },
 		{ "output-queue-hwm",   required_argument,  NULL,   OPT_OUTPUT_QUEUE_HWM },
 		{ "utc",                no_argument,        NULL,   OPT_UTC },
@@ -463,6 +466,11 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_DEVICE_SETTINGS:
 				input_cfg->device_settings = optarg;
+				break;
+			case OPT_FREQ_OFFSET:
+				if(parse_frequency(optarg, &input_cfg->freq_offset) == false) {
+					return 1;
+				}
 				break;
 			case OPT_OUTPUT:
 				outputs = output_add(outputs, optarg);

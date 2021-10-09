@@ -12,7 +12,7 @@
 #include "block.h"              // block_*
 #include "input-common.h"       // input, sample_format, input_vtable
 #include "input-helpers.h"      // get_sample_full_scale_value, get_sample_size
-#include "util.h"               // XCALLOC, XFREE, container_of
+#include "util.h"               // XCALLOC, XFREE, container_of, HZ_TO_KHZ
 
 struct soapysdr_input {
 	struct input input;
@@ -97,10 +97,12 @@ int32_t soapysdr_input_init(struct input *input) {
 		fprintf(stderr, "%s: setSampleRate failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 		return -1;
 	}
-	if(SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_RX, 0, cfg->centerfreq, NULL) != 0) {
+	if(SoapySDRDevice_setFrequency(sdr, SOAPY_SDR_RX, 0, cfg->centerfreq + cfg->freq_offset, NULL) != 0) {
 		fprintf(stderr, "%s: setFrequency failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 		return -1;
 	}
+	fprintf(stderr, "%s: center frequency set to %.3f kHz\n", cfg->device_string,
+			HZ_TO_KHZ(cfg->centerfreq + cfg->freq_offset));
 	if(SoapySDRDevice_setFrequencyCorrection(sdr, SOAPY_SDR_RX, 0, cfg->correction) != 0) {
 		fprintf(stderr, "%s: setFrequencyCorrection failed: %s\n", cfg->device_string, SoapySDRDevice_lastError());
 		return -1;
