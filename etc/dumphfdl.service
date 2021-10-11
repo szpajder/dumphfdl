@@ -11,7 +11,7 @@ EnvironmentFile=/etc/default/dumphfdl
 # the following line and put a desired user name in it.
 # Note that the user must have access to the SDR device.
 #User=pi
-ExecStart=/usr/local/bin/dumphfdl $DUMPVDL2_OPTIONS
+ExecStart=/usr/local/bin/dumphfdl $DUMPHFDL_OPTIONS
 Restart=on-failure
 
 [Install]
