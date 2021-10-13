@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <complex.h>
 #include <math.h>
+#ifdef DEBUG
+#include <pthread.h>                // pthread_mutex_*
+#endif
 #include <string.h>                 // memcpy
 #include <sys/time.h>               // struct timeval
 #include <liquid/liquid.h>
@@ -153,11 +156,24 @@ static float complex T_seq[2][T_LEN] = {
 	[1] = { -1.f, -1.f, -1.f, 1.f, -1.f, -1.f, 1.f, 1.f, -1.f, 1.f, -1.f, 1.f, 1.f, 1.f, 1.f }
 };
 
+#ifdef DEBUG
 static struct {
 	int32_t A1_found, A2_found, M1_found;
 	int32_t train_bits_total, train_bits_bad;
 	float A1_corr_total, A2_corr_total, M1_corr_total;
 } S;
+
+static pthread_mutex_t S_lock = PTHREAD_MUTEX_INITIALIZER;
+
+#define STATS_UPDATE(what) \
+do { \
+	pthread_mutex_lock(&S_lock); \
+	what; \
+	pthread_mutex_unlock(&S_lock); \
+} while(0);
+#else
+#define STATS_UPDATE(what) nop()
+#endif // DEBUG
 
 static uint32_t T = 0x9AF;      // training sequence
 
@@ -517,6 +533,7 @@ void hfdl_channel_destroy(struct block *channel_block) {
 }
 
 void hfdl_print_summary(void) {
+#ifdef DEBUG
 	fprintf(stderr, "A1_found:\t\t%d\nA2_found:\t\t%d\nM1_found:\t\t%d\n",
 			S.A1_found, S.A2_found, S.M1_found);
 	fprintf(stderr, "A1_corr_avg:\t\t%4.3f\n", S.A1_found > 0 ? S.A1_corr_total / (float)S.A1_found : 0);
@@ -524,6 +541,7 @@ void hfdl_print_summary(void) {
 	fprintf(stderr, "M1_corr_avg:\t\t%4.3f\n", S.M1_found > 0 ? S.M1_corr_total / (float)S.M1_found : 0);
 	fprintf(stderr, "train_bits_bad/total:\t%d/%d (%f%%)\n", S.train_bits_bad, S.train_bits_total,
 			(float)S.train_bits_bad / (float)S.train_bits_total * 100.f);
+#endif
 }
 
 /**********************************
@@ -760,8 +778,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 				case FRAMER_A1_SEARCH:
 					corr_A1 = 2.0f * (float)bsequence_correlate(A_bs, c->bits) / (float)A_LEN - 1.0f;
 					if(fabsf(corr_A1) > CORR_THRESHOLD) {
-						S.A1_found++;
-						S.A1_corr_total += fabsf(corr_A1);
+						STATS_UPDATE(S.A1_found++);
+						STATS_UPDATE(S.A1_corr_total += fabsf(corr_A1));
 						c->bitmask = corr_A1 > 0.f ? 0 : ~0;
 						agc_crcf_lock(c->agc);
 						c->symbols_wanted = A_LEN;
@@ -783,8 +801,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 						chan_debug("A2 sequence found at sample %" PRIu64 " (corr=%f retry=%d costas_dphi=%f)\n",
 								c->sample_cnt, corr_A2, c->search_retries, c->loop->dphi);
 						c->freq_err_hz = c->loop->dphi * HFDL_SYMBOL_RATE / (2.0 * M_PI);
-						S.A2_found++;
-						S.A2_corr_total += fabsf(corr_A2);
+						STATS_UPDATE(S.A2_found++);
+						STATS_UPDATE(S.A2_corr_total += fabsf(corr_A2));
 						c->symbols_wanted = M1_LEN;
 						c->search_retries = 0;
 						c->fr_state = FRAMER_M1_SEARCH;
@@ -799,8 +817,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 						chan_debug("M1 match at sample %" PRIu64 ": %d (corr=%f, costas_dphi=%f)\n",
 								c->sample_cnt, M1_match, corr_M1, c->loop->dphi);
 						statsd_increment_per_channel(c->chan_freq, "demod.preamble.M1_found");
-						S.M1_found++;
-						S.M1_corr_total += fabsf(corr_M1);
+						STATS_UPDATE(S.M1_found++);
+						STATS_UPDATE(S.M1_corr_total += fabsf(corr_M1));
 						c->data_segment_cnt = hfdl_frame_params[M1_match].data_segment_cnt;
 						c->data_mod_arity = hfdl_frame_params[M1_match].scheme;
 						c->M1 = M1_match;
@@ -894,8 +912,8 @@ static void compute_train_bit_error_cnt(struct hfdl_channel *c) {
 		T_seq = (T_seq << 1) | bit;
 	}
 	int32_t error_cnt = count_bit_errors(T, T_seq);
-	S.train_bits_total += T_LEN;
-	S.train_bits_bad += error_cnt;
+	STATS_UPDATE(S.train_bits_total += T_LEN);
+	STATS_UPDATE(S.train_bits_bad += error_cnt);
 	c->train_bits_total += T_LEN;
 	c->train_bits_bad += error_cnt;
 }
