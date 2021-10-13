@@ -1,6 +1,7 @@
 include(CheckCCompilerFlag)
 include(CheckIncludeFile)
 include(CheckSymbolExists)
+include(CheckCSourceRuns)
 include(TestBigEndian)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
@@ -37,18 +38,30 @@ if(CC_HAS_FNO_COMMON)
 	add_definitions(-fno-common)
 endif()
 
-#set(CMAKE_REQUIRED_FLAGS_ORIG ${CMAKE_REQUIRED_FLAGS})
-#CHECK_SYMBOL_EXISTS(pthread_barrier_wait pthread.h HAVE_PTHREAD_BARRIERS)
-#if(NOT HAVE_PTHREAD_BARRIERS)
-#	list(APPEND dumphfdl_extra_sources pthread_barrier.c)
-#endif()
-#set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_ORIG})
-
 find_package(PkgConfig REQUIRED)
 
 find_package(LiquidDSP REQUIRED)
-list(APPEND dumphfdl_extra_libs ${LIQUIDDSP_LIBRARIES})
-list(APPEND dumphfdl_include_dirs ${LIQUIDDSP_INCLUDE_DIR})
+set(CMAKE_REQUIRED_INCLUDES_SAVE ${CMAKE_REQUIRED_INCLUDES})
+set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${LIQUIDDSP_INCLUDE_DIR})
+set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${LIQUIDDSP_LIBRARIES})
+set(LIQUID_VERSION_MIN "1.3.0")
+set(LIQUID_VERSION_NUMBER_MIN 1003000)
+check_c_source_runs("
+#include <stdio.h>
+#include <liquid/liquid.h>
+#if LIQUID_VERSION_NUMBER < ${LIQUID_VERSION_NUMBER_MIN}
+#error LiquidDSP library is too old
+#endif
+int main(void) { LIQUID_VALIDATE_LIBVERSION return 0; }" LIQUIDDSP_VERSION_CHECK)
+if(LIQUIDDSP_VERSION_CHECK)
+	list(APPEND dumphfdl_extra_libs ${LIQUIDDSP_LIBRARIES})
+	list(APPEND dumphfdl_include_dirs ${LIQUIDDSP_INCLUDE_DIR})
+else()
+	message(FATAL_ERROR "LiquidDSP library is too old or missing (min. version required: ${LIQUID_VERSION_MIN})")
+endif()
+set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
+set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
 
 set(FFT_LIBRARY "fftw" CACHE STRING "Specify which library shall be used for FFT computation")
 if(FFT_LIBRARY STREQUAL "fftw")
