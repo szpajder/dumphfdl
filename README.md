@@ -32,7 +32,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
 
 ## Example
 
-![dumphfdl screenshot](screenshot.png?raw=true)
+![dumphfdl screenshot](screenshots/screenshot.png?raw=true)
 
 ## Supported protocols and message types
 
@@ -755,7 +755,7 @@ The program does not calculate statistics by itself. Instead, it sends metric va
 
 Here is an example of some dumphfdl metrics being graphed by Grafana:
 
-![Statistics](statistics.png?raw=true)
+![Statistics](screenshots/statistics.png?raw=true)
 
 Metrics are quite handy when tuning your receiving installation or monitoring HF propagation or HFDL channel usage patterns.
 
@@ -929,7 +929,7 @@ First, configure a new push feed in VRS:
 
 - Configure the receiver like this:
 
-![VRS receiver configuration](vrs_config.png?raw=true)
+![VRS receiver configuration](screenshots/vrs_config.png?raw=true)
 
 - You can choose a different receiver name and port number, if you wish. Click OK to save your changes. In the main window you should see the new feed in "Waiting" state on the Feed status list.
 
