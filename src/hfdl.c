@@ -131,24 +131,13 @@ static struct hfdl_params const hfdl_frame_params[M_SHIFT_CNT] = {
 	}
 };
 
-#define HFDL_MF_TAPS_CNT 61
-static float hfdl_matched_filter[HFDL_MF_TAPS_CNT] = { \
-	-0.0082982, -0.0070036, -0.0045802, -0.0013410,
- 	 0.0022887, 0.0058192, 0.0087528, 0.0106423,
- 	 0.0111454, 0.0100705, 0.0074070, 0.0033386,
-	-0.0017635, -0.0073674, -0.0128238, -0.0174242,
-	-0.0204671, -0.0213268, -0.0195177, -0.0147487,
-	-0.0069617, 0.0036496, 0.0166431, 0.0313540,
- 	 0.0469403, 0.0624459, 0.0768746, 0.0892695,
- 	 0.0987898, 0.1047803, 0.1068247, 0.1047803,
- 	 0.0987898, 0.0892695, 0.0768746, 0.0624459,
- 	 0.0469403, 0.0313540, 0.0166431, 0.0036496,
-	-0.0069617, -0.0147487, -0.0195177, -0.0213268,
-	-0.0204671, -0.0174242, -0.0128238, -0.0073674,
-	-0.0017635, 0.0033386, 0.0074070, 0.0100705,
- 	 0.0111454, 0.0106423, 0.0087528, 0.0058192,
- 	 0.0022887, -0.0013410, -0.0045802, -0.0070036,
-	-0.0082982 };
+#define HFDL_MF_TAPS_CNT 13 // SPS * 3 symbols of delay * 2 + 1
+static float hfdl_matched_filter[HFDL_MF_TAPS_CNT] = {
+	-0.01765581809163754, 0.04210897948474476, 0.003537896148959641,
+	-0.09248440883698393,0.004138510222933509,0.3136543194422491,
+	0.4934010432594689,0.3136543194422491,0.004138510222933509,
+	-0.09248440883698393,0.003537896148959641,0.04210897948474476,
+	-0.01765581809163754 };
 static float hfdl_matched_filter_interp[HFDL_MF_TAPS_CNT];
 
 static float complex T_seq[2][T_LEN] = {
@@ -246,8 +235,8 @@ struct costas {
 
 static costas costas_cccf_create() {
 	NEW(struct costas, c);
-	c->alpha = 0.10f;
-	c->beta = 0.2f * c->alpha * c->alpha;
+	c->alpha = 0.05f;
+	c->beta = 0.15f * c->alpha * c->alpha;
 	return c;
 }
 
@@ -474,7 +463,8 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	c->m[M_PSK4] = modem_create(LIQUID_MODEM_PSK4);
 	c->m[M_PSK8] = modem_create(LIQUID_MODEM_PSK8);
 
-	c->ss = symsync_crcf_create(SPS, 1, hfdl_matched_filter_interp, HFDL_MF_TAPS_CNT);
+	//c->ss = symsync_crcf_create(SPS, 1, hfdl_matched_filter_interp, HFDL_MF_TAPS_CNT);
+	c->ss = symsync_crcf_create_kaiser(SPS, 3, 0.9f, 16);
 
 	c->bits = bsequence_create(M1_LEN);
 	c->training_symbols = cbuffercf_create(T_LEN);
@@ -600,17 +590,16 @@ static void *hfdl_decoder_thread(void *ctx) {
 	fopen_cf32(f_costas_out);
 #endif
 #ifdef SYMSYNC_DEBUG
-	fopen_cf32(f_symsync_in);
 	fopen_cf32(f_symsync_out);
 #endif
 #ifdef CHAN_DEBUG
 	fopen_cf32(f_chan_out);
 #endif
 #ifdef MF_DEBUG
-	fopen_cf32(f_mf_in);
 	fopen_cf32(f_mf_out);
 #endif
 #ifdef AGC_DEBUG
+	fopen_cf32(f_agc_out);
 	fopen_rf32(f_agc_gain);
 	fopen_rf32(f_agc_rssi);
 	float gain, rssi;
@@ -650,31 +639,28 @@ static void *hfdl_decoder_thread(void *ctx) {
 		// FIXME: pass c->channelizer pointer to this function
 		c->channelizer->shift_status = fastddc_inv_cc(input->buf, channelizer_output, c->channelizer->ddc,
 				c->channelizer->inv_plan, c->channelizer->filtertaps_fft, c->channelizer->shift_status);
-#ifdef CHAN_DEBUG
-		write_block_cf32(f_chan_out, channelizer_output, c->channelizer->shift_status.output_size);
-#endif
 		msresamp_crcf_execute(c->resampler, channelizer_output, c->channelizer->shift_status.output_size,
 				resampled, &resampled_cnt);
 		if(resampled_cnt < 1) {
 			debug_print(D_DSP, "ERROR: resampled_cnt is 0\n");
 			continue;
 		}
+#ifdef CHAN_DEBUG
+		write_block_cf32(f_chan_out, resampled, resampled_cnt);
+#endif
 		for(size_t k = 0; k < resampled_cnt; k++, c->sample_cnt++) {
 			agc_crcf_execute(c->agc, resampled[k], &r);
-			firfilt_crcf_push(c->mf, r);
-			firfilt_crcf_execute(c->mf, &s);
-#ifdef MF_DEBUG
-			write_cf32(f_mf_in, resampled[k]);
-			write_cf32(f_mf_out, s);
-#endif
 #ifdef AGC_DEBUG
 			gain = agc_crcf_get_gain(c->agc);
 			rssi = agc_crcf_get_rssi(c->agc);
 			write_rf32(f_agc_gain, gain);
 			write_rf32(f_agc_rssi, rssi);
+			write_cf32(f_agc_out, r);
 #endif
-#ifdef SYMSYNC_DEBUG
-			write_cf32(f_symsync_in, s);
+			firfilt_crcf_push(c->mf, r);
+			firfilt_crcf_execute(c->mf, &s);
+#ifdef MF_DEBUG
+			write_cf32(f_mf_out, s);
 #endif
 			symsync_crcf_execute(c->ss, &s, 1, symbols, &symbols_produced);
 			if(symbols_produced == 0) {
@@ -696,7 +682,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 #ifdef SYMSYNC_DEBUG
 				write_cf32(f_symsync_out, symbols[i]);
 #endif
-				costas_cccf_execute(c->loop, s, &symbols[i]);
+				costas_cccf_execute(c->loop, symbols[i], &symbols[i]);
 				// Back-propagate framer state to compensate delay introduced by eqlms
 				// fr_state == DATA_1 -> Costas is now in DATA_2 (use current_mod_arity)
 				// fr_state == TRAIN && eq_train_seq_cnt == 1  -> Costas is now in DATA_1 (use current_mod_arity)
