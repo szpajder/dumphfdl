@@ -131,7 +131,9 @@ static struct hfdl_params const hfdl_frame_params[M_SHIFT_CNT] = {
 	}
 };
 
-#define HFDL_MF_TAPS_CNT 13 // SPS * 3 symbols of delay * 2 + 1
+#define SYMSYNC_PFB_CNT 16          // number of filter in symsync polyphase filterbank
+#define HFDL_MF_SYMBOL_DELAY 3      // delay introduced by matched filter (measured in symbols)
+#define HFDL_MF_TAPS_CNT 13         // SPS * 3 symbols of delay * 2 + 1
 static float hfdl_matched_filter[HFDL_MF_TAPS_CNT] = {
 	-0.01765581809163754, 0.04210897948474476, 0.003537896148959641,
 	-0.09248440883698393,0.004138510222933509,0.3136543194422491,
@@ -235,8 +237,8 @@ struct costas {
 
 static costas costas_cccf_create() {
 	NEW(struct costas, c);
-	c->alpha = 0.05f;
-	c->beta = 0.15f * c->alpha * c->alpha;
+	c->alpha = 0.1f;
+	c->beta = 0.1f * c->alpha * c->alpha;
 	return c;
 }
 
@@ -428,6 +430,7 @@ void hfdl_init_globals(void) {
 	}
 	// symsync uses interpolator internally, so it needs MF filter taps
 	// multipled by SPS
+	// XXX: doesn't work correctly for a PFB with 16 filters - gain still 2x too low
 	for(int32_t i = 0; i < HFDL_MF_TAPS_CNT; i++) {
 		hfdl_matched_filter_interp[i] = hfdl_matched_filter[i] * SPS;
 	}
@@ -451,7 +454,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	}
 
 	c->agc = agc_crcf_create();
-	agc_crcf_set_bandwidth(c->agc, 0.01f);
+	agc_crcf_set_bandwidth(c->agc, 0.005f);
 
 	c->loop = costas_cccf_create();
 
@@ -463,8 +466,8 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	c->m[M_PSK4] = modem_create(LIQUID_MODEM_PSK4);
 	c->m[M_PSK8] = modem_create(LIQUID_MODEM_PSK8);
 
-	//c->ss = symsync_crcf_create(SPS, 1, hfdl_matched_filter_interp, HFDL_MF_TAPS_CNT);
-	c->ss = symsync_crcf_create_kaiser(SPS, 3, 0.9f, 16);
+	//c->ss = symsync_crcf_create(SPS, SYMSYNC_PFB_CNT, hfdl_matched_filter_interp, HFDL_MF_TAPS_CNT);
+	c->ss = symsync_crcf_create_kaiser(SPS, HFDL_MF_SYMBOL_DELAY, 0.9f, SYMSYNC_PFB_CNT);
 
 	c->bits = bsequence_create(M1_LEN);
 	c->training_symbols = cbuffercf_create(T_LEN);
