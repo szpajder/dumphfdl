@@ -456,12 +456,11 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	}
 
 	c->agc = agc_crcf_create();
-	agc_crcf_set_bandwidth(c->agc, 0.002f);
+	agc_crcf_set_bandwidth(c->agc, 0.005f);
 
 	c->loop = costas_cccf_create();
 
 	c->mf = firfilt_crcf_create(hfdl_matched_filter, HFDL_MF_TAPS_CNT);
-	//c->eq = eqlms_cccf_create(NULL, EQ_LEN);
 	c->eq = eqlms_cccf_create_lowpass(EQ_LEN, 0.45f);
 	eqlms_cccf_set_bw(c->eq, 0.1f);
 
