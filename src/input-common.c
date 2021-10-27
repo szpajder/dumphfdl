@@ -9,7 +9,9 @@
 
 static struct input_vtable *input_vtables[] = {
 	[INPUT_TYPE_FILE] = &file_input_vtable,
+#ifdef WITH_SOAPYSDR
 	[INPUT_TYPE_SOAPYSDR] = &soapysdr_input_vtable,
+#endif
 	[INPUT_TYPE_UNDEF] = NULL
 };
 
