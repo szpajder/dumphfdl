@@ -8,6 +8,7 @@
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
 #include "globals.h"                // Config
+#include "pthread_barrier.h"
 
 // debug message classes
 #define D_ALL                       (~0)
