@@ -227,6 +227,7 @@ add_library (dumphfdl_base OBJECT
 	output-udp.c
 	pdu.c
 	position.c
+	pthread_barrier.c
 	spdu.c
 	systable.c
 	util.c
