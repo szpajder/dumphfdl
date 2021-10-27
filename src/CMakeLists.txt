@@ -49,6 +49,7 @@ set(LIQUID_VERSION_MIN "1.3.0")
 set(LIQUID_VERSION_NUMBER_MIN 1003000)
 check_c_source_runs("
 #include <stdio.h>
+#include <stdlib.h>
 #include <liquid/liquid.h>
 #if LIQUID_VERSION_NUMBER < ${LIQUID_VERSION_NUMBER_MIN}
 #error LiquidDSP library is too old
