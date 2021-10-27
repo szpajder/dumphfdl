@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "block.h"                  // struct block
 
-#define SPS 2
+#define SPS 3
 #define HFDL_SYMBOL_RATE 1800
 #define HFDL_CHANNEL_TRANSITION_BW_HZ 250
 

@@ -133,13 +133,14 @@ static struct hfdl_params const hfdl_frame_params[M_SHIFT_CNT] = {
 
 #define SYMSYNC_PFB_CNT 16          // number of filter in symsync polyphase filterbank
 #define HFDL_MF_SYMBOL_DELAY 3      // delay introduced by matched filter (measured in symbols)
-#define HFDL_MF_TAPS_CNT 13         // SPS * 3 symbols of delay * 2 + 1
+#define HFDL_MF_TAPS_CNT 19         // SPS * 3 symbols of delay * 2 + 1
 static float hfdl_matched_filter[HFDL_MF_TAPS_CNT] = {
-	-0.01765581809163754, 0.04210897948474476, 0.003537896148959641,
-	-0.09248440883698393,0.004138510222933509,0.3136543194422491,
-	0.4934010432594689,0.3136543194422491,0.004138510222933509,
-	-0.09248440883698393,0.003537896148959641,0.04210897948474476,
-	-0.01765581809163754 };
+	-0.0170974647427123, 0.01148231492068473, 0.03138375667422348, 0.009454398851680437,
+	-0.04161644170893816, -0.06451564801420356, -0.005495792933327306, 0.1316404671361545,
+	0.2759693160697777, 0.3375901874933208, 0.2759693160697777, 0.1316404671361545,
+	-0.005495792933327306, -0.06451564801420356, -0.04161644170893816, 0.009454398851680437,
+	0.03138375667422348, 0.01148231492068473, -0.0170974647427123
+};
 static float hfdl_matched_filter_interp[HFDL_MF_TAPS_CNT];
 
 static float complex T_seq[2][T_LEN] = {
@@ -222,6 +223,7 @@ struct hfdl_channel {
 	int32_t T_idx;
 	int32_t M1;
 	uint32_t bitmask;
+	uint32_t symsync_out_idx;
 	// PDU metadata
 	struct timeval pdu_timestamp;
 	float freq_err_hz;
@@ -454,12 +456,13 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	}
 
 	c->agc = agc_crcf_create();
-	agc_crcf_set_bandwidth(c->agc, 0.005f);
+	agc_crcf_set_bandwidth(c->agc, 0.002f);
 
 	c->loop = costas_cccf_create();
 
 	c->mf = firfilt_crcf_create(hfdl_matched_filter, HFDL_MF_TAPS_CNT);
-	c->eq = eqlms_cccf_create(NULL, EQ_LEN);
+	//c->eq = eqlms_cccf_create(NULL, EQ_LEN);
+	c->eq = eqlms_cccf_create_lowpass(EQ_LEN, 0.45f);
 	eqlms_cccf_set_bw(c->eq, 0.1f);
 
 	c->m[M_BPSK] = modem_create(LIQUID_MODEM_BPSK);
@@ -468,6 +471,8 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 
 	//c->ss = symsync_crcf_create(SPS, SYMSYNC_PFB_CNT, hfdl_matched_filter_interp, HFDL_MF_TAPS_CNT);
 	c->ss = symsync_crcf_create_kaiser(SPS, HFDL_MF_SYMBOL_DELAY, 0.9f, SYMSYNC_PFB_CNT);
+	symsync_crcf_set_lf_bw(c->ss, 0.001f);
+	symsync_crcf_set_output_rate(c->ss, 2);
 
 	c->bits = bsequence_create(M1_LEN);
 	c->training_symbols = cbuffercf_create(T_LEN);
@@ -681,54 +686,71 @@ static void *hfdl_decoder_thread(void *ctx) {
 				write_rf32(f_corr_A2, zero);
 #endif
 			}
-			for(size_t i = 0; i < symbols_produced; i++) {
-#ifdef SYMSYNC_DEBUG
-				write_cf32(f_symsync_out, symbols[i]);
-#endif
-				costas_cccf_execute(c->loop, symbols[i], &symbols[i]);
+			for(size_t i = 0; i < symbols_produced; i++, c->symsync_out_idx++) {
+				costas_cccf_step(c->loop);
+				costas_cccf_execute(c->loop, symbols[i], &r);
 				// Back-propagate framer state to compensate delay introduced by eqlms
 				// fr_state == DATA_1 -> Costas is now in DATA_2 (use current_mod_arity)
 				// fr_state == TRAIN && eq_train_seq_cnt == 1  -> Costas is now in DATA_1 (use current_mod_arity)
 				// fr_state == other -> Costas is now in A1_SEARCH, A2_SEARCH or M1_SEARCH or TRAIN (use BPSK)
-				if((c->fr_state == FRAMER_EQ_TRAIN && c->eq_train_seq_cnt == 1) || c->fr_state == FRAMER_DATA_1) {
-					modem_demodulate(c->m[c->data_mod_arity], symbols[i], &bits);
+/*				if((c->fr_state == FRAMER_EQ_TRAIN && c->eq_train_seq_cnt == 1) || c->fr_state == FRAMER_DATA_1) {
+					modem_demodulate(c->m[c->data_mod_arity], r, &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->data_mod_arity]));
 				} else {
-					modem_demodulate(c->m[M_BPSK], symbols[i], &bits);
+					modem_demodulate(c->m[M_BPSK], r, &bits);
 					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[M_BPSK]));
-				}
-				costas_cccf_step(c->loop);
+				} */
 				if(UNLIKELY(fabsf(c->loop->dphi) > 0.25f && c->fr_state == FRAMER_A1_SEARCH)) {
 					chan_debug("costas_dphi: %f, resetting control loops\n", c->loop->dphi);
 					costas_cccf_reset(c->loop);
 					symsync_crcf_reset(c->ss);
 				}
 
+				eqlms_cccf_push(c->eq, r);
+				if(!(c->symsync_out_idx & 1)) {
+#ifdef SYMSYNC_DEBUG
+					write_nan_cf32(f_symsync_out);
+#endif
+#ifdef COSTAS_DEBUG
+					write_nan_rf32(f_costas_dphi);
+					write_nan_rf32(f_costas_err);
+					write_nan_cf32(f_costas_out);
+					write_nan_cf32(f_eq_out);
+#endif
+#ifdef CORR_DEBUG
+					write_rf32(f_corr_A1, zero);
+					write_rf32(f_corr_A2, zero);
+#endif
+					continue;
+				}
+#ifdef SYMSYNC_DEBUG
+				write_cf32(f_symsync_out, symbols[i]);
+#endif
 #ifdef COSTAS_DEBUG
 				write_rf32(f_costas_dphi, c->loop->dphi);
 				write_rf32(f_costas_err, c->loop->err);
-				write_cf32(f_costas_out, symbols[i]);
+				write_cf32(f_costas_out, r);
 #endif
-				eqlms_cccf_push(c->eq, symbols[i]);
-				eqlms_cccf_execute(c->eq, &symbols[i]);
+				eqlms_cccf_execute(c->eq, &s);
 				if(c->fr_state == FRAMER_EQ_TRAIN) {
-					eqlms_cccf_step(c->eq, T_seq[c->bitmask & 1][c->T_idx], symbols[i]);
+					eqlms_cccf_step(c->eq, T_seq[c->bitmask & 1][c->T_idx], s);
 					c->T_idx++;
 				}
 #ifdef EQ_DEBUG
-				write_cf32(f_eq_out, symbols[i]);
+				write_cf32(f_eq_out, s);
 #endif
-				modem_demodulate(c->m[c->current_mod_arity], symbols[i], &bits);
+				modem_demodulate(c->m[c->current_mod_arity], s, &bits);
+				costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->current_mod_arity]));
 #ifdef DUMP_CONST
 				if(c->fr_state >= FRAMER_EQ_TRAIN) {
 					fprintf(consts, "frame%lu(end+1,1)=%f+%f*i;\n", frame_id,
-							crealf(symbols[i]), cimagf(symbols[i]));
+							crealf(s), cimagf(s));
 				}
 #endif
 #ifdef CORR_DEBUG
-// this writes corr values calculated in the previous loop iteration, so the values on first loop
-// iteration are meaningless and need to be skipped. Also reset the values afterwards, so that
-// zeros get logged in states other than FRAMER_A1_SEARCH and FRAMER_A2_SEARCH.
+				// this writes corr values calculated in the previous loop iteration, so the values on first loop
+				// iteration are meaningless and need to be skipped. Also reset the values afterwards, so that
+				// zeros get logged in states other than FRAMER_A1_SEARCH and FRAMER_A2_SEARCH.
 				if(first) {
 					first = false;
 				} else {
@@ -754,7 +776,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 					}
 				} else if(c->s_state == SAMPLER_EMIT_SYMBOLS) {
 					ASSERT(cbuffercf_space_available(c->current_buffer) != 0);
-					cbuffercf_push(c->current_buffer, symbols[i]);
+					cbuffercf_push(c->current_buffer, s);
 				} else {    // SKIP
 							// NOOP
 				}
@@ -770,7 +792,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 						STATS_UPDATE(S.A1_found++);
 						STATS_UPDATE(S.A1_corr_total += fabsf(corr_A1));
 						c->bitmask = corr_A1 > 0.f ? 0 : ~0;
-						agc_crcf_lock(c->agc);
+						//agc_crcf_lock(c->agc);
 						c->symbols_wanted = A_LEN;
 						c->search_retries = 0;
 						c->fr_state++;
