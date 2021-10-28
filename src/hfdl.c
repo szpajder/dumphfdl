@@ -13,6 +13,9 @@
 #include <sys/time.h>               // struct timeval
 #include <liquid/liquid.h>
 #include "config.h"                 // *_DEBUG
+#ifndef HAVE_PTHREAD_BARRIERS
+#include "pthread_barrier.h"
+#endif
 #include "block.h"                  // struct block, block_connection_is_shutdown_signaled
 #include "util.h"                   // NEW, XCALLOC, octet_string_new
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc

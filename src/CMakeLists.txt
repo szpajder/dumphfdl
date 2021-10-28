@@ -38,6 +38,16 @@ if(CC_HAS_FNO_COMMON)
 	add_definitions(-fno-common)
 endif()
 
+set(CMAKE_REQUIRED_FLAGS_ORIG ${CMAKE_REQUIRED_FLAGS})
+if(CC_HAS_PTHREAD)
+	set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -pthread")
+endif()
+CHECK_SYMBOL_EXISTS(pthread_barrier_wait pthread.h HAVE_PTHREAD_BARRIERS)
+if(NOT HAVE_PTHREAD_BARRIERS)
+	list(APPEND dumphfdl_extra_sources pthread_barrier.c)
+endif()
+set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_ORIG})
+
 find_package(PkgConfig REQUIRED)
 
 find_package(LiquidDSP REQUIRED)
@@ -49,6 +59,7 @@ set(LIQUID_VERSION_MIN "1.3.0")
 set(LIQUID_VERSION_NUMBER_MIN 1003000)
 check_c_source_runs("
 #include <stdio.h>
+#include <stdlib.h>
 #include <liquid/liquid.h>
 #if LIQUID_VERSION_NUMBER < ${LIQUID_VERSION_NUMBER_MIN}
 #error LiquidDSP library is too old

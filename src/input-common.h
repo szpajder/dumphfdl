@@ -2,11 +2,14 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>         // size_t
+#include "config.h"
 #include "block.h"          // struct block, struct producer
 
 typedef enum {
 	INPUT_TYPE_UNDEF,
+#ifdef WITH_SOAPYSDR
 	INPUT_TYPE_SOAPYSDR,
+#endif
 	INPUT_TYPE_FILE,
 	INPUT_TYPE_MAX
 } input_type;

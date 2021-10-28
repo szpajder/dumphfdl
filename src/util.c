@@ -7,6 +7,10 @@
 #include <unistd.h>                 // _exit
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
+#include "config.h"
+#ifndef HAVE_PTHREAD_BARRIERS
+#include "pthread_barrier.h"
+#endif
 #include "util.h"                   // struct octet_string, struct location
 #include "globals.h"                // Systable, Systable_lock, Systable_unlock,
                                     // AC_cache, AC_cache_lock, AC_cache_unlock
