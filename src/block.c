@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <pthread.h>            // pthread_*
 #include <liquid/liquid.h>      // cbuffercf_*
+#include "config.h"
+#ifndef HAVE_PTHREAD_BARRIERS
+#include "pthread_barrier.h"
+#endif
 #include "block.h"
 #include "util.h"               // XCALLOC, pthread_*_initialize, debug_print
 

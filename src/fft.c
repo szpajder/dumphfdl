@@ -4,6 +4,10 @@
 #include <string.h>         // memcpy, memmove
 #include <pthread.h>        // pthread_*
 #include <liquid/liquid.h>  // cbuffercf_*
+#include "config.h"
+#ifndef HAVE_PTHREAD_BARRIERS
+#include "pthread_barrier.h"
+#endif
 #include "block.h"          // block_*
 #include "fastddc.h"        // fastddc_t
 #include "fft.h"

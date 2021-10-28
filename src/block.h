@@ -5,6 +5,10 @@
 #include <complex.h>
 #include <pthread.h>
 #include <liquid/liquid.h>
+#include "config.h"
+#ifndef HAVE_PTHREAD_BARRIERS
+#include "pthread_barrier.h"
+#endif
 
 enum producer_type {
 	PRODUCER_NONE = 0,
