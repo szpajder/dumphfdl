@@ -1,15 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdint.h>
 #include <stdio.h>              // fprintf
+#include "config.h"
 #include "util.h"               // ASSERT, XCALLOC, NEW, container_of
 #include "input-common.h"
 #include "input-helpers.h"      // get_sample_converter
 #include "input-file.h"         // file_input_vtable
+#ifdef WITH_SOAPYSDR
 #include "input-soapysdr.h"     // soapysdr_input_vtable
+#endif
 
 static struct input_vtable *input_vtables[] = {
 	[INPUT_TYPE_FILE] = &file_input_vtable,
+#ifdef WITH_SOAPYSDR
 	[INPUT_TYPE_SOAPYSDR] = &soapysdr_input_vtable,
+#endif
 	[INPUT_TYPE_UNDEF] = NULL
 };
 
