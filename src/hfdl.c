@@ -38,7 +38,9 @@
 #define DATA_SYMBOLS_CNT_MAX (DATA_FRAME_CNT_DOUBLE_SLOT * DATA_FRAME_LEN)
 #define PREAMBLE_LEN (2 * A_LEN + M1_LEN + M2_LEN + 9 * T_LEN)
 #define SINGLE_SLOT_FRAME_LEN (PREKEY_LEN + PREAMBLE_LEN + DATA_FRAME_CNT_SINGLE_SLOT * (DATA_FRAME_LEN + T_LEN))
-#define CORR_THRESHOLD 0.3f
+#define CORR_THRESHOLD_A1 0.36f
+#define CORR_THRESHOLD_A2 0.3f
+#define CORR_THRESHOLD_M1 0.3f
 #define MAX_SEARCH_RETRIES 3
 #define HFDL_SSB_CARRIER_OFFSET_HZ 1440
 
@@ -790,7 +792,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 				switch(c->fr_state) {
 				case FRAMER_A1_SEARCH:
 					corr_A1 = 2.0f * (float)bsequence_correlate(A_bs, c->bits) / (float)A_LEN - 1.0f;
-					if(fabsf(corr_A1) > CORR_THRESHOLD) {
+					if(fabsf(corr_A1) > CORR_THRESHOLD_A1) {
 						STATS_UPDATE(S.A1_found++);
 						STATS_UPDATE(S.A1_corr_total += fabsf(corr_A1));
 						c->bitmask = corr_A1 > 0.f ? 0 : ~0;
@@ -805,7 +807,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 					break;
 				case FRAMER_A2_SEARCH:
 					corr_A2 = 2.0f * (float)bsequence_correlate(A_bs, c->bits) / (float)A_LEN - 1.0f;
-					if(fabsf(corr_A2) > CORR_THRESHOLD) {
+					if(fabsf(corr_A2) > CORR_THRESHOLD_A2) {
 						// Save the current timestamp and go back by the length
 						// of the prekey and two A sequences, so that the timestamp
 						// points at the start of the frame.
@@ -826,7 +828,7 @@ static void *hfdl_decoder_thread(void *ctx) {
 					break;
 				case FRAMER_M1_SEARCH:
 					M1_match = match_sequence(M1, M_SHIFT_CNT, c->bits, &corr_M1);
-					if(fabsf(corr_M1) > CORR_THRESHOLD) {
+					if(fabsf(corr_M1) > CORR_THRESHOLD_M1) {
 						chan_debug("M1 match at sample %" PRIu64 ": %d (corr=%f, costas_dphi=%f)\n",
 								c->sample_cnt, M1_match, corr_M1, c->loop->dphi);
 						statsd_increment_per_channel(c->chan_freq, "demod.preamble.M1_found");
