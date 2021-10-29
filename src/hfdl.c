@@ -693,17 +693,6 @@ static void *hfdl_decoder_thread(void *ctx) {
 			for(size_t i = 0; i < symbols_produced; i++, c->symsync_out_idx++) {
 				costas_cccf_step(c->loop);
 				costas_cccf_execute(c->loop, symbols[i], &r);
-				// Back-propagate framer state to compensate delay introduced by eqlms
-				// fr_state == DATA_1 -> Costas is now in DATA_2 (use current_mod_arity)
-				// fr_state == TRAIN && eq_train_seq_cnt == 1  -> Costas is now in DATA_1 (use current_mod_arity)
-				// fr_state == other -> Costas is now in A1_SEARCH, A2_SEARCH or M1_SEARCH or TRAIN (use BPSK)
-/*				if((c->fr_state == FRAMER_EQ_TRAIN && c->eq_train_seq_cnt == 1) || c->fr_state == FRAMER_DATA_1) {
-					modem_demodulate(c->m[c->data_mod_arity], r, &bits);
-					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->data_mod_arity]));
-				} else {
-					modem_demodulate(c->m[M_BPSK], r, &bits);
-					costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[M_BPSK]));
-				} */
 				if(UNLIKELY(fabsf(c->loop->dphi) > 0.25f && c->fr_state == FRAMER_A1_SEARCH)) {
 					chan_debug("costas_dphi: %f, resetting control loops\n", c->loop->dphi);
 					costas_cccf_reset(c->loop);
@@ -796,7 +785,6 @@ static void *hfdl_decoder_thread(void *ctx) {
 						STATS_UPDATE(S.A1_found++);
 						STATS_UPDATE(S.A1_corr_total += fabsf(corr_A1));
 						c->bitmask = corr_A1 > 0.f ? 0 : ~0;
-						//agc_crcf_lock(c->agc);
 						c->symbols_wanted = A_LEN;
 						c->search_retries = 0;
 						c->fr_state++;
