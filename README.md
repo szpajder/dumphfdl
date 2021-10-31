@@ -765,6 +765,8 @@ To enable statistics just give dumphfdl your StatsD collector's hostname (or IP 
 dumphfdl --statsd 10.10.10.15:1234 ...
 ```
 
+Refer to the `doc/STATSD_METRICS.md` file for a complete list of currently supported metrics.
+
 ## Processing recorded I/Q data from file
 
 The syntax is:
