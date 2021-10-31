@@ -16,7 +16,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
   - aircraft data - from Basestation SQLite database
 - Extracts aircraft position information from decoded messages and provides a data feed for external plane tracking apps (eg. Virtual Radar Server)
 - Produces decoding statistics using [Etsy StatsD](https://github.com/etsy/statsd) protocol
-- Runs under Linux (tested on x86-64, ARM 32-bit)
+- Runs under Linux and MacOS
 
 ## Supported output formats
 
@@ -72,7 +72,7 @@ Less important fields from MPDUs (slot sel, N1, N2, H, NF, U(R), UDR), LPDUs (DD
 
 Mandatory dependencies:
 
-- gcc with C11 support
+- C compiler with C11 support (gcc, clang, AppleClang)
 - make
 - cmake >= 3.1
 - pkg-config
@@ -96,6 +96,13 @@ Install necessary dependencies. Most of them are probably packaged in your Linux
 sudo apt install build-essential cmake pkg-config libglib2.0-dev libconfig++-dev libliquid-dev libfftw3-dev
 ```
 
+Example for MacOS:
+
+```sh
+sudo brew update
+sudo brew install liquid-dsp fftw soapysdr libconfig
+```
+
 Install `libacars` library:
 
 - download the latest stable release package from [here](https://github.com/szpajder/libacars/releases/latest)
@@ -109,7 +116,7 @@ cd build
 cmake ../
 make
 sudo make install
-sudo ldconfig
+sudo ldconfig       # on Linux only
 ```
 
 Refer to libacars's README.md for complete instructions and available compilation options.
@@ -192,9 +199,17 @@ Probe device driver=airspyhf
 
 Some HFDL messages contain ICAO 24-bit hex code of the aircraft in question. In case you use Planeplotter or Virtual Radar Server or Kinetic Basestation software, you probably have a `basestation.sqb` SQLite database containing aircraft data (registration numbers, aircraft types, operator, etc). dumphfdl may use this database to enrich logged messages with this data. If you want this feature, install SQLite3 library:
 
+Linux:
+
 ```sh
 sudo apt install libsqlite3-dev
 sudo ldconfig
+```
+
+MacOS:
+
+```sh
+sudo brew install sqlite
 ```
 
 #### Etsy StatsD statistics (optional)
@@ -208,18 +223,26 @@ git clone https://github.com/romanbsd/statsd-c-client.git
 cd statsd-c-client
 make
 sudo make install
-sudo ldconfig
+sudo ldconfig       # on Linux only
 ```
 
 #### ZeroMQ networked output support (optional)
 
 ZeroMQ is a library that allows reliable messaging between applications to be set up easily. dumphfdl can publish decoded messages on a ZeroMQ socket and other apps can receive them over the network using reliable transport (TCP).  To enable this feature, install libzmq library.
 
+Linux:
+
 ```sh
 sudo apt install libzmq3-dev
 ```
 
 It won't work on Debian/RaspberryPi OS older than Buster, since the libzmq library shipped with these is too old.
+
+MacOS:
+
+```sh
+brew install zeromq
+```
 
 ### Compiling dumphfdl
 
