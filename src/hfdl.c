@@ -17,6 +17,7 @@
 #include "pthread_barrier.h"
 #endif
 #include "block.h"                  // struct block, block_connection_is_shutdown_signaled
+#include "dumpfile.h"               // dumpfile_*
 #include "util.h"                   // NEW, XCALLOC, octet_string_new
 #include "fastddc.h"                // fft_channelizer_create, fastddc_inv_cc
 #include "libfec/fec.h"             // viterbi27
@@ -554,27 +555,6 @@ void hfdl_print_summary(void) {
 	debug_print(D_DSP, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
 }
 
-#ifdef DATADUMPS
-#define fopen_datfile(file, suffix) \
-	FILE *(file) = fopen(#file "." suffix, "w"); \
-	ASSERT(file)
-#define fopen_cf32(file) fopen_datfile(file, "cf32")
-#define fopen_rf32(file) fopen_datfile(file, "rf32")
-
-#define write_block(file, ptr, cnt, type) fwrite(ptr, sizeof(type), cnt, (file))
-#define write_value(file, val, type) write_block(file, &(val), 1, type)
-
-#define write_cf32(file, val) write_value(file, val, float complex)
-#define write_rf32(file, val) write_value(file, val, float)
-#define write_nan_rf32(file) write_value(file, NaN, float)
-#define write_nan_cf32(file) write_value(file, cNaN, float complex)
-#define write_block_cf32(file, ptr, cnt) write_block(file, ptr, cnt, float complex)
-
-static float NaN = NAN;
-static float complex cNaN = NAN;
-static float zero = 0.f;
-#endif
-
 static void *hfdl_decoder_thread(void *ctx) {
 	ASSERT(ctx != NULL);
 	struct block *block = ctx;
@@ -597,40 +577,42 @@ static void *hfdl_decoder_thread(void *ctx) {
 	c->s_state = SAMPLER_EMIT_BITS;
 	c->fr_state = FRAMER_A1_SEARCH;
 #ifdef COSTAS_DEBUG
-	fopen_rf32(f_costas_dphi);
-	fopen_rf32(f_costas_err);
-	fopen_cf32(f_costas_out);
+	dumpfile_rf32 f_costas_dphi = dumpfile_rf32_open("f_costas_dphi.rf32", NAN);
+	dumpfile_rf32 f_costas_err = dumpfile_rf32_open("f_costas_err.rf32", NAN);
+	dumpfile_cf32 f_costas_out = dumpfile_cf32_open("f_costas_out.cf32", NAN);
 #endif
 #ifdef SYMSYNC_DEBUG
-	fopen_cf32(f_symsync_out);
+	dumpfile_cf32 f_symsync_out = dumpfile_cf32_open("f_symsync_out.cf32", NAN);
 #endif
 #ifdef CHAN_DEBUG
-	fopen_cf32(f_chan_out);
+	dumpfile_cf32 f_chan_out = dumpfile_cf32_open("f_chan_out.cf32", NAN);
 #endif
 #ifdef MF_DEBUG
-	fopen_cf32(f_mf_out);
+	dumpfile_cf32 f_mf_out = dumpfile_cf32_open("f_mf_out.cf32", NAN);
 #endif
 #ifdef AGC_DEBUG
-	fopen_cf32(f_agc_out);
-	fopen_rf32(f_agc_gain);
-	fopen_rf32(f_agc_rssi);
+	dumpfile_cf32 f_agc_out = dumpfile_cf32_open("f_agc_out.cf32", NAN);
+	dumpfile_rf32 f_agc_gain = dumpfile_rf32_open("f_agc_gain.rf32", NAN);
+	dumpfile_rf32 f_agc_rssi = dumpfile_rf32_open("f_agc_rssi.rf32", NAN);
 	float gain, rssi;
 #endif
 #ifdef EQ_DEBUG
-	fopen_cf32(f_eq_out);
+	dumpfile_cf32 f_eq_out = dumpfile_cf32_open("f_eq_out.cf32", NAN);
 #endif
 #ifdef CORR_DEBUG
-	fopen_rf32(f_corr_A1);
-	fopen_rf32(f_corr_A2);
-	bool first = true;
+	dumpfile_rf32 f_corr_A1 = dumpfile_rf32_open("f_corr_A1.rf32", 0.f);
+	dumpfile_rf32 f_corr_A2 = dumpfile_rf32_open("f_corr_A2.rf32", 0.f);
 #endif
 #ifdef DUMP_CONST
 	uint64_t frame_id;
-	FILE *consts = fopen("const.m", "w");
-	ASSERT(consts);
+	FILE *consts;
+	if(Config.datadumps == true) {
+		consts = fopen("const.m", "w");
+		ASSERT(consts);
+	}
 #endif
 #ifdef DUMP_FFT
-	fopen_cf32(f_fft_out);
+	dumpfile_cf32 f_fft_out = dumpfile_cf32_open("f_fft_out.cf32");
 #endif
 	struct shared_buffer *input = &block->consumer.in->shared_buffer;
 	static struct timeval ts_correction = {
@@ -646,7 +628,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 			break;
 		}
 #ifdef DUMP_FFT
-		write_block_cf32(f_fft_out, input->buf, c->channelizer->ddc->fft_size);
+		// XXX: Does not work now due to missing sample clock
+		//dumpfile_cf32_write_block(f_fft_out, input->buf, c->channelizer->ddc->fft_size);
 #endif
 		// FIXME: pass c->channelizer pointer to this function
 		c->channelizer->shift_status = fastddc_inv_cc(input->buf, channelizer_output, c->channelizer->ddc,
@@ -658,38 +641,23 @@ static void *hfdl_decoder_thread(void *ctx) {
 			continue;
 		}
 #ifdef CHAN_DEBUG
-		write_block_cf32(f_chan_out, resampled, resampled_cnt);
+		dumpfile_cf32_write_block(f_chan_out, c->sample_cnt, resampled, resampled_cnt);
 #endif
 		for(size_t k = 0; k < resampled_cnt; k++, c->sample_cnt++) {
 			agc_crcf_execute(c->agc, resampled[k], &r);
 #ifdef AGC_DEBUG
 			gain = agc_crcf_get_gain(c->agc);
 			rssi = agc_crcf_get_rssi(c->agc);
-			write_rf32(f_agc_gain, gain);
-			write_rf32(f_agc_rssi, rssi);
-			write_cf32(f_agc_out, r);
+			dumpfile_rf32_write_value(f_agc_gain, c->sample_cnt, gain);
+			dumpfile_rf32_write_value(f_agc_rssi, c->sample_cnt, rssi);
+			dumpfile_cf32_write_value(f_agc_out, c->sample_cnt, r);
 #endif
 			firfilt_crcf_push(c->mf, r);
 			firfilt_crcf_execute(c->mf, &s);
 #ifdef MF_DEBUG
-			write_cf32(f_mf_out, s);
+			dumpfile_cf32_write_value(f_mf_out, c->sample_cnt, s);
 #endif
 			symsync_crcf_execute(c->ss, &s, 1, symbols, &symbols_produced);
-			if(symbols_produced == 0) {
-#ifdef SYMSYNC_DEBUG
-				write_nan_cf32(f_symsync_out);
-#endif
-#ifdef COSTAS_DEBUG
-				write_nan_rf32(f_costas_dphi);
-				write_nan_rf32(f_costas_err);
-				write_nan_cf32(f_costas_out);
-				write_nan_cf32(f_eq_out);
-#endif
-#ifdef CORR_DEBUG
-				write_rf32(f_corr_A1, zero);
-				write_rf32(f_corr_A2, zero);
-#endif
-			}
 			for(size_t i = 0; i < symbols_produced; i++, c->symsync_out_idx++) {
 				costas_cccf_step(c->loop);
 				costas_cccf_execute(c->loop, symbols[i], &r);
@@ -701,28 +669,15 @@ static void *hfdl_decoder_thread(void *ctx) {
 
 				eqlms_cccf_push(c->eq, r);
 				if(!(c->symsync_out_idx & 1)) {
-#ifdef SYMSYNC_DEBUG
-					write_nan_cf32(f_symsync_out);
-#endif
-#ifdef COSTAS_DEBUG
-					write_nan_rf32(f_costas_dphi);
-					write_nan_rf32(f_costas_err);
-					write_nan_cf32(f_costas_out);
-					write_nan_cf32(f_eq_out);
-#endif
-#ifdef CORR_DEBUG
-					write_rf32(f_corr_A1, zero);
-					write_rf32(f_corr_A2, zero);
-#endif
 					continue;
 				}
 #ifdef SYMSYNC_DEBUG
-				write_cf32(f_symsync_out, symbols[i]);
+				dumpfile_cf32_write_value(f_symsync_out, c->sample_cnt, symbols[i]);
 #endif
 #ifdef COSTAS_DEBUG
-				write_rf32(f_costas_dphi, c->loop->dphi);
-				write_rf32(f_costas_err, c->loop->err);
-				write_cf32(f_costas_out, r);
+				dumpfile_rf32_write_value(f_costas_dphi, c->sample_cnt, c->loop->dphi);
+				dumpfile_rf32_write_value(f_costas_err, c->sample_cnt, c->loop->err);
+				dumpfile_cf32_write_value(f_costas_out, c->sample_cnt, r);
 #endif
 				eqlms_cccf_execute(c->eq, &s);
 				if(c->fr_state == FRAMER_EQ_TRAIN) {
@@ -730,29 +685,16 @@ static void *hfdl_decoder_thread(void *ctx) {
 					c->T_idx++;
 				}
 #ifdef EQ_DEBUG
-				write_cf32(f_eq_out, s);
+				dumpfile_cf32_write_value(f_eq_out, c->sample_cnt, s);
 #endif
 				modem_demodulate(c->m[c->current_mod_arity], s, &bits);
 				costas_cccf_adjust(c->loop, modem_get_demodulator_phase_error(c->m[c->current_mod_arity]));
 #ifdef DUMP_CONST
-				if(c->fr_state >= FRAMER_EQ_TRAIN) {
+				if(c->fr_state >= FRAMER_EQ_TRAIN && Config.datadumps == true) {
 					fprintf(consts, "frame%lu(end+1,1)=%f+%f*i;\n", frame_id,
 							crealf(s), cimagf(s));
 				}
 #endif
-#ifdef CORR_DEBUG
-				// this writes corr values calculated in the previous loop iteration, so the values on first loop
-				// iteration are meaningless and need to be skipped. Also reset the values afterwards, so that
-				// zeros get logged in states other than FRAMER_A1_SEARCH and FRAMER_A2_SEARCH.
-				if(first) {
-					first = false;
-				} else {
-					write_rf32(f_corr_A1, corr_A1);
-					write_rf32(f_corr_A2, corr_A2);
-					corr_A1 = 0.f; corr_A2 = 0.f;
-				}
-#endif
-
 				c->symbol_cnt++;
 				if(UNLIKELY(c->symbol_cnt >= max_symbols_without_frame && c->fr_state == FRAMER_A1_SEARCH)) {
 					chan_debug("Too long without a good frame (%" PRIu64 " symbols), resetting control loops\n",
@@ -781,6 +723,9 @@ static void *hfdl_decoder_thread(void *ctx) {
 				switch(c->fr_state) {
 				case FRAMER_A1_SEARCH:
 					corr_A1 = 2.0f * (float)bsequence_correlate(A_bs, c->bits) / (float)A_LEN - 1.0f;
+#ifdef CORR_DEBUG
+					dumpfile_rf32_write_value(f_corr_A1, c->sample_cnt, corr_A1);
+#endif
 					if(fabsf(corr_A1) > CORR_THRESHOLD_A1) {
 						STATS_UPDATE(S.A1_found++);
 						STATS_UPDATE(S.A1_corr_total += fabsf(corr_A1));
@@ -795,6 +740,9 @@ static void *hfdl_decoder_thread(void *ctx) {
 					break;
 				case FRAMER_A2_SEARCH:
 					corr_A2 = 2.0f * (float)bsequence_correlate(A_bs, c->bits) / (float)A_LEN - 1.0f;
+#ifdef CORR_DEBUG
+					dumpfile_rf32_write_value(f_corr_A2, c->sample_cnt, corr_A2);
+#endif
 					if(fabsf(corr_A2) > CORR_THRESHOLD_A2) {
 						// Save the current timestamp and go back by the length
 						// of the prekey and two A sequences, so that the timestamp
@@ -842,7 +790,9 @@ static void *hfdl_decoder_thread(void *ctx) {
 					c->fr_state = FRAMER_EQ_TRAIN;
 					c->s_state = SAMPLER_EMIT_SYMBOLS;
 #ifdef DUMP_CONST
-					fprintf(consts, "frame%lu = [];\n", frame_id);
+					if(Config.datadumps == true) {
+						fprintf(consts, "frame%lu = [];\n", frame_id);
+					}
 #endif
 					break;
 				case FRAMER_EQ_TRAIN:
@@ -884,6 +834,40 @@ static void *hfdl_decoder_thread(void *ctx) {
 			}
 		}
 	}
+#ifdef COSTAS_DEBUG
+	dumpfile_rf32_destroy(f_costas_dphi);
+	dumpfile_rf32_destroy(f_costas_err);
+	dumpfile_cf32_destroy(f_costas_out);
+#endif
+#ifdef SYMSYNC_DEBUG
+	dumpfile_cf32_destroy(f_symsync_out);
+#endif
+#ifdef CHAN_DEBUG
+	dumpfile_cf32_destroy(f_chan_out);
+#endif
+#ifdef MF_DEBUG
+	dumpfile_cf32_destroy(f_mf_out);
+#endif
+#ifdef AGC_DEBUG
+	dumpfile_cf32_destroy(f_agc_out);
+	dumpfile_rf32_destroy(f_agc_gain);
+	dumpfile_rf32_destroy(f_agc_rssi);
+#endif
+#ifdef EQ_DEBUG
+	dumpfile_cf32_destroy(f_eq_out);
+#endif
+#ifdef CORR_DEBUG
+	dumpfile_rf32_destroy(f_corr_A1);
+	dumpfile_rf32_destroy(f_corr_A2);
+#endif
+#ifdef DUMP_CONST
+	if(Config.datadumps == true) {
+		fclose(consts);
+	}
+#endif
+#ifdef DUMP_FFT
+	dumpfile_cf32_destroy(f_fft_out);
+#endif
 	XFREE(channelizer_output);
 	XFREE(resampled);
 	block->running = false;

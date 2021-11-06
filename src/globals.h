@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <pthread.h>
+#include "config.h"         // DATADUMPS
 #include "systable.h"
 #include "ac_cache.h"
 #include "ac_data.h"
@@ -27,6 +28,9 @@ struct dumphfdl_config {
 	bool output_mpdus;
 	bool output_corrupted_pdus;
 	bool ac_data_available;
+#ifdef DATADUMPS
+	bool datadumps;
+#endif
 };
 
 #define STATION_ID_LEN_MAX 255

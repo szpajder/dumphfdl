@@ -48,6 +48,10 @@ if(NOT HAVE_PTHREAD_BARRIERS)
 endif()
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_ORIG})
 
+if(DATADUMPS)
+	list(APPEND dumphfdl_extra_sources dumpfile.c)
+endif()
+
 find_package(PkgConfig REQUIRED)
 
 find_package(LiquidDSP REQUIRED)
