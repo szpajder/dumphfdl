@@ -74,7 +74,7 @@ static void setup_signals() {
 }
 
 static void print_version() {
-	fprintf(stderr, "dumpvdl2 %s (libacars %s)\n", DUMPHFDL_VERSION, LA_VERSION);
+	fprintf(stderr, "dumphfdl %s (libacars %s)\n", DUMPHFDL_VERSION, LA_VERSION);
 }
 
 #ifdef DEBUG
