@@ -799,6 +799,8 @@ dumphfdl --iq-file <file_name> --sample-rate <samples_per_sec> --sample-format <
   [--centerfreq <center_frequency_in_kHz>] hfdl_freq_1 [hfdl_freq_2] [...]
 ```
 
+Specify `-` as file\_name to read I/Q samples from standard input.
+
 The program accepts raw data files without any header. Files produced by `rx_sdr` or `airspyhf_rx` apps are perfectly valid input files. Different radios produce samples in different formats, though. dumphfdl currently supports following sample formats:
 
 - `U8` - 8-bit unsigned (eg. recorded with rtl\_sdr program).

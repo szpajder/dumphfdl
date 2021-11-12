@@ -79,7 +79,11 @@ int32_t file_input_init(struct input *input) {
 		fprintf(stderr, "Sample format must be specified for file inputs\n");
 		return -1;
 	}
-	file_input->fh = fopen(input->config->device_string, "rb");
+	if(strcmp(input->config->device_string, "-") == 0) {
+		file_input->fh = stdin;
+	} else {
+		file_input->fh = fopen(input->config->device_string, "rb");
+	}
 	if(file_input->fh == NULL) {
 		fprintf(stderr, "Failed to open input file %s: %s\n",
 				input->config->device_string, strerror(errno));

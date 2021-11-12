@@ -272,7 +272,7 @@ static void usage() {
 	describe_option("--antenna <string>", "Set antenna port selection (default: RX)", 1);
 #endif
 	fprintf(stderr, "\niq_file_options:\n");
-	describe_option("--iq-file <string>", "Read I/Q samples from file", 1);
+	describe_option("--iq-file <string>", "Read I/Q samples from file (use \"-\" to read from standard input)", 1);
 	describe_option("--sample-rate <integer>", "Set sampling rate (samples per second)", 1);
 	describe_option("--centerfreq <float>", "Center frequency of the input data, in kHz (default: auto)", 1);
 	describe_option("--sample-format <sample_format>", "Input sample format. Supported formats:", 1);
