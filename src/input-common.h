@@ -34,6 +34,7 @@ struct input_cfg {
 	int32_t sample_rate;
 	int32_t centerfreq;
 	int32_t freq_offset;
+	int32_t read_buffer_size;
 	input_type type;
 	sample_format sfmt;
 };

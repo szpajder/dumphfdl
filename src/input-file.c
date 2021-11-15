@@ -12,7 +12,7 @@
 #include "util.h"	        // debug_print, ASSERT, XCALLOC
 #include "globals.h"        // do_exit
 
-#define FILE_BUFSIZE 320000U
+#define INPUT_FILE_BUFSIZE_DEFAULT 320000U
 
 struct file_input {
 	struct input input;
@@ -40,14 +40,15 @@ void *file_input_thread(void *ctx) {
 	struct circ_buffer *circ_buffer = &block->producer.out->circ_buffer;
 
 	ASSERT(file_input->fh != NULL);
+	ASSERT(input->config->read_buffer_size > 0);
+	size_t bufsize = input->config->read_buffer_size;
 
-	void *inbuf = XCALLOC(FILE_BUFSIZE, sizeof(uint8_t));
-	float complex *outbuf = XCALLOC(FILE_BUFSIZE / input->bytes_per_sample,
+	void *inbuf = XCALLOC(bufsize, sizeof(uint8_t));
+	float complex *outbuf = XCALLOC(bufsize / input->bytes_per_sample,
 			sizeof(float complex));
 	size_t space_available, len, samples_read;
 	do {
-		len = fread(inbuf, 1, FILE_BUFSIZE, file_input->fh);
-		debug_print(D_SDR, "fread() result: %zu\n", len);
+		len = fread(inbuf, 1, bufsize, file_input->fh);
 		samples_read = len / input->bytes_per_sample;
 		while(true) {
 			pthread_mutex_lock(circ_buffer->mutex);
@@ -60,7 +61,7 @@ void *file_input_thread(void *ctx) {
 		}
 		input->convert_sample_buffer(input, inbuf, len, outbuf);
 		complex_samples_produce(circ_buffer, outbuf, samples_read);
-	} while(len == FILE_BUFSIZE && do_exit == 0);
+	} while(len == bufsize && do_exit == 0);
 	fclose(file_input->fh);
 	file_input->fh = NULL;
 	debug_print(D_MISC, "Shutdown ordered, signaling consumer shutdown\n");
@@ -80,6 +81,9 @@ int32_t file_input_init(struct input *input) {
 		fprintf(stderr, "Sample format must be specified for file inputs\n");
 		return -1;
 	}
+	if(input->config->read_buffer_size <= 0) {
+		input->config->read_buffer_size = INPUT_FILE_BUFSIZE_DEFAULT;
+	}
 	if(strcmp(input->config->source, "-") == 0) {
 		file_input->fh = stdin;
 	} else {
@@ -94,7 +98,13 @@ int32_t file_input_init(struct input *input) {
 	input->full_scale = get_sample_full_scale_value(input->config->sfmt);
 	input->bytes_per_sample = get_sample_size(input->config->sfmt);
 	ASSERT(input->bytes_per_sample > 0);
-	input->block.producer.max_tu = FILE_BUFSIZE / input->bytes_per_sample;
+	if(input->config->read_buffer_size % input->bytes_per_sample != 0) {
+		fprintf(stderr, "Invalid --read-buffer-size value "
+				"(must be a multiple of sample size, which is %d bytes)\n",
+				input->bytes_per_sample);
+		return -1;
+	}
+	input->block.producer.max_tu = input->config->read_buffer_size / input->bytes_per_sample;
 	debug_print(D_SDR, "%s: max_tu=%zu\n",
 			input->config->source, input->block.producer.max_tu);
 	return 0;

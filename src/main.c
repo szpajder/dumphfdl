@@ -279,6 +279,7 @@ static void usage() {
 	describe_option("CU8", "8-bit unsigned (eg. recorded with rtl_sdr)", 2);
 	describe_option("CS16", "16-bit signed, little-endian (eg. recorded with sdrplay)", 2);
 	describe_option("CF32", "32-bit float, little-endian (eg. Airspy HF+)", 2);
+	describe_option("--read-buffer-size <integer>", "Number of bytes to read from file in one batch", 1);
 
 	fprintf(stderr, "\nOutput options:\n");
 	describe_option("--output <output_specifier>", "Output specification (default: " DEFAULT_OUTPUT ")", 1);
@@ -335,6 +336,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_ANTENNA 26
 #define OPT_DEVICE_SETTINGS 27
 #define OPT_FREQ_OFFSET 28
+#define OPT_READ_BUFFER_SIZE 29
 
 #define OPT_OUTPUT 40
 #define OPT_OUTPUT_QUEUE_HWM 41
@@ -382,6 +384,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "antenna",            required_argument,  NULL,   OPT_ANTENNA },
 		{ "device-settings",    required_argument,  NULL,   OPT_DEVICE_SETTINGS },
 		{ "freq-offset",        required_argument,  NULL,   OPT_FREQ_OFFSET },
+		{ "read-buffer-size",   required_argument,  NULL,   OPT_READ_BUFFER_SIZE },
 		{ "output",             required_argument,  NULL,   OPT_OUTPUT },
 		{ "output-queue-hwm",   required_argument,  NULL,   OPT_OUTPUT_QUEUE_HWM },
 		{ "utc",                no_argument,        NULL,   OPT_UTC },
@@ -478,6 +481,11 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_FREQ_OFFSET:
 				if(parse_frequency(optarg, &input_cfg->freq_offset) == false) {
+					return 1;
+				}
+				break;
+			case OPT_READ_BUFFER_SIZE:
+				if(parse_int32(optarg, &input_cfg->read_buffer_size) == false) {
 					return 1;
 				}
 				break;
