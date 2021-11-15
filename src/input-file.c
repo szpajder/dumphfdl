@@ -47,6 +47,7 @@ void *file_input_thread(void *ctx) {
 	size_t space_available, len, samples_read;
 	do {
 		len = fread(inbuf, 1, FILE_BUFSIZE, file_input->fh);
+		debug_print(D_SDR, "fread() result: %zu\n", len);
 		samples_read = len / input->bytes_per_sample;
 		while(true) {
 			pthread_mutex_lock(circ_buffer->mutex);
@@ -79,14 +80,14 @@ int32_t file_input_init(struct input *input) {
 		fprintf(stderr, "Sample format must be specified for file inputs\n");
 		return -1;
 	}
-	if(strcmp(input->config->device_string, "-") == 0) {
+	if(strcmp(input->config->source, "-") == 0) {
 		file_input->fh = stdin;
 	} else {
-		file_input->fh = fopen(input->config->device_string, "rb");
+		file_input->fh = fopen(input->config->source, "rb");
 	}
 	if(file_input->fh == NULL) {
 		fprintf(stderr, "Failed to open input file %s: %s\n",
-				input->config->device_string, strerror(errno));
+				input->config->source, strerror(errno));
 		return -1;
 	}
 
@@ -95,7 +96,7 @@ int32_t file_input_init(struct input *input) {
 	ASSERT(input->bytes_per_sample > 0);
 	input->block.producer.max_tu = FILE_BUFSIZE / input->bytes_per_sample;
 	debug_print(D_SDR, "%s: max_tu=%zu\n",
-			input->config->device_string, input->block.producer.max_tu);
+			input->config->source, input->block.producer.max_tu);
 	return 0;
 }
 

@@ -261,7 +261,7 @@ static void usage() {
 	describe_option("<freq_1> [<freq_2> [...]]", "HFDL channel frequencies, in kHz, as floating point numbers", 1);
 #ifdef WITH_SOAPYSDR
 	fprintf(stderr, "\nsoapysdr_options:\n");
-	describe_option("--soapysdr <string>", "Use SoapySDR compatible device identified with the given string", 1);
+	describe_option("--soapysdr <device_string>", "Use SoapySDR compatible device identified with the given string", 1);
 	describe_option("--device-settings <key1=val1,key2=val2,...>", "Set device-specific parameters (default: none)", 1);
 	describe_option("--sample-rate <integer>", "Set sampling rate (samples per second)", 1);
 	describe_option("--centerfreq <float>", "Center frequency of the receiver, in kHz (default: auto)", 1);
@@ -427,12 +427,12 @@ int32_t main(int32_t argc, char **argv) {
 		switch(c) {
 			case OPT_IQ_FILE:
 				Config.output_queue_hwm = OUTPUT_QUEUE_HWM_NONE;
-				input_cfg->device_string = optarg;
+				input_cfg->source = optarg;
 				input_cfg->type = INPUT_TYPE_FILE;
 				break;
 #ifdef WITH_SOAPYSDR
 			case OPT_SOAPYSDR:
-				input_cfg->device_string = optarg;
+				input_cfg->source = optarg;
 				input_cfg->type = INPUT_TYPE_SOAPYSDR;
 				break;
 #endif
@@ -563,7 +563,7 @@ int32_t main(int32_t argc, char **argv) {
 				return 1;
 		}
 	}
-	if(input_cfg->device_string == NULL) {
+	if(input_cfg->source == NULL) {
 		fprintf(stderr, "No input specified\n");
 		return 1;
 	}
@@ -586,9 +586,9 @@ int32_t main(int32_t argc, char **argv) {
 
 	if(input_cfg->centerfreq < 0) {
 		if(compute_centerfreq(frequencies, channel_cnt, &input_cfg->centerfreq) == true) {
-			fprintf(stderr, "%s: computed center frequency: %.3f kHz\n", input_cfg->device_string, HZ_TO_KHZ(input_cfg->centerfreq));
+			fprintf(stderr, "%s: computed center frequency: %.3f kHz\n", input_cfg->source, HZ_TO_KHZ(input_cfg->centerfreq));
 		} else {
-			fprintf(stderr, "%s: failed to compute center frequency\n", input_cfg->device_string);
+			fprintf(stderr, "%s: failed to compute center frequency\n", input_cfg->source);
 			return 2;
 		}
 	}

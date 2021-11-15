@@ -25,7 +25,7 @@ typedef enum {
 #define AUTO_GAIN -100
 
 struct input_cfg {
-	char *device_string;
+	char *source;
 	char *gain_elements;
 	char *antenna;
 	char *device_settings;
