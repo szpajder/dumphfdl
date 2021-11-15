@@ -233,6 +233,8 @@ struct hfdl_channel {
 	// PDU metadata
 	struct timeval pdu_timestamp;
 	float freq_err_hz;
+	float signal_level;
+	float noise_floor;
 };
 
 /**********************************
@@ -463,6 +465,10 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 
 	c->agc = agc_crcf_create();
 	agc_crcf_set_bandwidth(c->agc, 0.005f);
+	agc_crcf_set_bandwidth(c->agc, 0.01f);
+	// Set the initial noise estimate to a very high value for faster convergence
+	// (which is designed to be faster in downwards direction than upwards)
+	c->noise_floor = 1.0f;
 
 	c->loop = costas_cccf_create();
 
@@ -554,6 +560,7 @@ void hfdl_print_summary(void) {
 #define chan_debug(fmt, ...) { \
 	debug_print(D_DSP, "%d: " fmt, c->chan_freq / 1000, ##__VA_ARGS__); \
 }
+#define LEVEL_TO_DB(level) (20.0f * log10f(level))
 
 static void *hfdl_decoder_thread(void *ctx) {
 	ASSERT(ctx != NULL);
@@ -565,7 +572,9 @@ static void *hfdl_decoder_thread(void *ctx) {
 	size_t resampled_size = (c->channelizer->ddc->post_input_size + c->resampler_delay + 10) * c->resamp_rate;
 	float complex *resampled = XCALLOC(resampled_size, sizeof(float complex));
 	uint32_t resampled_cnt = 0;
+	uint32_t noise_floor_sampling_clk = 0;
 	float complex r, s;
+	float frame_symbol_cnt = 0.0f;      // float because it's used only in float calculations
 	float complex symbols[3];
 	uint32_t symbols_produced = 0;
 	uint32_t bits = 0;
@@ -594,6 +603,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 	dumpfile_cf32 f_agc_out = dumpfile_cf32_open("f_agc_out.cf32", NAN);
 	dumpfile_rf32 f_agc_gain = dumpfile_rf32_open("f_agc_gain.rf32", NAN);
 	dumpfile_rf32 f_agc_rssi = dumpfile_rf32_open("f_agc_rssi.rf32", NAN);
+	dumpfile_rf32 f_noise_floor = dumpfile_rf32_open("f_noise_floor.rf32", NAN);
+	dumpfile_rf32 f_sig_level = dumpfile_rf32_open("f_sig_level.rf32", NAN);
 	float gain, rssi;
 #endif
 #ifdef EQ_DEBUG
@@ -657,6 +668,14 @@ static void *hfdl_decoder_thread(void *ctx) {
 #ifdef MF_DEBUG
 			dumpfile_cf32_write_value(f_mf_out, c->sample_cnt, s);
 #endif
+			// update noise floor estimate - every 255 samples, only when we aren't inside a frame
+			if(c->fr_state == FRAMER_A1_SEARCH && (++noise_floor_sampling_clk & 0xFFu) == 0xFFu) {
+				c->noise_floor = 0.65f * c->noise_floor +
+					0.35f * fminf(c->noise_floor, agc_crcf_get_signal_level(c->agc)) + 1e-6f;
+#ifdef AGC_DEBUG
+				dumpfile_rf32_write_value(f_noise_floor, c->sample_cnt, c->noise_floor);
+#endif
+			}
 			symsync_crcf_execute(c->ss, &s, 1, symbols, &symbols_produced);
 			for(size_t i = 0; i < symbols_produced; i++, c->symsync_out_idx++) {
 				costas_cccf_step(c->loop);
@@ -715,6 +734,15 @@ static void *hfdl_decoder_thread(void *ctx) {
 				} else {    // SKIP
 							// NOOP
 				}
+				// Update signal level estimate - only when inside a frame
+				if(c->fr_state > FRAMER_A1_SEARCH) {
+					// Approximate averaging
+					c->signal_level = (c->signal_level * frame_symbol_cnt + agc_crcf_get_signal_level(c->agc)) / (frame_symbol_cnt + 1.0f);
+					frame_symbol_cnt += 1.0f;
+#ifdef AGC_DEBUG
+					dumpfile_rf32_write_value(f_sig_level, c->sample_cnt, c->signal_level);
+#endif
+				}
 				if(c->symbols_wanted > 1) {
 					c->symbols_wanted--;
 					continue;
@@ -730,6 +758,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 						STATS_UPDATE(S.A1_found++);
 						STATS_UPDATE(S.A1_corr_total += fabsf(corr_A1));
 						c->bitmask = corr_A1 > 0.f ? 0 : ~0;
+						c->signal_level = agc_crcf_get_signal_level(c->agc);
+						frame_symbol_cnt = 1.0f;
 						c->symbols_wanted = A_LEN;
 						c->search_retries = 0;
 						c->fr_state++;
@@ -852,6 +882,8 @@ static void *hfdl_decoder_thread(void *ctx) {
 	dumpfile_cf32_destroy(f_agc_out);
 	dumpfile_rf32_destroy(f_agc_gain);
 	dumpfile_rf32_destroy(f_agc_rssi);
+	dumpfile_rf32_destroy(f_sig_level);
+	dumpfile_rf32_destroy(f_noise_floor);
 #endif
 #ifdef EQ_DEBUG
 	dumpfile_cf32_destroy(f_eq_out);
@@ -1001,6 +1033,8 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	hm->version = 1;
 	hm->freq = c->chan_freq;
 	hm->freq_err_hz = c->freq_err_hz;
+	hm->rssi = LEVEL_TO_DB(c->signal_level);
+	hm->noise_floor = LEVEL_TO_DB(c->noise_floor);
 	m->rx_timestamp.tv_sec = c->pdu_timestamp.tv_sec;
 	m->rx_timestamp.tv_usec = c->pdu_timestamp.tv_usec;
 
