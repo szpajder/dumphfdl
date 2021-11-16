@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdbool.h>
 #include <time.h>                       // struct tm, strftime
-#include "globals.h"                    // AC_cache
+#include "globals.h"                    // AC_cache, Config
 #include "output-common.h"              // fmtr_descriptor_t
 #include "position.h"                   // position_info_*
 #include "util.h"                       // ASSERT, XCALLOC, XFREE, struct octet_string
+#include "pdu.h"                        // struct hfdl_pdu_metadata
 
 #define POSITION_MAX_AGE 300            // seconds
 
@@ -48,13 +49,20 @@ static struct octet_string *fmtr_basestation_format_decoded_msg(struct metadata 
 	char *timestamp = format_timestamp(&pos_info->position.timestamp.tm);
 	la_vstring *vstr = la_vstring_new();
 
-	la_vstring_append_sprintf(vstr, "MSG,3,1,1,%06X,1,%s,%s,%s,,,,%f,%f,,,,,,0\n",
+	int32_t frequency = 0;
+	if(Config.freq_as_squawk == true) {
+		struct hfdl_pdu_metadata *hm = container_of(metadata, struct hfdl_pdu_metadata,
+				metadata);
+		frequency = hm->freq / 1000;
+	}
+	la_vstring_append_sprintf(vstr, "MSG,3,1,1,%06X,1,%s,%s,%s,,,,%f,%f,,%d,,,,0\n",
 			pos_info->aircraft.icao_address,
 			timestamp,
 			timestamp,
 			pos_info->aircraft.flight_id != NULL ? pos_info->aircraft.flight_id : "",
 			pos_info->position.location.lat,
-			pos_info->position.location.lon
+			pos_info->position.location.lon,
+			frequency
 			);
 
 	XFREE(timestamp);

@@ -996,6 +996,10 @@ In short - mixing ADS-B data with HFDL data is a sure-fire way to make a mess. I
 
 **END OF IMPORTANT NOTE**
 
+#### Using squawk field to convey channel frequency information
+
+Basestation feed format contains a squawk (transponder code) field. Unlike ModeS/ADS-B, HFDL messages do not contain squawk information, hence this field is left unused (it has a value of 0). However there is an option named `--freq-as-squawk` which uses this field to supplement every position message with the HFDL channel frequency on which the message containing the position has been received. Of course it's totally wrong, but on a private internal VRS instance - who cares? :-) And while ModeS squawk field consists of 4 octal digits, VRS happily accepts any number in this field, so a whole decimal frequency in kHz can be passed to it. Once `--freq-as-squawk` option is enabled, whenever you spot an interesting aircraft in a particularly remote location, you may just click it on the map and find out which HFDL channel it has been received on. Or include the squawk/frequency field in aircraft labels. Or filter aircraft by frequency. Plenty of options here.
+
 ### I see some aircraft positions in the logs that are not sent to VRS. Why?
 
 - Positions with timestamps older than 5 minutes are discarded. This is to prevent outdated information from appearing on the map.

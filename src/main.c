@@ -301,6 +301,9 @@ static void usage() {
 	describe_option("--raw-frames", "Print raw data as hex", 1);
 	describe_option("--prettify-xml", "Pretty-print XML payloads in ACARS and MIAM CORE PDUs", 1);
 
+	fprintf(stderr, "\nBasestation feed options:\n");
+	describe_option("--freq-as-squawk", "(Ab)use squawk field to convey HFDL channel frequency info", 1);
+
 	fprintf(stderr, "\nSystem table options:\n");
 	describe_option("--system-table <string>", "Load system table from the given file", 1);
 	describe_option("--system-table-save <string>", "Save updated system table to the given file", 1);
@@ -347,6 +350,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_STATION_ID 48
 #define OPT_OUTPUT_MPDUS 49
 #define OPT_OUTPUT_CORRUPTED_PDUS 50
+#define OPT_FREQ_AS_SQUAWK 51
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -394,6 +398,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
 		{ "output-corrupted-pdus", no_argument,     NULL,   OPT_OUTPUT_CORRUPTED_PDUS },
+		{ "freq-as-squawk",     no_argument,        NULL,   OPT_FREQ_AS_SQUAWK },
 #ifdef WITH_SQLITE
 		{ "bs-db",              required_argument,  NULL,   OPT_BS_DB },
 		{ "ac-details",         required_argument,  NULL,   OPT_AC_DETAILS },
@@ -521,6 +526,9 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_OUTPUT_CORRUPTED_PDUS:
 				Config.output_corrupted_pdus = true;
+				break;
+			case OPT_FREQ_AS_SQUAWK:
+				Config.freq_as_squawk = true;
 				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;

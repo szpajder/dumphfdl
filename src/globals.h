@@ -27,6 +27,7 @@ struct dumphfdl_config {
 	bool output_raw_frames;
 	bool output_mpdus;
 	bool output_corrupted_pdus;
+	bool freq_as_squawk;
 	bool ac_data_available;
 #ifdef DATADUMPS
 	bool datadumps;
