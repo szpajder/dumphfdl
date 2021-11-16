@@ -796,7 +796,7 @@ The syntax is:
 
 ```sh
 dumphfdl --iq-file <file_name> --sample-rate <samples_per_sec> --sample-format <sample_format>
-  [--centerfreq <center_frequency_in_kHz>] hfdl_freq_1 [hfdl_freq_2] [...]
+  [--read-buffer-size <integer>] [--centerfreq <center_frequency_in_kHz>] hfdl_freq_1 [hfdl_freq_2] [...]
 ```
 
 Specify `-` as file\_name to read I/Q samples from standard input.
@@ -807,7 +807,13 @@ The program accepts raw data files without any header. Files produced by `rx_sdr
 - `CS16` - 16-bit signed, little-endian (eg. SDRPlay)
 - `CF32` - 32-bit float, little-endian (eg. Airspy HF+)
 
-Use `--sample-format` option to set the format. There is no default. This option is mandatory for an `--iq-file` input. Use `--centerfreq` to set the center frequency. This shall be the frequency that the SDR was tuned to when the recording was made. Then provide a list of HFDL channel frequencies to monitor, in the same way as for SoapySDR input.
+Use `--sample-format` option to set the format. There is no default. This option is mandatory for an `--iq-file` input.
+
+Use `--centerfreq` to set the center frequency. This shall be the frequency that the SDR was tuned to when the recording was made.
+
+The program reads the data in batches of 320000 bytes by default. This is fine when reading files from disk. When piping samples via standard input, this might incur a noticeable processing delay, especially when the sampling rate is low. If this is the case, you may set the buffer size to a lower value with `--read-buffer-size <number_of-bytes>` option. **Note:** the given value must be a multiple of the size of an I/Q sample (ie. 2 bytes for CU8, 4 for CS16 and 8 for CF32).
+
+Then provide a list of HFDL channel frequencies to monitor, in the same way as for SoapySDR input.
 
 Putting it all together:
 
@@ -815,7 +821,7 @@ Putting it all together:
 dumphfdl --iq-file iq.cs16 --sample-rate 250000 --sample-format CS16 --centerfreq 10000.0 10063.0 10081.0 10084.0
 ```
 
-processes `iq.dat` file recorded at 250000 samples/sec using 16-bit signed samples, with receiver center frequency set to 10000 kHz (10 MHz). The program will monitor HFDL channels located at 10063, 10081 and 10084 kHz.
+processes `iq.dat` file recorded at 250000 samples/sec using 16-bit signed samples, with receiver center frequency set to 10000 kHz (10 MHz) using default read buffer size. The program will monitor HFDL channels located at 10063, 10081 and 10084 kHz.
 
 ## Launching dumphfdl as a service on system boot
 
@@ -901,7 +907,7 @@ Any software defined radio which supports HF and for which there is a SoapySDR d
 ### What do these numbers in the message header mean?
 
 ```text
-[2021-09-30 23:37:23 CEST] [6535.0 kHz] [7.3 Hz] [300 bps] [S]
+[2021-11-16 16:39:22 CET] [11184.0 kHz] [2.2 Hz] [-66.4/-78.4 dBFS] [12.0 dB] [300 bps] [S]
 ```
 
 From left to right:
@@ -911,6 +917,12 @@ From left to right:
 - channel frequency where the frame has been received
 
 - frequency offset of the frame
+
+- estimated signal strength (ie. signal level of all symbols of the frame, averaged and expressed in decibels relative to ADC full scale)
+
+- estimated noise floor level
+
+- signal-to-noise ratio (ie. signal strength minus the noise floor level, in decibels)
 
 - bit rate at which the frame has been transmitted: 300, 600, 1200 or 1800 bps
 
@@ -995,6 +1007,28 @@ In short - mixing ADS-B data with HFDL data is a sure-fire way to make a mess. I
   - Performance data HFNPDU
   - Frequency data HFNPDU
   - ADS-C Basic report
+
+### I don't have a HF reception hardware! Is it possible to decode data from USB audio taken from a web SDR?
+
+No, piping USB (upper-side band) audio is not supported, but you can pipe I/Q data. For example, KiwiSDR receivers can provide I/Q data using stereo audio stream. In order to hook it up to dumphfdl, do the following:
+
+- Get [kiwiclient](https://github.com/jks-prv/kiwiclient). It contains `kiwi\_nc.py`, which is a command line tool which allows you to connect to and receive audio from KiwiSDR
+
+- Run it as follows:
+
+```text
+kiwi_nc.py --log=info -s <kiwi_address> -p <kiwi_port> -f <HFDL_channel_frequency_in_kHz> -m iq -g 55 | dumphfdl --iq-file - --sample-format cs16 --sample-rate 12000 --read-buffer-size 9600 --centerfreq 0 0
+```
+
+Example: if the Kiwi address in browser is `http://10.20.30.40:8073`, then use `-s 10.20.30.40 -p 8073`.
+
+If you don't get any decodes:
+
+- If `kiwi_nc` can't connect to the KiwiSDR at all, then close your browser tab, where you watch its GUI. Most Kiwis allow only one connection per source IP address.
+
+- Some KiwiSDRs are badly calibrated and have a significant frequency offset (like 100 Hz or more). dumphfdl won't be able to lock on any frame with such a large frequency deviation. Just try another receiver.
+
+- Play with the `-g` option value, which sets the Kiwi gain. If you can't get a good value, leave the option out altogether, it will use auto-gain then. However it may interfere with dumphfdl's auto gain, so once you get things working, it is good to find a gain value that works and set it manually. Use the Kiwi GUI - turn off auto gain on the AGC tab and play with the gain slider until you can barely hear something (louder != better!). Set the `-g` option to the value you got and try again. Once you get some frames decoded, tune the gain further to get a good noise floor level (shown in the header of each frame), which should be no higher than -50 dBFS. Otherwise strong transmissions might come too loud and get distorted - this hinders decoding.
 
 ### How to receive data from dumphfdl using ZeroMQ sockets?
 
