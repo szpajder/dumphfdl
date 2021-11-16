@@ -1012,12 +1012,12 @@ In short - mixing ADS-B data with HFDL data is a sure-fire way to make a mess. I
 
 No, piping USB (upper-side band) audio is not supported, but you can pipe I/Q data. For example, KiwiSDR receivers can provide I/Q data using stereo audio stream. In order to hook it up to dumphfdl, do the following:
 
-- Get [kiwiclient](https://github.com/jks-prv/kiwiclient). It contains `kiwi\_nc.py`, which is a command line tool which allows you to connect to and receive audio from KiwiSDR
+- Get [kiwiclient](https://github.com/jks-prv/kiwiclient). It contains `kiwi_nc.py`, which is a command line tool which allows you to connect to and receive audio from KiwiSDR
 
 - Run it as follows:
 
 ```text
-kiwi_nc.py --log=info -s <kiwi_address> -p <kiwi_port> -f <HFDL_channel_frequency_in_kHz> -m iq -g 55 | dumphfdl --iq-file - --sample-format cs16 --sample-rate 12000 --read-buffer-size 9600 --centerfreq 0 0
+kiwi_nc.py --log=info -s <kiwi_address> -p <kiwi_port> -f <HFDL_channel_frequency_in_kHz> -m iq | dumphfdl --iq-file - --sample-format cs16 --sample-rate 12000 --read-buffer-size 9600 --centerfreq 0 0
 ```
 
 Example: if the Kiwi address in browser is `http://10.20.30.40:8073`, then use `-s 10.20.30.40 -p 8073`.
@@ -1027,8 +1027,6 @@ If you don't get any decodes:
 - If `kiwi_nc` can't connect to the KiwiSDR at all, then close your browser tab, where you watch its GUI. Most Kiwis allow only one connection per source IP address.
 
 - Some KiwiSDRs are badly calibrated and have a significant frequency offset (like 100 Hz or more). dumphfdl won't be able to lock on any frame with such a large frequency deviation. Just try another receiver.
-
-- Play with the `-g` option value, which sets the Kiwi gain. If you can't get a good value, leave the option out altogether, it will use auto-gain then. However it may interfere with dumphfdl's auto gain, so once you get things working, it is good to find a gain value that works and set it manually. Use the Kiwi GUI - turn off auto gain on the AGC tab and play with the gain slider until you can barely hear something (louder != better!). Set the `-g` option to the value you got and try again. Once you get some frames decoded, tune the gain further to get a good noise floor level (shown in the header of each frame), which should be no higher than -50 dBFS. Otherwise strong transmissions might come too loud and get distorted - this hinders decoding.
 
 ### How to receive data from dumphfdl using ZeroMQ sockets?
 
