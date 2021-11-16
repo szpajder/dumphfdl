@@ -16,7 +16,9 @@
  * Forward declarations
  ******************************/
 
+#ifdef WITH_STATSD
 static void update_statsd_acars_metrics(la_msg_dir msg_dir, la_proto_node *root);
+#endif
 static struct position_info *adsc_position_info_extract(la_proto_node *tree);
 
 /******************************
