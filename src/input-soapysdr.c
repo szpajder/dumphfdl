@@ -124,6 +124,11 @@ int32_t soapysdr_input_init(struct input *input) {
 					"must be a sequence of 'name1=value1,name2=value2,...'.\n");
 			return -1;
 		}
+		if(SoapySDRDevice_setGainMode(sdr, SOAPY_SDR_RX, 0, false) != 0) {
+			fprintf(stderr, "%s: could not disable auto gain: %s\n", cfg->source, SoapySDRDevice_lastError());
+			return -1;
+		}
+		fprintf(stderr, "%s: auto gain disabled\n", cfg->source);
 		for(size_t i = 0; i < gains.size; i++) {
 			SoapySDRDevice_setGainElement(sdr, SOAPY_SDR_RX, 0, gains.keys[i], atof(gains.vals[i]));
 			double gain_value = SoapySDRDevice_getGainElement(sdr, SOAPY_SDR_RX, 0, gains.keys[i]);
@@ -132,6 +137,11 @@ int32_t soapysdr_input_init(struct input *input) {
 		}
 		SoapySDRKwargs_clear(&gains);
 	} else if(cfg->gain != AUTO_GAIN) {
+		if(SoapySDRDevice_setGainMode(sdr, SOAPY_SDR_RX, 0, false) != 0) {
+			fprintf(stderr, "%s: could not disable auto gain: %s\n", cfg->source, SoapySDRDevice_lastError());
+			return -1;
+		}
+		fprintf(stderr, "%s: auto gain disabled\n", cfg->source);
 		if(SoapySDRDevice_setGain(sdr, SOAPY_SDR_RX, 0, cfg->gain) != 0) {
 			fprintf(stderr, "%s: could not set gain: %s\n", cfg->source, SoapySDRDevice_lastError());
 			return -1;
