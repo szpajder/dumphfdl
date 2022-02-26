@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Version 1.2.1 (2022-02-26)
+
+- Fixed a bug that caused manual gain settings to be ineffective on devices
+  which have auto gain enabled by default. dumphfdl now turns off AGC
+  explicitly before setting gain elements.
+
 ## Version 1.2.0 (2021-11-17)
 
 - Noise floor and signal level estimates are now computed and printed in
