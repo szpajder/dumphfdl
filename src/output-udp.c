@@ -17,7 +17,7 @@ typedef struct {
 } out_udp_ctx_t;
 
 static bool out_udp_supports_format(output_format_t format) {
-	return(format == OFMT_TEXT || format == OFMT_BASESTATION);
+	return(format == OFMT_TEXT || format == OFMT_BASESTATION || format == OFMT_JSON);
 }
 
 static void *out_udp_configure(kvargs *kv) {

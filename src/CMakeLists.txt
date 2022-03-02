@@ -220,6 +220,7 @@ add_library (dumphfdl_base OBJECT
 	fastddc.c
 	fft.c
 	fmtr-basestation.c
+	fmtr-json.c
 	fmtr-text.c
 	globals.c
 	hfdl.c

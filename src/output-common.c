@@ -10,6 +10,7 @@
 
 #include "fmtr-text.h"          // fmtr_DEF_text
 #include "fmtr-basestation.h"   // fmtr_DEF_basestation
+#include "fmtr-json.h"          // fmtr_DEF_json
 
 #include "output-file.h"        // out_DEF_file
 #include "output-tcp.h"         // out_DEF_tcp
@@ -42,6 +43,7 @@ static la_dict const fmtr_intype_names[] = {
 static la_dict const fmtr_descriptors[] = {
 	{ .id = OFMT_TEXT,                  .val = &fmtr_DEF_text },
 	{ .id = OFMT_BASESTATION,           .val = &fmtr_DEF_basestation },
+	{ .id = OFMT_JSON,                  .val = &fmtr_DEF_json },
 	{ .id = OFMT_UNKNOWN,               .val = NULL }
 };
 

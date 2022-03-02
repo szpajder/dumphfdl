@@ -22,7 +22,7 @@ typedef struct {
 } out_zmq_ctx_t;
 
 static bool out_zmq_supports_format(output_format_t format) {
-	return(format == OFMT_TEXT || format == OFMT_BASESTATION);
+	return(format == OFMT_TEXT || format == OFMT_BASESTATION || format == OFMT_JSON);
 }
 
 static void *out_zmq_configure(kvargs *kv) {

@@ -29,7 +29,7 @@ typedef struct {
 } out_tcp_ctx_t;
 
 static bool out_tcp_supports_format(output_format_t format) {
-	return(format == OFMT_TEXT || format == OFMT_BASESTATION);
+	return(format == OFMT_TEXT || format == OFMT_BASESTATION || format == OFMT_JSON);
 }
 
 static void *out_tcp_configure(kvargs *kv) {

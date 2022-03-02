@@ -29,7 +29,8 @@ typedef enum {
 typedef enum {
 	OFMT_UNKNOWN    = 0,
 	OFMT_TEXT       = 1,
-	OFMT_BASESTATION = 2
+	OFMT_BASESTATION = 2,
+	OFMT_JSON       = 3
 } output_format_t;
 
 typedef struct octet_string* (fmt_decoded_fun_t)(struct metadata *, la_proto_node *);
