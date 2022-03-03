@@ -7,6 +7,7 @@
 #include <unistd.h>                 // _exit
 #include <libacars/libacars.h>      // la_proto_node, la_type_descriptor
 #include <libacars/vstring.h>       // la_vstring
+#include <libacars/json.h>          // la_json_append_*
 #include "config.h"
 #ifndef HAVE_PTHREAD_BARRIERS
 #include "pthread_barrier.h"
@@ -267,6 +268,22 @@ void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint
 	}
 }
 
+void gs_id_format_json(la_vstring *vstr, char const *label, uint8_t gs_id) {
+	ASSERT(vstr);
+	ASSERT(label);
+
+	char const *gs_name = NULL;
+	Systable_lock();
+	gs_name = systable_get_station_name(Systable, gs_id);
+	Systable_unlock();
+
+	la_json_object_start(vstr, label);
+	la_json_append_string(vstr, "type", "Ground station");
+	la_json_append_int64(vstr, "id", gs_id);
+	SAFE_JSON_APPEND_STRING(vstr, "name", gs_name);
+	la_json_object_end(vstr);
+}
+
 void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int32_t freq, uint8_t ac_id) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);
@@ -283,6 +300,24 @@ void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int3
 	} else {
 		la_vstring_append_sprintf(vstr, "%hhu\n", ac_id);
 	}
+}
+
+void ac_id_format_json(la_vstring *vstr, char const *label, int32_t freq, uint8_t ac_id) {
+	ASSERT(vstr);
+	ASSERT(label);
+
+	struct ac_cache_entry *entry = NULL;
+	AC_cache_lock();
+	entry = ac_cache_entry_lookup(AC_cache, freq, ac_id);
+	AC_cache_unlock();
+
+	la_json_object_start(vstr, label);
+	la_json_append_string(vstr, "type", "Aircraft");
+	la_json_append_int64(vstr, "id", ac_id);
+	if(entry != NULL) {
+		ac_data_format_json(vstr, entry->icao_address);
+	}
+	la_json_object_end(vstr);
 }
 
 void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr) {
@@ -305,6 +340,21 @@ void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr) {
 	}
 }
 
+void ac_data_format_json(la_vstring *vstr, uint32_t addr) {
+	if(Config.ac_data_available == true) {
+		struct ac_data_entry *ac = ac_data_entry_lookup(AC_data, addr);
+		if(Config.ac_data_details >= AC_DETAILS_NORMAL) {
+			SAFE_JSON_APPEND_STRING(vstr, "regnr", ac->registration);
+			SAFE_JSON_APPEND_STRING(vstr, "typecode", ac->icaotypecode);
+			SAFE_JSON_APPEND_STRING(vstr, "opercode", ac->operatorflagcode);
+		}
+		if(Config.ac_data_details >= AC_DETAILS_VERBOSE) {
+			SAFE_JSON_APPEND_STRING(vstr, "manuf", ac->manufacturer);
+			SAFE_JSON_APPEND_STRING(vstr, "model", ac->type);
+			SAFE_JSON_APPEND_STRING(vstr, "owner", ac->registeredowners);
+		}
+	}
+}
 double parse_coordinate(uint32_t c) {
 	struct { int32_t coord:20; } s;
 	int32_t r = s.coord = (int32_t)c;

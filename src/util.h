@@ -84,6 +84,13 @@
 #define debug_print_buf_hex(debug_class, buf, len, fmt, ...) nop()
 #endif
 
+#define SAFE_JSON_APPEND_STRING(v, n, val) \
+	do { \
+		if((val) != NULL) { \
+			la_json_append_string((v), (n), (val)); \
+		} \
+	} while(0)
+
 #define XCALLOC(nmemb, size) xcalloc((nmemb), (size), __FILE__, __LINE__, __func__)
 #define XREALLOC(ptr, size) xrealloc((ptr), (size), __FILE__, __LINE__, __func__)
 #define XFREE(ptr) do { free(ptr); ptr = NULL; } while(0)
@@ -122,8 +129,11 @@ uint32_t parse_icao_hex(uint8_t const buf[3]);
 #define GS_MAX_FREQ_CNT 20       // Max number of frequencies assigned to a ground station
 void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id, uint32_t freqs);
 void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id);
+void gs_id_format_json(la_vstring *vstr, char const *label, uint8_t gs_id);
 void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int32_t freq, uint8_t ac_id);
+void ac_id_format_json(la_vstring *vstr, char const *label, int32_t freq, uint8_t ac_id);
 void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr);
+void ac_data_format_json(la_vstring *vstr, uint32_t addr);
 
 struct location {
 	double lat, lon;
