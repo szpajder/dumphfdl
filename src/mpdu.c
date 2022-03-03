@@ -4,6 +4,7 @@
 #include <libacars/libacars.h>              // la_type_descriptor, la_proto_node
 #include <libacars/reassembly.h>            // la_reasm_ctx
 #include <libacars/list.h>                  // la_list
+#include <libacars/json.h>                  // la_json_append_*
 #include "pdu.h"                            // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "lpdu.h"                           // lpdu_parse
 #include "statsd.h"                         // statsd_*
@@ -189,6 +190,24 @@ static void mpdu_format_text(la_vstring *vstr, void const *data, int32_t indent)
 	}
 }
 
+static void mpdu_format_json(la_vstring *vstr, void const *data) {
+	ASSERT(vstr != NULL);
+	ASSERT(data);
+
+	struct hfdl_mpdu const *mpdu = data;
+	la_json_append_bool(vstr, "crc_ok", mpdu->header.crc_ok);
+	if(!mpdu->header.crc_ok) {
+		return;
+	}
+	if(mpdu->header.direction == UPLINK_PDU) {
+		gs_id_format_json(vstr, "src", mpdu->header.src_id);
+		ac_id_format_json(vstr, "dst", mpdu->header.freq, mpdu->header.dst_id);
+	} else {
+		ac_id_format_json(vstr, "src", mpdu->header.freq, mpdu->header.src_id);
+		gs_id_format_json(vstr, "dst", mpdu->header.dst_id);
+	}
+}
+
 static void mpdu_destroy(void *data) {
 	if(data == NULL) {
 		return;
@@ -200,5 +219,7 @@ static void mpdu_destroy(void *data) {
 
 la_type_descriptor const proto_DEF_hfdl_mpdu = {
 	.format_text = mpdu_format_text,
+	.format_json = mpdu_format_json,
+	.json_key = "mpdu",
 	.destroy = mpdu_destroy
 };
