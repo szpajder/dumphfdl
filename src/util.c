@@ -251,6 +251,27 @@ void freq_list_format_text(la_vstring *vstr, int32_t indent, char const *label, 
 	EOL(vstr);
 }
 
+void freq_list_format_json(la_vstring *vstr, char const *label, uint8_t gs_id, uint32_t freqs) {
+	ASSERT(vstr);
+	ASSERT(label);
+
+	la_json_array_start(vstr, label);
+	Systable_lock();
+	for(int32_t i = 0; i < GS_MAX_FREQ_CNT; i++) {
+		if((freqs >> i) & 1) {
+			la_json_object_start(vstr, NULL);
+			la_json_append_int64(vstr, "id", i);
+			double f = systable_get_station_frequency(Systable, gs_id, i);
+			if(f > 0.0) {
+				la_json_append_double(vstr, "freq", f);
+			}
+			la_json_object_end(vstr);
+		}
+	}
+	Systable_unlock();
+	la_json_array_end(vstr);
+}
+
 void gs_id_format_text(la_vstring *vstr, int32_t indent, char const *label, uint8_t gs_id) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);

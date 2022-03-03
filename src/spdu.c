@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/list.h>          // la_list
+#include <libacars/json.h>          // la_json_append_*
 #include "pdu.h"                    // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "spdu.h"
 #include "statsd.h"                 // statsd_*
@@ -34,6 +35,7 @@ struct hfdl_spdu {
 // Forward declarations
 la_type_descriptor const proto_DEF_hfdl_spdu;
 static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_status const *gs);
+static void gs_status_format_json(la_vstring *vstr, struct gs_status const *gs);
 
 la_list *spdu_parse(struct octet_string *pdu, int32_t freq) {
 #ifndef WITH_STATSD
@@ -147,6 +149,31 @@ static void spdu_format_text(la_vstring *vstr, void const *data, int32_t indent)
 	indent--;
 }
 
+static void spdu_format_json(la_vstring *vstr, void const *data) {
+	ASSERT(vstr != NULL);
+	ASSERT(data);
+
+	struct hfdl_spdu const *spdu = data;
+	la_json_append_bool(vstr, "crc_ok", spdu->header.crc_ok);
+	if(!spdu->header.crc_ok) {
+		return;
+	}
+	gs_id_format_json(vstr, "src", spdu->header.src_id);
+	la_json_append_int64(vstr, "spdu_version", spdu->version);
+	la_json_append_bool(vstr, "rls", spdu->rls_in_use);
+	la_json_append_bool(vstr, "iso", spdu->iso8208_supported);
+	la_json_append_string(vstr, "change_note", change_note_descr[spdu->change_note]);
+	la_json_append_int64(vstr, "frame_index", spdu->frame_index);
+	la_json_append_int64(vstr, "frame_offset", spdu->frame_offset);
+	la_json_append_int64(vstr, "min_priority", spdu->min_priority);
+	la_json_append_int64(vstr, "systable_version", spdu->systable_version);
+	la_json_array_start(vstr, "gs_status");
+	for(int32_t i = 0; i < GS_STATUS_CNT; i++) {
+		gs_status_format_json(vstr, &spdu->gs_data[i]);
+	}
+	la_json_array_end(vstr);
+}
+
 static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_status const *gs) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);
@@ -158,7 +185,19 @@ static void gs_status_format_text(la_vstring *vstr, int32_t indent, struct gs_st
 	freq_list_format_text(vstr, indent, "Frequencies in use", gs->id, gs->freqs_in_use);
 }
 
+static void gs_status_format_json(la_vstring *vstr, struct gs_status const *gs) {
+	ASSERT(vstr);
+	ASSERT(gs);
+	la_json_object_start(vstr, NULL);
+	gs_id_format_json(vstr, "gs", gs->id);
+	la_json_append_bool(vstr, "utc_sync", gs->utc_sync);
+	freq_list_format_json(vstr, "freqs", gs->id, gs->freqs_in_use);
+	la_json_object_end(vstr);
+}
+
 la_type_descriptor const proto_DEF_hfdl_spdu = {
 	.format_text = spdu_format_text,
+	.format_json = spdu_format_json,
+	.json_key = "spdu",
 	.destroy = NULL
 };
