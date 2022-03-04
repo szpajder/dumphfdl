@@ -4,6 +4,7 @@
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node
 #include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/dict.h>          // la_dict
+#include <libacars/json.h>          // la_json_append_*
 #include "pdu.h"                    // struct hfdl_pdu_hdr_data, hfdl_pdu_fcs_check
 #include "hfnpdu.h"                 // hfnpdu_parse
 #include "ac_cache.h"               // ac_cache_entry_create, ac_cache_entry_delete
@@ -260,6 +261,66 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int32_t indent)
 	}
 }
 
+static void lpdu_ac_data_format_json(la_vstring *vstr, uint32_t icao_address) {
+	ASSERT(vstr != NULL);
+	la_json_object_start(vstr, "ac_info");
+	char icao_addr[7];
+	snprintf(icao_addr, 7, "%06X", icao_address);
+	la_json_append_string(vstr, "icao", icao_addr);
+	ac_data_format_json(vstr, icao_address);
+	la_json_object_end(vstr);
+}
+
+static void lpdu_format_json(la_vstring *vstr, void const *data) {
+	ASSERT(vstr != NULL);
+	ASSERT(data);
+
+	struct hfdl_lpdu const *lpdu = data;
+	la_json_append_bool(vstr, "err", lpdu->err);
+	if(lpdu->err) {
+		return;
+	}
+	if(lpdu->mpdu_header.direction == UPLINK_PDU) {
+		gs_id_format_json(vstr, "src", lpdu->mpdu_header.src_id);
+		ac_id_format_json(vstr, "dst", lpdu->mpdu_header.freq, lpdu->mpdu_header.dst_id);
+	} else {
+		ac_id_format_json(vstr, "src", lpdu->mpdu_header.freq, lpdu->mpdu_header.src_id);
+		gs_id_format_json(vstr, "dst", lpdu->mpdu_header.dst_id);
+	}
+	la_json_object_start(vstr, "type");
+	la_json_append_int64(vstr, "id", lpdu->type);
+	char const *lpdu_type = la_dict_search(lpdu_type_descriptions, lpdu->type);
+	la_json_append_string(vstr, "name", lpdu_type ? lpdu_type : "unknown");
+	la_json_object_end(vstr);
+	char *descr = NULL;
+	switch(lpdu->type) {
+		case LOGON_DENIED:
+		case LOGOFF_REQUEST:
+			lpdu_ac_data_format_json(vstr, lpdu->data.logoff_request.icao_address);
+			descr = la_dict_search(
+					lpdu->type == LOGON_DENIED ? logon_denied_reason_codes : logoff_request_reason_codes,
+					lpdu->data.logoff_request.reason_code
+					);
+			la_json_object_start(vstr, "reason");
+			la_json_append_int64(vstr, "code", lpdu->data.logoff_request.reason_code);
+			la_json_append_string(vstr, "descr", descr ? descr : "Reserved");
+			la_json_object_end(vstr);
+			break;
+		case LOGON_CONFIRM:
+		case LOGON_RESUME_CONFIRM:
+			lpdu_ac_data_format_json(vstr, lpdu->data.logon_confirm.icao_address);
+			la_json_append_int64(vstr, "assigned_ac_id", lpdu->data.logon_confirm.ac_id);
+			break;
+		case LOGON_RESUME:
+		case LOGON_REQUEST_NORMAL:
+		case LOGON_REQUEST_DLS:
+			lpdu_ac_data_format_json(vstr, lpdu->data.logon_request.icao_address);
+			break;
+		default:
+			return;
+	}
+}
+
 struct position_info *lpdu_position_info_extract(la_proto_node *tree) {
 	ASSERT(tree);
 
@@ -332,5 +393,7 @@ static void lpdu_destroy(void *data) {
 
 la_type_descriptor const proto_DEF_hfdl_lpdu = {
 	.format_text = lpdu_format_text,
+	.format_json = lpdu_format_json,
+	.json_key = "lpdu",
 	.destroy = lpdu_destroy
 };
