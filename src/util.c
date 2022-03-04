@@ -336,7 +336,7 @@ void ac_id_format_json(la_vstring *vstr, char const *label, int32_t freq, uint8_
 	la_json_append_string(vstr, "type", "Aircraft");
 	la_json_append_int64(vstr, "id", ac_id);
 	if(entry != NULL) {
-		ac_data_format_json(vstr, entry->icao_address);
+		ac_data_format_json(vstr, "ac_info", entry->icao_address);
 	}
 	la_json_object_end(vstr);
 }
@@ -361,7 +361,13 @@ void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr) {
 	}
 }
 
-void ac_data_format_json(la_vstring *vstr, uint32_t addr) {
+void ac_data_format_json(la_vstring *vstr, char const *label, uint32_t addr) {
+	ASSERT(vstr != NULL);
+
+	la_json_object_start(vstr, label);
+	char icao_addr[7];
+	snprintf(icao_addr, 7, "%06X", addr);
+	la_json_append_string(vstr, "icao", icao_addr);
 	if(Config.ac_data_available == true) {
 		struct ac_data_entry *ac = ac_data_entry_lookup(AC_data, addr);
 		if(Config.ac_data_details >= AC_DETAILS_NORMAL) {
@@ -375,6 +381,7 @@ void ac_data_format_json(la_vstring *vstr, uint32_t addr) {
 			SAFE_JSON_APPEND_STRING(vstr, "owner", ac->registeredowners);
 		}
 	}
+	la_json_object_end(vstr);
 }
 double parse_coordinate(uint32_t c) {
 	struct { int32_t coord:20; } s;

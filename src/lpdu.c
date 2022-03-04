@@ -261,16 +261,6 @@ static void lpdu_format_text(la_vstring *vstr, void const *data, int32_t indent)
 	}
 }
 
-static void lpdu_ac_data_format_json(la_vstring *vstr, uint32_t icao_address) {
-	ASSERT(vstr != NULL);
-	la_json_object_start(vstr, "ac_info");
-	char icao_addr[7];
-	snprintf(icao_addr, 7, "%06X", icao_address);
-	la_json_append_string(vstr, "icao", icao_addr);
-	ac_data_format_json(vstr, icao_address);
-	la_json_object_end(vstr);
-}
-
 static void lpdu_format_json(la_vstring *vstr, void const *data) {
 	ASSERT(vstr != NULL);
 	ASSERT(data);
@@ -296,7 +286,7 @@ static void lpdu_format_json(la_vstring *vstr, void const *data) {
 	switch(lpdu->type) {
 		case LOGON_DENIED:
 		case LOGOFF_REQUEST:
-			lpdu_ac_data_format_json(vstr, lpdu->data.logoff_request.icao_address);
+			ac_data_format_json(vstr, "ac_info", lpdu->data.logoff_request.icao_address);
 			descr = la_dict_search(
 					lpdu->type == LOGON_DENIED ? logon_denied_reason_codes : logoff_request_reason_codes,
 					lpdu->data.logoff_request.reason_code
@@ -308,13 +298,13 @@ static void lpdu_format_json(la_vstring *vstr, void const *data) {
 			break;
 		case LOGON_CONFIRM:
 		case LOGON_RESUME_CONFIRM:
-			lpdu_ac_data_format_json(vstr, lpdu->data.logon_confirm.icao_address);
+			ac_data_format_json(vstr, "ac_info", lpdu->data.logon_confirm.icao_address);
 			la_json_append_int64(vstr, "assigned_ac_id", lpdu->data.logon_confirm.ac_id);
 			break;
 		case LOGON_RESUME:
 		case LOGON_REQUEST_NORMAL:
 		case LOGON_REQUEST_DLS:
-			lpdu_ac_data_format_json(vstr, lpdu->data.logon_request.icao_address);
+			ac_data_format_json(vstr, "ac_info", lpdu->data.logon_request.icao_address);
 			break;
 		default:
 			return;

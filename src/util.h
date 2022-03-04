@@ -134,7 +134,7 @@ void gs_id_format_json(la_vstring *vstr, char const *label, uint8_t gs_id);
 void ac_id_format_text(la_vstring *vstr, int32_t indent, char const *label, int32_t freq, uint8_t ac_id);
 void ac_id_format_json(la_vstring *vstr, char const *label, int32_t freq, uint8_t ac_id);
 void ac_data_format_text(la_vstring *vstr, int32_t indent, uint32_t addr);
-void ac_data_format_json(la_vstring *vstr, uint32_t addr);
+void ac_data_format_json(la_vstring *vstr, char const *label, uint32_t addr);
 
 struct location {
 	double lat, lon;
