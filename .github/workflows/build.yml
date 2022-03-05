@@ -21,7 +21,7 @@ jobs:
         if [[ "$RUNNER_OS" == "Linux" ]]; then sudo apt-get update; fi
         if [[ "$RUNNER_OS" == "Linux" ]]; then sudo apt-get install libliquid-dev libglib2.0-dev libfftw3-dev libsoapysdr-dev libconfig++-dev; fi
         if [[ "$RUNNER_OS" == "macOS" ]]; then brew update; fi
-        if [[ "$RUNNER_OS" == "macOS" ]]; then brew install liquid-dsp fftw soapysdr libconfig; fi
+        if [[ "$RUNNER_OS" == "macOS" ]]; then brew install glib liquid-dsp fftw soapysdr libconfig; fi
 
     - name: Install libacars
       run: |
