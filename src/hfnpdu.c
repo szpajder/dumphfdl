@@ -5,6 +5,7 @@
 #include <libacars/libacars.h>      // la_type_descriptor, la_proto_node, LA_MSG_DIR_*
 #include <libacars/reassembly.h>    // la_reasm_ctx
 #include <libacars/dict.h>          // la_dict
+#include <libacars/json.h>          // la_json_append_*
 #include "pdu.h"                    // enum hfdl_pdu_direction
 #include "acars.h"                  // acars_parse
 #include "position.h"               // position_info
@@ -314,6 +315,18 @@ static void mpdu_stats_format_text(la_vstring *vstr, int32_t indent, struct mpdu
 			label, stats->cnt_300bps, stats->cnt_600bps, stats->cnt_1200bps, stats->cnt_1800bps);
 }
 
+static void mpdu_stats_format_json(la_vstring *vstr, struct mpdu_stats const *stats, char const *label) {
+	ASSERT(vstr);
+	ASSERT(stats);
+
+	la_json_object_start(vstr, label);
+	la_json_append_int64(vstr, "300bps", stats->cnt_300bps);
+	la_json_append_int64(vstr, "600bps", stats->cnt_600bps);
+	la_json_append_int64(vstr, "1200bps", stats->cnt_1200bps);
+	la_json_append_int64(vstr, "1800bps", stats->cnt_1800bps);
+	la_json_object_end(vstr);
+}
+
 static la_dict const freq_change_code_descriptions[] = {
 	{ .id = 0, .val = "First freq. search in this flight leg" },
 	{ .id = 1, .val = "Too many NACKs" },
@@ -357,6 +370,64 @@ static void performance_data_format_text(la_vstring *vstr, int32_t indent, struc
 			desc ? desc : "unknown");
 }
 
+static void performance_data_format_json(la_vstring *vstr, struct hfnpdu_perf_data const *pdu) {
+	ASSERT(vstr);
+	ASSERT(pdu);
+
+	la_json_append_int64(vstr, "version", pdu->version);
+	la_json_append_string(vstr, "flight_id", pdu->flight_id);
+
+	la_json_object_start(vstr, "pos");
+	la_json_append_double(vstr, "lat", pdu->location.lat);
+	la_json_append_double(vstr, "lon", pdu->location.lon);
+	la_json_object_end(vstr);
+
+	la_json_object_start(vstr, "time");
+	la_json_append_int64(vstr, "hour", pdu->utc_time.hour);
+	la_json_append_int64(vstr, "min", pdu->utc_time.min);
+	la_json_append_int64(vstr, "sec", pdu->utc_time.sec);
+	la_json_object_end(vstr);
+
+	la_json_append_int64(vstr, "flight_leg_num", pdu->flight_leg);
+	gs_id_format_json(vstr, "gs", pdu->gs_id);
+
+	la_json_object_start(vstr, "frequency");
+	la_json_append_int64(vstr, "id", 1u << pdu->freq_id);
+	Systable_lock();
+	double f = systable_get_station_frequency(Systable, pdu->gs_id, pdu->freq_id);
+	Systable_unlock();
+	if(f > 0.0) {
+	    la_json_append_double(vstr, "freq", f);
+	}
+	la_json_object_end(vstr);
+
+	la_json_object_start(vstr, "freq_search_cnt");
+	la_json_append_int64(vstr, "cur_leg", pdu->cur_leg.freq_search_cnt);
+	la_json_append_int64(vstr, "prev_leg", pdu->prev_leg.freq_search_cnt);
+	la_json_object_end(vstr);
+
+	la_json_object_start(vstr, "hfdl_disabled_duration");
+	la_json_append_int64(vstr, "this_leg", pdu->cur_leg.hf_data_disabled_duration);
+	la_json_append_int64(vstr, "prev_leg", pdu->prev_leg.hf_data_disabled_duration);
+	la_json_object_end(vstr);
+
+	la_json_object_start(vstr, "pdu_stats");
+	mpdu_stats_format_json(vstr, &pdu->mpdus_rx,        "mpdus_rx_ok_cnt");
+	mpdu_stats_format_json(vstr, &pdu->mpdus_rx_errs,   "mpdus_rx_err_cnt");
+	mpdu_stats_format_json(vstr, &pdu->mpdus_tx,        "mpdus_tx_cnt");
+	mpdu_stats_format_json(vstr, &pdu->mpdus_delivered, "mpdus_delivered_cnt");
+	la_json_append_int64(vstr, "spdus_rx_ok_cnt", pdu->spdus_rx);
+	la_json_append_int64(vstr, "spdus_missed_cnt", pdu->spdus_rx_errs);
+	la_json_object_end(vstr);
+
+	la_json_object_start(vstr, "last_freq_change_cause");
+	la_json_append_int64(vstr, "code", pdu->freq_change_code);
+	char const *descr = la_dict_search(freq_change_code_descriptions, pdu->freq_change_code);
+	la_json_append_string(vstr, "descr", descr ? descr : "unknown");
+	la_json_object_end(vstr);
+}
+
+
 static void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
@@ -366,12 +437,29 @@ static void systable_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu
 	LA_ISPRINTF(vstr, indent, "Part: %u of %hhu\n", data->pdu_seq_num + 1u, data->total_pdu_cnt);
 }
 
+static void systable_format_json(la_vstring *vstr, struct hfnpdu_systable_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+	la_json_append_int64(vstr, "version", data->systable_version);
+	la_json_object_start(vstr, "systable_partial");
+	la_json_append_int64(vstr, "part_num", data->pdu_seq_num + 1u);
+	la_json_append_int64(vstr, "parts_cnt", data->total_pdu_cnt);
+	la_json_object_end(vstr);
+}
+
 static void systable_request_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_systable_request_data const *data) {
 	ASSERT(vstr);
 	ASSERT(data);
 	ASSERT(indent > 0);
 
 	LA_ISPRINTF(vstr, indent, "Request data: 0x%hx\n", data->request_data);
+}
+
+static void systable_request_format_json(la_vstring *vstr, struct hfnpdu_systable_request_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+
+	la_json_append_int64(vstr, "request_data", data->request_data);
 }
 
 static void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, struct prop_freqs_data const *data) {
@@ -383,6 +471,17 @@ static void propagating_freqs_format_text(la_vstring *vstr, int32_t indent, stru
 	indent++;
 	freq_list_format_text(vstr, indent+1, "Listening on", data->gs_id, data->tuned_freqs);
 	freq_list_format_text(vstr, indent+1, "Heard on", data->gs_id, data->prop_freqs);
+}
+
+static void propagating_freqs_format_json(la_vstring *vstr, char const *label, struct prop_freqs_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+
+	la_json_object_start(vstr, label);
+	gs_id_format_json(vstr, "gs", data->gs_id);
+	freq_list_format_json(vstr, "listening_on_freqs", data->gs_id, data->tuned_freqs);
+	freq_list_format_json(vstr, "heard_on_freqs", data->gs_id, data->prop_freqs);
+	la_json_object_end(vstr);
 }
 
 static void frequency_data_format_text(la_vstring *vstr, int32_t indent, struct hfnpdu_freq_data const *pdu) {
@@ -398,6 +497,30 @@ static void frequency_data_format_text(la_vstring *vstr, int32_t indent, struct 
 	for(uint32_t f = 0; f < pdu->propagating_freqs_cnt; f++) {
 		propagating_freqs_format_text(vstr, indent, &pdu->propagating_freqs[f]);
 	}
+}
+
+static void frequency_data_format_json(la_vstring *vstr, struct hfnpdu_freq_data const *pdu) {
+	ASSERT(vstr);
+	ASSERT(pdu);
+
+	la_json_append_string(vstr, "flight_id", pdu->flight_id);
+
+	la_json_object_start(vstr, "pos");
+	la_json_append_double(vstr, "lat", pdu->location.lat);
+	la_json_append_double(vstr, "lon", pdu->location.lon);
+	la_json_object_end(vstr);
+
+	la_json_object_start(vstr, "utc_time");
+	la_json_append_int64(vstr, "hour", pdu->utc_time.hour);
+	la_json_append_int64(vstr, "min", pdu->utc_time.min);
+	la_json_append_int64(vstr, "sec", pdu->utc_time.sec);
+	la_json_object_end(vstr);
+
+	la_json_array_start(vstr, "freq_data");
+	for(uint32_t f = 0; f < pdu->propagating_freqs_cnt; f++) {
+		propagating_freqs_format_json(vstr, NULL, &pdu->propagating_freqs[f]);
+	}
+	la_json_array_end(vstr);
 }
 
 static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t indent) {
@@ -429,6 +552,42 @@ static void hfnpdu_format_text(la_vstring *vstr, void const *data, int32_t inden
 			break;
 		case FREQUENCY_DATA:
 			frequency_data_format_text(vstr, indent, &hfnpdu->data.freq_data);
+			break;
+		case DELAYED_ECHO:
+		case ENVELOPED_DATA:
+		default:
+			break;
+	}
+}
+
+static void hfnpdu_format_json(la_vstring *vstr, void const *data) {
+	ASSERT(vstr != NULL);
+	ASSERT(data);
+
+	struct hfdl_hfnpdu const *hfnpdu = data;
+	la_json_append_bool(vstr, "err", hfnpdu->err);
+	if(hfnpdu->err) {
+		return;
+	}
+
+	la_json_object_start(vstr, "type");
+	la_json_append_int64(vstr, "id", hfnpdu->type);
+	char const *hfnpdu_type = la_dict_search(hfnpdu_type_descriptions, hfnpdu->type);
+	la_json_append_string(vstr, "name", hfnpdu_type ? hfnpdu_type : "unknown");
+	la_json_object_end(vstr);
+
+	switch(hfnpdu->type) {
+		case SYSTEM_TABLE:
+			systable_format_json(vstr, &hfnpdu->data.systable_data);
+			break;
+		case PERFORMANCE_DATA:
+			performance_data_format_json(vstr, &hfnpdu->data.perf_data);
+			break;
+		case SYSTEM_TABLE_REQUEST:
+			systable_request_format_json(vstr, &hfnpdu->data.systable_request_data);
+			break;
+		case FREQUENCY_DATA:
+			frequency_data_format_json(vstr, &hfnpdu->data.freq_data);
 			break;
 		case DELAYED_ECHO:
 		case ENVELOPED_DATA:
@@ -496,5 +655,7 @@ struct position_info *hfnpdu_position_info_extract(la_proto_node *tree) {
 
 la_type_descriptor const proto_DEF_hfdl_hfnpdu = {
 	.format_text = hfnpdu_format_text,
+	.format_json = hfnpdu_format_json,
+	.json_key = "hfnpdu",
 	.destroy = hfnpdu_destroy
 };
