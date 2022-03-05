@@ -103,7 +103,7 @@ struct systable_gs_data {
 
 // Decoded System table PDU set
 // Returned as la_proto_node.
-struct systable_decoding_result {
+struct systable_complete {
 	la_list *gs_list;                                       // a list of structs systable_gs_data
 	int16_t version;
 	bool err;
@@ -141,15 +141,15 @@ struct systable {
  * Forward declarations
  ******************************/
 
-la_type_descriptor proto_DEF_systable_decoding_result;
+la_type_descriptor proto_DEF_systable_complete;
 static bool systable_validate(struct _systable *st);
 static bool systable_populate_stations_cache(struct _systable *st);
 static bool systable_is_newer(int32_t v_old, int32_t v_new);
-static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result);
+static bool systable_generate_config(config_t *cfg, struct systable_complete *sc);
 static bool systable_save_config(struct _systable *st);
 static struct _systable *_systable_create(char const *savefile);
 static struct systable_pdu_set *pdu_set_create(uint8_t len);
-static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len);
+static struct systable_complete *systable_decode(uint8_t *buf, uint32_t len);
 static void systable_copy_station_names(config_t *dst, config_setting_t const **stations);
 static void pdu_set_destroy(struct systable_pdu_set *ps);
 
@@ -347,7 +347,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 		pos += ps->pdus[i]->len;
 	}
 	debug_print_buf_hex(D_PROTO_DETAIL, buf, total_len, "Reassembled message:\n");
-	struct systable_decoding_result *result = systable_decode(buf, total_len);
+	struct systable_complete *result = systable_decode(buf, total_len);
 	ASSERT(result != NULL);
 	result->version = ps->version;
 
@@ -386,7 +386,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 
 	la_proto_node *node = la_proto_node_new();
 	node->data = result;
-	node->td = &proto_DEF_systable_decoding_result;
+	node->td = &proto_DEF_systable_complete;
 	return node;
 }
 
@@ -407,7 +407,7 @@ la_proto_node *systable_process_pdu_set(systable *st) {
 
 #define SYSTABLE_GS_DATA_MIN_LEN 8  // from GS ID to Master Slot Offset, excl. frequencies
 
-struct systable_gs_decoding_result {
+struct systable_gs_complete {
 	struct systable_gs_data *data;
 	int32_t consumed_len;
 	bool err;
@@ -421,7 +421,7 @@ static bool systable_validate_station_name(struct _systable *st, config_setting_
 static bool systable_validate_station_coordinates(struct _systable *st, config_setting_t const *station);
 static bool systable_validate_frequencies(struct _systable *st, config_setting_t const *station);
 static bool systable_add_station_cache_entry(struct _systable *st, config_setting_t const *station);
-static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len);
+static struct systable_gs_complete systable_decode_gs(uint8_t *buf, uint32_t len);
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data);
 static bool systable_generate_station_config(struct systable_gs_data const *gs_data, config_setting_t *s);
@@ -438,10 +438,9 @@ static struct _systable *_systable_create(char const *savefile) {
 static bool systable_validate(struct _systable *st) {
 	ASSERT(st);
 
-	bool result = true;
 	FAIL_IF(!systable_validate_version(st));
 	FAIL_IF(!systable_validate_stations(st));
-	return result;
+	return true;
 }
 
 static bool systable_validate_version(struct _systable *st) {
@@ -482,12 +481,11 @@ static bool systable_validate_station(struct _systable *st, config_setting_t con
 	if(!config_setting_is_group(station)) {
 		validation_error(ST_ERR_STATION_WRONG_TYPE);
 	}
-	bool result = true;
 	FAIL_IF(!systable_validate_station_id(st, station));
 	FAIL_IF(!systable_validate_station_name(st, station));
 	FAIL_IF(!systable_validate_station_coordinates(st, station));
 	FAIL_IF(!systable_validate_frequencies(st, station));
-	return result;
+	return true;
 }
 
 static bool systable_validate_station_id(struct _systable *st, config_setting_t const *station) {
@@ -607,13 +605,13 @@ static void pdu_set_destroy(struct systable_pdu_set *ps) {
 	XFREE(ps);
 }
 
-static struct systable_decoding_result *systable_decode(uint8_t *buf, uint32_t len) {
+static struct systable_complete *systable_decode(uint8_t *buf, uint32_t len) {
 	ASSERT(buf);
 	ASSERT(len > 0);
 
-	NEW(struct systable_decoding_result, result);
+	NEW(struct systable_complete, result);
 	while(len >= SYSTABLE_GS_DATA_MIN_LEN) {
-		struct systable_gs_decoding_result gs = systable_decode_gs(buf, len);
+		struct systable_gs_complete gs = systable_decode_gs(buf, len);
 		if(!gs.err) {
 			buf += gs.consumed_len;
 			len -= gs.consumed_len;
@@ -630,7 +628,7 @@ end:
 	return result;
 }
 
-static struct systable_gs_decoding_result systable_decode_gs(uint8_t *buf, uint32_t len) {
+static struct systable_gs_complete systable_decode_gs(uint8_t *buf, uint32_t len) {
 #define FREQ_FIELD_LEN 3
 #define SLOT_FIELD_LEN 1
 	ASSERT(buf);
@@ -677,7 +675,7 @@ fail:
 	XFREE(result);
 	result = NULL;
 end:
-	return (struct systable_gs_decoding_result){
+	return (struct systable_gs_complete){
 		.data = result,
 		.consumed_len = consumed_len,
 		.err = err
@@ -696,20 +694,20 @@ static uint32_t systable_decode_frequency(uint8_t const buf[3]) {
 		1e7 * ((buf[2] >> 4) & 0xF);
 }
 
-void systable_decoding_result_format_text(la_vstring *vstr, void const *data, int32_t indent) {
+void systable_complete_format_text(la_vstring *vstr, void const *data, int32_t indent) {
 	ASSERT(vstr);
 	ASSERT(data);
 	ASSERT(indent >= 0);
 
-	struct systable_decoding_result const *result = data;
-	if(result->err) {
+	struct systable_complete const *sc = data;
+	if(sc->err) {
 		LA_ISPRINTF(vstr, indent, "-- Unparseable System Table message\n");
 		return;
 	}
 	LA_ISPRINTF(vstr, indent, "System Table (complete):\n");
 	indent++;
-	LA_ISPRINTF(vstr, indent, "Version: %hu\n", result->version);
-	for(la_list *l = result->gs_list; l != NULL; l = l->next) {
+	LA_ISPRINTF(vstr, indent, "Version: %hu\n", sc->version);
+	for(la_list *l = sc->gs_list; l != NULL; l = l->next) {
 		systable_gs_data_format_text(vstr, indent, l->data);
 	}
 }
@@ -734,18 +732,18 @@ static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struc
 	}
 }
 
-static void systable_decoding_result_destroy(void *data) {
+static void systable_complete_destroy(void *data) {
 	if(data == NULL) {
 		return;
 	}
-	struct systable_decoding_result *result = data;
-	la_list_free(result->gs_list);
-	XFREE(result);
+	struct systable_complete *sc = data;
+	la_list_free(sc->gs_list);
+	XFREE(sc);
 }
 
-la_type_descriptor proto_DEF_systable_decoding_result = {
-	.format_text = systable_decoding_result_format_text,
-	.destroy = systable_decoding_result_destroy
+la_type_descriptor proto_DEF_systable_complete = {
+	.format_text = systable_complete_format_text,
+	.destroy = systable_complete_destroy
 };
 
 static bool systable_is_newer(int32_t v_old, int32_t v_new) {
@@ -764,9 +762,9 @@ static bool systable_is_newer(int32_t v_old, int32_t v_new) {
 		v_new + SYSTABLE_VERSION_MAX - v_old < (SYSTABLE_VERSION_MAX + 1) >> 1;
 }
 
-static bool systable_generate_config(config_t *cfg, struct systable_decoding_result *result) {
-	ASSERT(result);
-	ASSERT(!result->err);
+static bool systable_generate_config(config_t *cfg, struct systable_complete *sc) {
+	ASSERT(sc);
+	ASSERT(!sc->err);
 	ASSERT(cfg);
 
 	config_setting_t *root = config_root_setting(cfg);
@@ -774,11 +772,11 @@ static bool systable_generate_config(config_t *cfg, struct systable_decoding_res
 
 	config_setting_t *s = config_setting_add(root, "version", CONFIG_TYPE_INT);
 	FAIL_IF(!s);
-	FAIL_IF(config_setting_set_int(s, result->version) != CONFIG_TRUE);
+	FAIL_IF(config_setting_set_int(s, sc->version) != CONFIG_TRUE);
 
 	config_setting_t *stations = config_setting_add(root, "stations", CONFIG_TYPE_LIST);
 	FAIL_IF(!stations);
-	for(la_list *l = result->gs_list; l != NULL; l = l->next) {
+	for(la_list *l = sc->gs_list; l != NULL; l = l->next) {
 		FAIL_IF(systable_generate_station_config(l->data, stations) == false );
 	}
 	return true;
