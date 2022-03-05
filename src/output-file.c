@@ -169,7 +169,7 @@ static int32_t out_file_produce(void *selfptr, output_format_t format, struct me
 	if(self->rotate != ROT_NONE && out_file_rotate(self) < 0) {
 		return -1;
 	}
-	if(format == OFMT_TEXT || format == OFMT_JSON) {
+	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
 		out_file_produce_text(self, metadata, msg);
 	}
 	return 0;

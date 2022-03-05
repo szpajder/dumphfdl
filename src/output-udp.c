@@ -90,7 +90,7 @@ static void out_udp_produce_text(out_udp_ctx_t *self, struct metadata *metadata,
 static int out_udp_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_udp_ctx_t *self = selfptr;
-	if(format == OFMT_TEXT || format == OFMT_BASESTATION) {
+	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
 		out_udp_produce_text(self, metadata, msg);
 	}
 	return 0;

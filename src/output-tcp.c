@@ -145,7 +145,7 @@ static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct met
 			return 0;               // If unable to reconnect, then discard the message silently
 		}
 	}
-	if(format == OFMT_TEXT || format == OFMT_BASESTATION) {
+	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
 		result = out_tcp_produce_text(self, metadata, msg);
 	}
 	if(result < 0) {

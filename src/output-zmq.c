@@ -108,7 +108,7 @@ static void out_zmq_produce_text(out_zmq_ctx_t *self, struct metadata *metadata,
 static int out_zmq_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_zmq_ctx_t *self = selfptr;
-	if(format == OFMT_TEXT || format == OFMT_BASESTATION) {
+	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
 		out_zmq_produce_text(self, metadata, msg);
 	}
 	return 0;
