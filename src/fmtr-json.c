@@ -20,8 +20,8 @@ static void hfdl_format_json(la_vstring *vstr, void const *data) {
 	la_json_append_string(vstr, "name", "dumphfdl");
 	la_json_append_string(vstr, "ver", DUMPHFDL_VERSION);
 	la_json_object_end(vstr);
-	if(m->station_id != NULL) {
-		la_json_append_string(vstr, "station", m->station_id);
+	if(Config.station_id != NULL) {
+		la_json_append_string(vstr, "station", Config.station_id);
 	}
 
 	la_json_object_start(vstr, "t");
