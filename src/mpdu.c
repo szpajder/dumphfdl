@@ -201,7 +201,15 @@ static void mpdu_format_json(la_vstring *vstr, void const *data) {
 	}
 	if(mpdu->header.direction == UPLINK_PDU) {
 		gs_id_format_json(vstr, "src", mpdu->header.src_id);
-		ac_id_format_json(vstr, "dst", mpdu->header.freq, mpdu->header.dst_id);
+		la_json_array_start(vstr, "dsts");
+		for(la_list *ac = mpdu->dst_aircraft; ac != NULL; ac = la_list_next(ac)) {
+			struct mpdu_dst *dst = ac->data;
+			la_json_object_start(vstr, NULL);
+			ac_id_format_json(vstr, "dst", mpdu->header.freq, dst->dst_id);
+			la_json_append_int64(vstr, "lpdu_cnt", dst->lpdu_cnt);
+			la_json_object_end(vstr);
+		}
+		la_json_array_end(vstr);
 	} else {
 		ac_id_format_json(vstr, "src", mpdu->header.freq, mpdu->header.src_id);
 		gs_id_format_json(vstr, "dst", mpdu->header.dst_id);
