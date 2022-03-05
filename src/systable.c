@@ -6,6 +6,7 @@
 #include <libacars/libacars.h>      // la_proto_node
 #include <libacars/dict.h>          // la_dict_*
 #include <libacars/list.h>          // la_list
+#include <libacars/json.h>          // la_json_append_*
 #include "systable.h"
 #include "util.h"                   // NEW, XFREE, struct location, parse_coordinate
 
@@ -424,6 +425,7 @@ static bool systable_add_station_cache_entry(struct _systable *st, config_settin
 static struct systable_gs_complete systable_decode_gs(uint8_t *buf, uint32_t len);
 static uint32_t systable_decode_frequency(uint8_t const buf[3]);
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data);
+static void systable_gs_data_format_json(la_vstring *vstr, struct systable_gs_data const *data);
 static bool systable_generate_station_config(struct systable_gs_data const *gs_data, config_setting_t *s);
 static bool systable_station_locations_match(config_setting_t const *s1, config_setting_t const *s2);
 
@@ -712,6 +714,23 @@ void systable_complete_format_text(la_vstring *vstr, void const *data, int32_t i
 	}
 }
 
+void systable_complete_format_json(la_vstring *vstr, void const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+
+	struct systable_complete const *sc = data;
+	la_json_append_bool(vstr, "err", sc->err);
+	if(sc->err) {
+		return;
+	}
+	la_json_append_int64(vstr, "version", sc->version);
+	la_json_array_start(vstr, "ground_stations");
+	for(la_list *l = sc->gs_list; l != NULL; l = l->next) {
+		systable_gs_data_format_json(vstr, l->data);
+	}
+	la_json_array_end(vstr);
+}
+
 static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struct systable_gs_data const *data) {
 	ASSERT(vstr);
 	ASSERT(indent >= 0);
@@ -732,6 +751,30 @@ static void systable_gs_data_format_text(la_vstring *vstr, int32_t indent, struc
 	}
 }
 
+static void systable_gs_data_format_json(la_vstring *vstr, struct systable_gs_data const *data) {
+	ASSERT(vstr);
+	ASSERT(data);
+
+	la_json_object_start(vstr, NULL);
+	la_json_append_int64(vstr, "id", data->gs_id);
+	la_json_append_bool(vstr, "utc_sync", data->utc_sync);
+	la_json_object_start(vstr, "location");
+	la_json_append_double(vstr, "lat", data->gs_location.lat);
+	la_json_append_double(vstr, "lon", data->gs_location.lon);
+	la_json_object_end(vstr);
+	la_json_append_int64(vstr, "spdu_version", data->spdu_version);
+
+	la_json_array_start(vstr, "freqs");
+	for(uint32_t f = 0; f < data->freq_cnt; f++) {
+		la_json_object_start(vstr, NULL);
+		la_json_append_int64(vstr, "freq", data->frequencies[f]);
+		la_json_append_int64(vstr, "master_frame_slot", data->master_frame_slots[f]);
+		la_json_object_end(vstr);
+	}
+	la_json_array_end(vstr);
+	la_json_object_end(vstr);
+}
+
 static void systable_complete_destroy(void *data) {
 	if(data == NULL) {
 		return;
@@ -743,6 +786,8 @@ static void systable_complete_destroy(void *data) {
 
 la_type_descriptor proto_DEF_systable_complete = {
 	.format_text = systable_complete_format_text,
+	.format_json = systable_complete_format_json,
+	.json_key = "systable_complete",
 	.destroy = systable_complete_destroy
 };
 
