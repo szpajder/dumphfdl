@@ -21,6 +21,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
 ## Supported output formats
 
 - Human readable text
+- JSON
 - Basestation feed with aircraft positions
 
 ## Supported output types
@@ -510,6 +511,7 @@ where:
 - `<output_format>` specifies how the data should be formatted before sending it to the output. The following formats are currently supported:
 
   - `text` - human-readable text
+  - `json` - Javascript object notation
   - `basestation` - aircraft position feed in Kinetic Basestation format
 
 - `<output_type>` specifies the type of the output. The following output types are supported:
@@ -547,7 +549,7 @@ A few more remarks about how output configuration works:
 
 Outputs data to a file.
 
-Supported formats: `text`, `basestation`
+Supported formats: `text`, `json`, `basestation`
 
 Parameters:
 
@@ -559,7 +561,7 @@ Parameters:
 
 Sends data to a remote host over the network using TCP/IP.
 
-Supported formats: `text`, `basestation`
+Supported formats: `text`, `json`, `basestation`
 
 Parameters:
 
@@ -573,7 +575,7 @@ The primary purpose of the `tcp` output is to feed various plane tracking apps (
 
 Sends data to a remote host over network using UDP/IP.
 
-Supported formats: `text`, `basestation`
+Supported formats: `text`, `json`, `basestation`
 
 Parameters:
 
@@ -589,7 +591,7 @@ If you plan to use networked output for real, use `tcp` or `zmq` driver.
 
 Opens a ZeroMQ publisher socket and sends data to it.
 
-Supported formats: `text`, `basestation`
+Supported formats: `text`, `json`, `basestation`
 
 Parameters:
 
@@ -645,6 +647,16 @@ The following options work globally across all outputs with text format:
 - Add `--output-corrupted-pdus` option to log corrupted messages (too short, CRC check failed, etc). dumphfdl can't decode such messages, but they might optionally be logged as hex dump if `--raw-frames` is in use. By default corrupted messages are not included in the log.
 
 - Some ACARS and MIAM CORE messages contain XML data. Use `--prettify-xml` option to enable pretty-printing of such content. XML will then be reformatted with proper indentation for easier reading. This feature requires libacars built with libxml2 library support - otherwise this option has no effect.
+
+### Additional options for JSON formatting
+
+The following options work globally across all outputs with json format:
+
+- `--output-mpdus`
+
+- `--output-corrupted-pdus`
+
+See above for the description of these options.
 
 ## Using the system table
 
