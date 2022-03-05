@@ -182,9 +182,6 @@ static struct metadata *hfdl_pdu_metadata_copy(struct metadata const *m) {
 	struct hfdl_pdu_metadata *hm = container_of(m, struct hfdl_pdu_metadata, metadata);
 	NEW(struct hfdl_pdu_metadata, copy);
 	memcpy(copy, hm, sizeof(struct hfdl_pdu_metadata));
-	if(hm->station_id != NULL) {
-		copy->station_id = strdup(hm->station_id);
-	}
 	return &copy->metadata;
 }
 
@@ -193,7 +190,6 @@ static void hfdl_pdu_metadata_destroy(struct metadata *m) {
 		return;
 	}
 	struct hfdl_pdu_metadata *hm = container_of(m, struct hfdl_pdu_metadata, metadata);
-	XFREE(hm->station_id);
 	XFREE(hm);
 }
 

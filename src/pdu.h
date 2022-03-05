@@ -7,7 +7,6 @@
 
 struct hfdl_pdu_metadata {
 	struct metadata metadata;
-	char *station_id;
 	int32_t version;
 	int32_t freq;
 	int32_t bit_rate;
