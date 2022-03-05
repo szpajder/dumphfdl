@@ -154,7 +154,7 @@ static void spdu_format_json(la_vstring *vstr, void const *data) {
 	ASSERT(data);
 
 	struct hfdl_spdu const *spdu = data;
-	la_json_append_bool(vstr, "crc_ok", spdu->header.crc_ok);
+	la_json_append_bool(vstr, "err", !spdu->header.crc_ok);
 	if(!spdu->header.crc_ok) {
 		return;
 	}

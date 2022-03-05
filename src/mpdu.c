@@ -195,7 +195,7 @@ static void mpdu_format_json(la_vstring *vstr, void const *data) {
 	ASSERT(data);
 
 	struct hfdl_mpdu const *mpdu = data;
-	la_json_append_bool(vstr, "crc_ok", mpdu->header.crc_ok);
+	la_json_append_bool(vstr, "err", !mpdu->header.crc_ok);
 	if(!mpdu->header.crc_ok) {
 		return;
 	}
