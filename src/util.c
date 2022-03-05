@@ -203,8 +203,21 @@ static void unknown_proto_format_text(la_vstring *vstr, void const *data, int32_
 	append_hexdump_with_indent(vstr, ostring->buf, ostring->len, indent+1);
 }
 
+static void unknown_proto_format_json(la_vstring *vstr, void const *data) {
+	ASSERT(vstr != NULL);
+	ASSERT(data != NULL);
+
+	struct octet_string const *ostring = data;
+	if(ostring->buf == NULL || ostring->len == 0) {
+		return;
+	}
+	la_json_append_octet_string(vstr, "data", ostring->buf, ostring->len);
+}
+
 static la_type_descriptor const proto_DEF_unknown = {
 	.format_text = unknown_proto_format_text,
+	.format_json = unknown_proto_format_json,
+	.json_key = "unknown_proto",
 	.destroy = NULL
 };
 
