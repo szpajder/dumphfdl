@@ -80,5 +80,5 @@ fmtr_descriptor_t fmtr_DEF_basestation = {
 	.format_decoded_msg = fmtr_basestation_format_decoded_msg,
 	.format_raw_msg = NULL,
 	.supports_data_type = fmtr_basestation_supports_data_type,
-	.output_format = OFMT_TEXT,
+	.output_format = OFMT_BASESTATION,
 };
