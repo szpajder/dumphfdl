@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.3.0 (2022-03-16)
+
+- Added support for formatting decoded messages as JSON.
+
 ## Version 1.2.1 (2022-02-26)
 
 - Fixed a bug that caused manual gain settings to be ineffective on devices
