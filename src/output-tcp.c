@@ -142,7 +142,7 @@ static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct met
 	int32_t result = 0;
 	if(self->sockfd == 0) {         // No connection?
 		if(out_tcp_reconnect(selfptr) < 0) {
-			return 0;               // If unable to reconnect, then discard the message silently
+			return -1;
 		}
 	}
 	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
@@ -153,10 +153,8 @@ static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct met
 		fprintf(stderr, "Error while sending to %s:%s: %s\n", self->address, self->port, strerror(errno));
 		out_tcp_handle_shutdown(selfptr);
 		self->next_reconnect_time = 0;
+		return -1;
 	}
-	// Always return success, even on send error - otherwise the output thread would declare
-	// the error as fatal and disable the output without giving us a change to reestablish
-	// the connection.
 	return 0;
 }
 

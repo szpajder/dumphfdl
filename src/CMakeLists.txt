@@ -97,7 +97,7 @@ else()
 	message(FATAL_ERROR "Unknown FFT library: ${FFT_LIBRARY}")
 endif()
 
-pkg_check_modules(GLIB2 REQUIRED glib-2.0)
+pkg_check_modules(GLIB2 REQUIRED glib-2.0>=2.46)
 list(APPEND dumphfdl_extra_libs ${GLIB2_LIBRARIES})
 list(APPEND dumphfdl_include_dirs ${GLIB2_INCLUDE_DIRS})
 list(APPEND link_dirs ${GLIB2_LIBRARY_DIRS})

@@ -224,9 +224,10 @@ void *output_thread(void *arg) {
 			break;
 		}
 		int32_t result = oi->td->produce(ctx->priv, q->format, q->metadata, q->msg);
-		output_qentry_destroy(q);
 		if(result < 0) {
-			break;
+			g_async_queue_push_front(ctx->q, q);
+		} else {
+			output_qentry_destroy(q);
 		}
 	}
 

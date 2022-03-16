@@ -77,7 +77,7 @@ Mandatory dependencies:
 - make
 - cmake >= 3.1
 - pkg-config
-- glib2
+- glib2 >= 2.46
 - libconfig++
 - libacars >= 2.1.0
 - liquid-dsp >= 1.3.0
