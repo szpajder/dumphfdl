@@ -93,23 +93,29 @@ static int out_zmq_init(void *selfptr) {
 	return 0;
 }
 
-static void out_zmq_produce_text(out_zmq_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
+static int out_zmq_produce_text(out_zmq_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
 	UNUSED(metadata);
 	ASSERT(msg != NULL);
 	ASSERT(self->zmq_sock != 0);
 	if(msg->len < 2) {
-		return;
+		return 0;
 	}
 	if(zmq_send(self->zmq_sock, msg->buf, msg->len, 0) < 0) {
-		fprintf(stderr, "output_zmq(%s): zmq_send error: %s", self->endpoint, zmq_strerror(errno));
+		return -1;
 	}
+	return 0;
 }
 
 static int out_zmq_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_zmq_ctx_t *self = selfptr;
+	int32_t result = 0;
 	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
-		out_zmq_produce_text(self, metadata, msg);
+		result = out_zmq_produce_text(self, metadata, msg);
+	}
+	if(result < 0) {
+		fprintf(stderr, "output_zmq(%s): zmq_send error: %s\n", self->endpoint, zmq_strerror(errno));
+		return -1;
 	}
 	return 0;
 }
