@@ -74,11 +74,11 @@ static int32_t out_tcp_reconnect(void *selfptr) {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = 0;
 	hints.ai_protocol = 0;
-	fprintf(stderr, "Connecting to %s:%s...\n", self->address, self->port);
+	fprintf(stderr, "output_tcp(%s:%s): connecting...\n", self->address, self->port);
 	int32_t ret = getaddrinfo(self->address, self->port, &hints, &result);
 	if(ret != 0) {
-		fprintf(stderr, "Could not resolve address %s:%s: %s\n", self->address, self->port,
-				gai_strerror(ret));
+		fprintf(stderr, "output_tcp(%s:%s): could not resolve address: %s\n",
+				self->address, self->port, gai_strerror(ret));
 		goto fail;
 	}
 	for (rptr = result; rptr != NULL; rptr = rptr->ai_next) {
@@ -87,18 +87,20 @@ static int32_t out_tcp_reconnect(void *selfptr) {
 			continue;
 		}
 		if(setsockopt(self->sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0) {
-			fprintf(stderr, "Could not set timeout on socket: %s\n", strerror(errno));
+			fprintf(stderr, "output_tcp(%s:%s): could not set timeout on socket: %s\n",
+					self->address, self->port, strerror(errno));
 		}
 
 		if(connect(self->sockfd, rptr->ai_addr, rptr->ai_addrlen) != -1) {
-			fprintf(stderr, "Connection to %s:%s established\n", self->address, self->port);
+			fprintf(stderr, "output_tcp(%s:%s): connection established\n",
+					self->address, self->port);
 			break;
 		}
 		close(self->sockfd);
 		self->sockfd = 0;
 	}
 	if (rptr == NULL) {
-		fprintf(stderr, "Could not connect to %s:%s: all addresses failed\n",
+		fprintf(stderr, "output_tcp(%s:%s): could not connect: all addresses failed\n",
 				self->address, self->port);
 		self->sockfd = 0;
 		goto fail;
@@ -150,7 +152,8 @@ static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct met
 	}
 	if(result < 0) {
 		// Possible connection failure. Close it and reschedule an immediate reconnection.
-		fprintf(stderr, "Error while sending to %s:%s: %s\n", self->address, self->port, strerror(errno));
+		fprintf(stderr, "output_tcp(%s:%s): send error: %s\n", self->address,
+			self->port,	strerror(errno));
 		out_tcp_handle_shutdown(selfptr);
 		self->next_reconnect_time = 0;
 		return -1;
@@ -163,13 +166,13 @@ static void out_tcp_handle_shutdown(void *selfptr) {
 	out_tcp_ctx_t *self = selfptr;
 	close(self->sockfd);
 	self->sockfd = 0;
-	fprintf(stderr, "Connection to %s:%s closed\n", self->address, self->port);
+	fprintf(stderr, "output_tcp(%s:%s): connection closed\n", self->address, self->port);
 }
 
 static void out_tcp_handle_failure(void *selfptr) {
 	ASSERT(selfptr != NULL);
 	out_tcp_ctx_t *self = selfptr;
-	fprintf(stderr, "Could not connect to %s:%s, deactivating output\n",
+	fprintf(stderr, "output_tcp(%s:%s): could not connect, deactivating output\n",
 			self->address, self->port);
 	close(self->sockfd);
 	self->sockfd = 0;
