@@ -144,7 +144,11 @@ static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct met
 	int32_t result = 0;
 	if(self->sockfd == 0) {         // No connection?
 		if(out_tcp_reconnect(selfptr) < 0) {
-			return -1;
+			// Return success - this causes the message to be dropped silently.
+			// Can't requeue it here, because if the problem is permanent, then
+			// it would prevent the program from shutting down cleanly (shutdown
+			// message in the output queue would never be processed).
+			return 0;
 		}
 	}
 	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
@@ -156,6 +160,7 @@ static int32_t out_tcp_produce(void *selfptr, output_format_t format, struct met
 			self->port,	strerror(errno));
 		out_tcp_handle_shutdown(selfptr);
 		self->next_reconnect_time = 0;
+		// Declare a failure, so that the message gets requeued
 		return -1;
 	}
 	return 0;
