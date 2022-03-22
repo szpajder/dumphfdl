@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <string.h>             // memset, strcmp, strdup
+#include <unistd.h>             // sleep
 #include <glib.h>               // g_async_queue_new
 #include <libacars/dict.h>      // la_dict
 #include "config.h"             // WITH_*
@@ -225,8 +226,15 @@ void *output_thread(void *arg) {
 		}
 		int32_t result = oi->td->produce(ctx->priv, q->format, q->metadata, q->msg);
 		if(result < 0) {
+			debug_print(D_OUTPUT, "output %p: msg %p (ts %ld %ld): delivery failure\n", oi, q,
+					q->metadata->rx_timestamp.tv_sec, q->metadata->rx_timestamp.tv_usec);
 			g_async_queue_push_front(ctx->q, q);
+			// Delay further processing a bit to give the output a change to resolve
+			// the problem (eg. to reconnect)
+			sleep(2);
 		} else {
+			debug_print(D_OUTPUT, "output %p: msg %p (ts %ld %ld): delivery ok\n", oi, q,
+					q->metadata->rx_timestamp.tv_sec, q->metadata->rx_timestamp.tv_usec);
 			output_qentry_destroy(q);
 		}
 	}
