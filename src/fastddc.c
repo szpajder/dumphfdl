@@ -111,14 +111,18 @@ void fft_swap_sides(float complex *io, int32_t fft_size)
 	}
 }
 
-void multiply_add(float complex const *input, float complex const *kernel, float complex *output, int32_t len) {
+void multiply_add(float complex const *restrict input,
+		float complex const *restrict kernel,
+		float complex *restrict output,
+		int32_t len) {
 	for(int32_t i = 0; i < len; i++) {
 		output[i] += kernel[i] * input[i];
 	}
 }
 
-static void multiply_and_shift(float complex const *input, float complex const *kernel, int32_t input_len,
-		float complex *output, int32_t output_len, int32_t offset) {
+static void multiply_and_shift(float complex const *restrict input,
+		float complex const *restrict kernel, int32_t input_len,
+		float complex *restrict output, int32_t output_len, int32_t offset) {
 	ASSERT(input_len % output_len == 0);
 	ASSERT(offset >= -input_len / 2);
 	ASSERT(offset < input_len / 2);
@@ -148,8 +152,12 @@ static void multiply_and_shift(float complex const *input, float complex const *
 	multiply_add(input + input_idx, kernel + input_idx, output + output_idx, tail_output_len);
 }
 
-decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float complex *output, fastddc_t* ddc, FFT_PLAN_T *plan_inverse, float complex *taps_fft, decimating_shift_addition_status_t shift_stat)
-{
+decimating_shift_addition_status_t fastddc_inv_cc(
+		float complex *restrict input,
+		float complex *restrict output,
+		fastddc_t* ddc, FFT_PLAN_T *plan_inverse,
+		float complex *restrict taps_fft,
+		decimating_shift_addition_status_t shift_stat) {
 	//implements DDC by using the overlap & scrap method
 	//TODO: +/-1s on overlap_size et al
 	//input shoud have ddc->fft_size number of elements
