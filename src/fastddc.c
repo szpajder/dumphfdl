@@ -111,50 +111,9 @@ void fft_swap_sides(float complex *io, int32_t fft_size)
 	}
 }
 
-static void multiply_add(float complex const *input, float complex const *kernel, float complex *output, int32_t len) {
-	if (len >= 8) {
-		int32_t it = len >> 3;
-		for (int32_t i = 0; i < it; i++) {
-			output[0] += kernel[0] * input[0];
-			output[1] += kernel[1] * input[1];
-			output[2] += kernel[2] * input[2];
-			output[3] += kernel[3] * input[3];
-			output[4] += kernel[4] * input[4];
-			output[5] += kernel[5] * input[5];
-			output[6] += kernel[6] * input[6];
-			output[7] += kernel[7] * input[7];
-
-			input += 8;
-			kernel += 8;
-			output += 8;
-		}
-		len &= 7;
-	}
-
-	if (len >= 4) {
-		output[0] += kernel[0] * input[0];
-		output[1] += kernel[1] * input[1];
-		output[2] += kernel[2] * input[2];
-		output[3] += kernel[3] * input[3];
-
-		kernel += 4;
-		input += 4;
-		output += 4;
-		len &= 3;
-	}
-
-	if (len >= 2) {
-		output[0] += kernel[0] * input[0];
-		output[1] += kernel[1] * input[1];
-
-		kernel += 2;
-		input += 2;
-		output += 2;
-		len &= 1;
-	}
-
-	if (len >= 1) {
-		output[0] += kernel[0] * input[0];
+void multiply_add(float complex const *input, float complex const *kernel, float complex *output, int32_t len) {
+	for(int32_t i = 0; i < len; i++) {
+		output[i] += kernel[i] * input[i];
 	}
 }
 
