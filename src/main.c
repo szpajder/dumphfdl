@@ -12,10 +12,10 @@
 #include <libacars/libacars.h>  // la_config_set_int
 #include <libacars/acars.h>     // LA_ACARS_BEARER_HFDL
 #include <libacars/list.h>      // la_list
-#ifdef PROFILING
+#include "config.h"
+#ifdef WITH_PROFILING
 #include <gperftools/profiler.h>
 #endif
-#include "config.h"
 #include "options.h"            // IND(), describe_option
 #include "globals.h"            // do_exit, Systable
 #include "block.h"              // block_*
@@ -723,7 +723,7 @@ int32_t main(int32_t argc, char **argv) {
 
 	setup_signals();
 
-#ifdef PROFILING
+#ifdef WITH_PROFILING
 	ProfilerStart("dumphfdl.prof");
 #endif
 
@@ -747,7 +747,7 @@ int32_t main(int32_t argc, char **argv) {
 		usleep(500000);
 	}
 
-#ifdef PROFILING
+#ifdef WITH_PROFILING
 	ProfilerStop();
 #endif
 
