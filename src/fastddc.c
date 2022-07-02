@@ -135,7 +135,6 @@ static void multiply_and_shift(float complex const *restrict input,
 
 	// Handle block head
 	int32_t output_idx = head_output_idx;
-	debug_print(D_DSP, "head: %d -> %d: len %d\n", input_idx, output_idx, head_output_len);
 	multiply_add(input + input_idx, kernel + input_idx, output + output_idx, head_output_len);
 	input_idx += head_output_len;
 
@@ -143,12 +142,10 @@ static void multiply_and_shift(float complex const *restrict input,
 	int32_t whole_blocks_cnt = input_len / output_len - 1;
 	output_idx = 0;
 	for(int32_t i = 0; i < whole_blocks_cnt; i++) {
-		debug_print(D_DSP, "block %d: %d -> %d: len %d\n", i, input_idx, output_idx, output_len);
 		multiply_add(input + input_idx, kernel + input_idx, output + output_idx, output_len);
 		input_idx += output_len;
 	}
 	// Handle block tail
-	debug_print(D_DSP, "tail: %d -> %d: len %d\n", input_idx, output_idx, tail_output_len);
 	multiply_add(input + input_idx, kernel + input_idx, output + output_idx, tail_output_len);
 }
 
