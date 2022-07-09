@@ -187,19 +187,13 @@ decimating_shift_addition_status_t fastddc_inv_cc(
 	}
 #endif
 
-	//Normalize inv fft bins (now our output level is not higher than the input... but we may optimize this into the later loop when we normalize by size)
-	for(int32_t i=0;i<plan_inverse->size;i++)
-	{
-		inv_input[i] /= ddc->pre_decimation;
-	}
-
 	fft_swap_sides(inv_input,plan_inverse->size);
 	csdr_fft_execute(plan_inverse);
 
-	//Normalize data
-	for(int32_t i=0;i<plan_inverse->size;i++) //@fastddc_inv_cc: normalize by size
-	{
-		inv_output[i] /= plan_inverse->size;
+	// Normalize iFFT result
+	float complex const norm = ddc->pre_decimation * plan_inverse->size;
+	for(int32_t i = 0; i < plan_inverse->size; i++) {
+		inv_output[i] /= norm;
 	}
 #ifdef FASTDDC_DEBUG
 	if(second==1) {
