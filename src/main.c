@@ -698,11 +698,11 @@ int32_t main(int32_t argc, char **argv) {
 	la_config_set_int("acars_bearer", LA_ACARS_BEARER_HFDL);
 	hfdl_init_globals();
 
-	struct block *channels[channel_cnt];
+	struct block *channel_blocks[channel_cnt];
 	for(int32_t i = 0; i < channel_cnt; i++) {
-		channels[i] = hfdl_channel_create(input_cfg->sample_rate, fft_decimation_rate,
+		channel_blocks[i] = hfdl_channel_create(input_cfg->sample_rate, fft_decimation_rate,
 				fftfilt_transition_bw, input_cfg->centerfreq, frequencies[i]);
-		if(channels[i] == NULL) {
+		if(channel_blocks[i] == NULL) {
 			fprintf(stderr, "Failed to initialize channel %s\n",
 					argv[optind + i]);
 			return 1;
@@ -710,7 +710,7 @@ int32_t main(int32_t argc, char **argv) {
 	}
 
 	if(block_connect_one2one(input, fft) != 1 ||
-			block_connect_one2many(fft, channel_cnt, channels) != channel_cnt) {
+			block_connect_one2many(fft, channel_cnt, channel_blocks) != channel_cnt) {
 		return 1;
 	}
 
@@ -727,7 +727,7 @@ int32_t main(int32_t argc, char **argv) {
 	ProfilerStart("dumphfdl.prof");
 #endif
 
-	if(block_set_start(channel_cnt, channels) != channel_cnt ||
+	if(block_set_start(channel_cnt, channel_blocks) != channel_cnt ||
 		block_start(fft) != 1 ||
 		block_start(input) != 1) {
 		return 1;
@@ -740,7 +740,7 @@ int32_t main(int32_t argc, char **argv) {
 	while(do_exit < 2 && (
 			block_is_running(input) ||
 			block_is_running(fft) ||
-			block_set_is_any_running(channel_cnt, channels) ||
+			block_set_is_any_running(channel_cnt, channel_blocks) ||
 			hfdl_pdu_decoder_is_running() ||
 			output_thread_is_any_running(outputs)
 			)) {
@@ -753,10 +753,10 @@ int32_t main(int32_t argc, char **argv) {
 
 	hfdl_print_summary();
 
-	block_disconnect_one2many(fft, channel_cnt, channels);
+	block_disconnect_one2many(fft, channel_cnt, channel_blocks);
 	block_disconnect_one2one(input, fft);
 	for(int32_t i = 0; i < channel_cnt; i++) {
-		hfdl_channel_destroy(channels[i]);
+		hfdl_channel_destroy(channel_blocks[i]);
 	}
 	input_destroy(input);
 	input_cfg_destroy(input_cfg);
