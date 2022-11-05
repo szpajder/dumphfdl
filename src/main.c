@@ -311,6 +311,7 @@ static void usage() {
 #ifdef WITH_STATSD
 	fprintf(stderr, "\nEtsy StatsD options:\n");
 	describe_option("--statsd <host>:<port>", "Send statistics to Etsy StatsD server <host>:<port>", 1);
+	describe_option("--noise-floor-stats-interval <integer>", "Enable periodic noise floor reporting via StatsD", 1);
 #endif
 }
 
@@ -357,6 +358,7 @@ int32_t main(int32_t argc, char **argv) {
 
 #ifdef WITH_STATSD
 #define OPT_STATSD 70
+#define OPT_NF_STATS_INTERVAL 71
 #endif
 
 #ifdef WITH_SQLITE
@@ -407,6 +409,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 #ifdef WITH_STATSD
 		{ "statsd",             required_argument,  NULL,   OPT_STATSD },
+		{ "noise-floor-stats-interval", required_argument,  NULL,   OPT_NF_STATS_INTERVAL },
 #endif
 		{ 0,                    0,                  0,      0 }
 	};
@@ -554,7 +557,12 @@ int32_t main(int32_t argc, char **argv) {
 #endif
 #ifdef WITH_STATSD
 			case OPT_STATSD:
-				statsd_addr = strdup(optarg);
+				statsd_addr = optarg;
+				break;
+			case OPT_NF_STATS_INTERVAL:
+				if(parse_int32(optarg, &Config.nf_stats_interval) == false) {
+					return 1;
+				}
 				break;
 #endif
 #ifdef DEBUG
@@ -679,7 +687,6 @@ int32_t main(int32_t argc, char **argv) {
 			}
 			statsd_initialize_counters_per_msgdir();
 		}
-		XFREE(statsd_addr);
 	}
 #endif
 
@@ -732,6 +739,20 @@ int32_t main(int32_t argc, char **argv) {
 		block_start(input) != 1) {
 		return 1;
 	}
+
+#ifdef WITH_STATSD
+	if(Config.nf_stats_interval > 0) {
+		if(statsd_addr != NULL) {
+			if(hfdl_nf_stats_thread_start(channel_blocks, channel_cnt) < 0) {
+				return 1;
+			}
+		} else {
+			fprintf(stderr, "WARNING: --noise-floor-stats-interval option has no effect "
+					"due to missing --statsd option\n");
+		}
+	}
+#endif
+
 	while(!do_exit) {
 		sleep(1);
 	}

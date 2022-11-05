@@ -137,6 +137,11 @@ static struct hfdl_params const hfdl_frame_params[M_SHIFT_CNT] = {
 	}
 };
 
+struct nf_stats_thread_ctx {
+	struct block **channel_block_list;
+	int32_t channel_cnt;
+};
+
 #define SYMSYNC_PFB_CNT 16          // number of filter in symsync polyphase filterbank
 #define HFDL_MF_SYMBOL_DELAY 3      // delay introduced by matched filter (measured in symbols)
 #define HFDL_MF_TAPS_CNT 19         // SPS * 3 symbols of delay * 2 + 1
@@ -193,6 +198,7 @@ static void decode_user_data(struct hfdl_channel *c);
 static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
 static void sampler_reset(struct hfdl_channel *c);
 static void framer_reset(struct hfdl_channel *c);
+static void *noise_floor_stats_thread(void *ctx);
 
 struct hfdl_channel {
 	struct block block;
@@ -551,6 +557,15 @@ void hfdl_print_summary(void) {
 	fprintf(stderr, "train_bits_bad/total:\t%d/%d (%f%%)\n", S.train_bits_bad, S.train_bits_total,
 			(float)S.train_bits_bad / (float)S.train_bits_total * 100.f);
 #endif
+}
+
+int32_t hfdl_nf_stats_thread_start(struct block **channel_block_list, int32_t channel_cnt) {
+	pthread_t nfstats_th;
+	NEW(struct nf_stats_thread_ctx, ctx);
+	ctx->channel_block_list = channel_block_list;
+	ctx->channel_cnt = channel_cnt;
+	int32_t ret = start_thread(&nfstats_th, noise_floor_stats_thread, ctx);
+	return ret;
 }
 
 /**********************************
@@ -1049,4 +1064,29 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));
 	memcpy(copy, buf, len);
 	pdu_decoder_queue_push(m, octet_string_new(copy, len), flags);
+}
+
+static void *noise_floor_stats_thread(void *ctx) {
+	ASSERT(ctx != NULL);
+	struct nf_stats_thread_ctx *nfctx = ctx;
+	int32_t channel_cnt = nfctx->channel_cnt;
+	struct hfdl_channel *channels[channel_cnt];
+	for(int32_t i = 0; i < channel_cnt; i++) {
+		channels[i] = container_of(nfctx->channel_block_list[i], struct hfdl_channel, block);
+	}
+	while(true) {
+		sleep(Config.nf_stats_interval);
+		for(int32_t i = 0; i < channel_cnt; i++) {
+			float nf = LEVEL_TO_DB(channels[i]->noise_floor);
+			// Can't report float as a StatsD gauge - only integers are supported.
+			// What's more, submitting a negative value causes the gauge to be
+			// subtracted from the current value, rather than set to the given value.
+			// As a workaround, noise floor is report in tenths of dBFS, positive.
+			if(nf <= 0.f) {
+				statsd_set_per_channel(channels[i]->chan_freq, "noise_floor",
+						(size_t)fabsf(roundf(nf * 10.f)));
+			}
+		}
+	}
+	return NULL;
 }

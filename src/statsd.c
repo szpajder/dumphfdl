@@ -141,6 +141,15 @@ void statsd_gauge_set(char *gauge, size_t value) {
 	statsd_gauge(statsd, gauge, value);
 }
 
+void statsd_gauge_per_channel_set(int32_t freq, char *gauge, size_t value) {
+	if(statsd == NULL) {
+		return;
+	}
+	char metric[256];
+	snprintf(metric, sizeof(metric), "channels.%d.%s", freq, gauge);
+	statsd_gauge(statsd, metric, value);
+}
+
 void statsd_timing_delta_per_channel_send(int32_t freq, char *timer, struct timeval ts) {
 	if(statsd == NULL) {
 		return;
