@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## Version 1.4.0 (2022-11-14)
+
+- Added support for periodic noise floor reporting via Etsy StatsD. This
+  allows long-term noise floor monitoring and trending on all monitored
+  HFDL channels. Enable with `--noise-floor-stats-interval <interval_seconds>`
+  command line option (together with `--statsd address:port`, of course).
+- Better handling of network errors when producing output to networked
+  outputs (TCP, UDP, ZMQ). When the message delivery fails, the message
+  now gets requeued and redelivered when the connection is reestablished.
+- A few optimizations resulting in slightly lower CPU usage.
+
 ## Version 1.3.0 (2022-03-16)
 
 - Added support for formatting decoded messages as JSON.
