@@ -43,7 +43,10 @@ In the following list `<freq>` is the channel frequency (in Hertz) - for example
 - `<freq>.lpdus.good` (counter) - number of successfully decoded LPDUs.
 
 - `<freq>.lpdu.errors.bad_fcs` (counter) - number of LPDUs which could not be decoded due to a bad Frame Check Sequence (CRC error).
+
 - `<freq>.lpdu.errors.too_short` (counter) - number of LPDUs which could not be decoded due to being unreasonably short.
+
+- `<freq>.noise_floor` (gauge) - noise floor level estimate on the given channel. Reported as integer in tenths of dBFS, positive. To convert this to the actual value, multiply it by -0.1, eg. 853 = -85.3 dBFS. This metric is emitted only when enabled with `--noise-floor-stats-interval <interval_seconds>`.
 
 ## ACARS reassembly metrics
 

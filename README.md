@@ -1,6 +1,6 @@
 # dumphfdl
 
- dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
+dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
 
 HFDL (High Frequency Data Link) is a protocol used for radio communications between aircraft and a network of ground stations using high frequency (HF) radio waves. It is used to carry ACARS and AOC messages as well as CPDLC (Controller-Pilot Data Link Communications) and ADS-C (Automatic Dependent Surveillance - Contract). Thanks to the ability of short waves to propagate over long distances, HFDL is particularly useful in remote areas (eg. over oceans or polar regions) where other ground-based communications services are out of range. While many aircraft prefer satellite communications these days, HFDL is still operational and in use.
 
@@ -15,7 +15,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
   - ground station details - from the system table file
   - aircraft data - from Basestation SQLite database
 - Extracts aircraft position information from decoded messages and provides a data feed for external plane tracking apps (eg. Virtual Radar Server)
-- Produces decoding statistics using [Etsy StatsD](https://github.com/etsy/statsd) protocol
+- Produces statistics using [Etsy StatsD](https://github.com/etsy/statsd) protocol
 - Runs under Linux and MacOS
 
 ## Supported output formats
@@ -794,11 +794,13 @@ Here is an example of some dumphfdl metrics being graphed by Grafana:
 
 Metrics are quite handy when tuning your receiving installation or monitoring HF propagation or HFDL channel usage patterns.
 
-To enable statistics just give dumphfdl your StatsD collector's hostname (or IP address) and UDP port number, for example:
+To enable decoder statistics specify StatsD collector's hostname (or IP address) and UDP port number, for example:
 
 ```sh
 dumphfdl --statsd 10.10.10.15:1234 ...
 ```
+
+Additionally you may enable periodic reporting of noise floor on each monitored HFDL channel using `--noise-floor-stats-interval <interval_seconds>`.
 
 Refer to the `doc/STATSD_METRICS.md` file for a complete list of currently supported metrics.
 
