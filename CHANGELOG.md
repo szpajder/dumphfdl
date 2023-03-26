@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Version 1.4.1 (2023-03-26)
+
+- Fixed a bug which caused incorrect decoding of some uplink MPDUs
+  containing multiple LPDUs destined to the same aircraft (thx Dick,
+  acarslogger)
+
 ## Version 1.4.0 (2022-11-14)
 
 - Added support for periodic noise floor reporting via Etsy StatsD. This
