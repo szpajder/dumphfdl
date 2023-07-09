@@ -648,6 +648,8 @@ The following options work globally across all outputs with text format:
 
 - Some ACARS and MIAM CORE messages contain XML data. Use `--prettify-xml` option to enable pretty-printing of such content. XML will then be reformatted with proper indentation for easier reading. This feature requires libacars built with libxml2 library support - otherwise this option has no effect.
 
+- OHMA messages (ie. B737MAX diagnostics) messages contain JSON data. Use `--prettify-json` option to enable pretty-printing of such content. JSON will then be reformatted with proper indentation for easier reading. This feature requires libacars 2.2.0 or later built with jansson library support - otherwise this option has no effect.
+
 ### Additional options for JSON formatting
 
 The following options work globally across all outputs with json format:

@@ -300,6 +300,7 @@ static void usage() {
 	describe_option("--milliseconds", "Print milliseconds in timestamps", 1);
 	describe_option("--raw-frames", "Print raw data as hex", 1);
 	describe_option("--prettify-xml", "Pretty-print XML payloads in ACARS and MIAM CORE PDUs", 1);
+	describe_option("--prettify-json", "Pretty-print JSON payloads in OHMA messages", 1);
 
 	fprintf(stderr, "\nBasestation feed options:\n");
 	describe_option("--freq-as-squawk", "(Ab)use squawk field to convey HFDL channel frequency info", 1);
@@ -352,6 +353,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_OUTPUT_MPDUS 49
 #define OPT_OUTPUT_CORRUPTED_PDUS 50
 #define OPT_FREQ_AS_SQUAWK 51
+#define OPT_PRETTIFY_JSON 52
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -397,6 +399,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "milliseconds",       no_argument,        NULL,   OPT_MILLISECONDS },
 		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
 		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
+		{ "prettify-json",      no_argument,        NULL,   OPT_PRETTIFY_JSON },
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
 		{ "output-corrupted-pdus", no_argument,     NULL,   OPT_OUTPUT_CORRUPTED_PDUS },
@@ -516,6 +519,9 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_PRETTIFY_XML:
 				la_config_set_bool("prettify_xml", true);
+				break;
+			case OPT_PRETTIFY_JSON:
+				la_config_set_bool("prettify_json", true);
 				break;
 			case OPT_STATION_ID:
 				if(strlen(optarg) > STATION_ID_LEN_MAX) {
