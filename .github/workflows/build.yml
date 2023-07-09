@@ -12,6 +12,8 @@ jobs:
       matrix:
         os: [ ubuntu-latest, ubuntu-20.04, macos-latest, macos-11 ]
     runs-on: ${{ matrix.os }}
+    env:
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
