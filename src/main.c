@@ -294,6 +294,8 @@ static void usage() {
 #endif
 	describe_option("--station-id <string>", "Receiver site identifier", 1);
 	fprintf(stderr, "%*sMaximum length: %u characters\n", USAGE_OPT_NAME_COLWIDTH, "", STATION_ID_LEN_MAX);
+	describe_option("--aircraft-cache-ttl <integer>", "How long to keep aircraft ID to ICAO mappings in the cache", 1);
+	fprintf(stderr, "%*sDefault: %ld seconds\n", USAGE_OPT_NAME_COLWIDTH, "", AC_CACHE_TTL_DEFAULT);
 
 	fprintf(stderr, "\nText output formatting options:\n");
 	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
@@ -354,6 +356,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_OUTPUT_CORRUPTED_PDUS 50
 #define OPT_FREQ_AS_SQUAWK 51
 #define OPT_PRETTIFY_JSON 52
+#define OPT_AC_CACHE_TTL 53
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
@@ -404,6 +407,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
 		{ "output-corrupted-pdus", no_argument,     NULL,   OPT_OUTPUT_CORRUPTED_PDUS },
 		{ "freq-as-squawk",     no_argument,        NULL,   OPT_FREQ_AS_SQUAWK },
+		{ "aircraft-cache-ttl", required_argument,  NULL,   OPT_AC_CACHE_TTL },
 #ifdef WITH_SQLITE
 		{ "bs-db",              required_argument,  NULL,   OPT_BS_DB },
 		{ "ac-details",         required_argument,  NULL,   OPT_AC_DETAILS },
@@ -420,6 +424,7 @@ int32_t main(int32_t argc, char **argv) {
 	// Initialize default config
 	Config.ac_data_details = AC_DETAILS_NORMAL;
 	Config.output_queue_hwm = OUTPUT_QUEUE_HWM_DEFAULT;
+	Config.ac_cache_ttl = AC_CACHE_TTL_DEFAULT;
 
 	struct input_cfg *input_cfg = input_cfg_create();
 	input_cfg->sfmt = SFMT_UNDEF;
@@ -539,6 +544,15 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_FREQ_AS_SQUAWK:
 				Config.freq_as_squawk = true;
 				break;
+			case OPT_AC_CACHE_TTL:
+				if(parse_int32(optarg, &Config.ac_cache_ttl) == false) {
+					return 1;
+				}
+				if(Config.ac_cache_ttl < 1) {
+					fprintf(stderr, "Parameter error: aircraft cache TTL value must be expressed as positive number of seconds\n");
+					return 1;
+				}
+				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;
 				break;
@@ -650,6 +664,7 @@ int32_t main(int32_t argc, char **argv) {
 		fprintf(stderr, "Unable to initialize aircraft address cache\n");
 		return 1;
 	}
+	fprintf(stderr, "Aircraft cache TTL set to %d seconds\n", Config.ac_cache_ttl);
 
 	// no --output given?
 	if(outputs == NULL) {

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <time.h>                           // time_t
 #include <libacars/hash.h>                  // la_hash_*
+#include "globals.h"                        // Config
 #include "util.h"                           // NEW, debug_print
 #include "cache.h"                          // cache_*
 #include "ac_cache.h"                       // ac_cache
@@ -39,9 +40,6 @@ struct ac_cache_inv_entry {
 	uint8_t id;
 };
 
-#define AC_CACHE_TTL 3600L
-#define AC_CACHE_EXPIRATION_INTERVAL 309L
-
 /******************************
  * Forward declarations
  ******************************/
@@ -61,8 +59,8 @@ static bool ac_cache_entry_perform_delete(ac_cache const *cache, int32_t freq,
 
 ac_cache *ac_cache_create(void) {
 	NEW(ac_cache, cache);
-	cache->fwd_cache = cache_create("ac_fwd", &ac_cache_fwd_vtable, AC_CACHE_TTL, AC_CACHE_EXPIRATION_INTERVAL);
-	cache->inv_cache = cache_create("ac_inv", &ac_cache_inv_vtable, AC_CACHE_TTL, AC_CACHE_EXPIRATION_INTERVAL);
+	cache->fwd_cache = cache_create("ac_fwd", &ac_cache_fwd_vtable, Config.ac_cache_ttl, AC_CACHE_EXPIRATION_INTERVAL);
+	cache->inv_cache = cache_create("ac_inv", &ac_cache_inv_vtable, Config.ac_cache_ttl, AC_CACHE_EXPIRATION_INTERVAL);
 	return cache;
 }
 
