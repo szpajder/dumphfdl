@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Version 1.5.0 (2023-09-10)
+
+* Added `--prettify-json` command line option which enables prettification of
+  JSON payloads in libacars >= 2.2.0. This currently applies to OHMA messages
+  only.
+
+* The lifetime of the Aircraft_ID to ICAO hex code mapping cache can now be
+  changed using `--aircraft-cache-ttl <number_of_seconds>` option.
+
 ## Version 1.4.1 (2023-03-26)
 
 - Fixed a bug which caused incorrect decoding of some uplink MPDUs
