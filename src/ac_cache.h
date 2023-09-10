@@ -4,7 +4,7 @@
 #include <time.h>
 #include "cache.h"              // struct cache_entry
 
-#define AC_CACHE_TTL_DEFAULT 1800L
+#define AC_CACHE_TTL_DEFAULT 3600L
 #define AC_CACHE_EXPIRATION_INTERVAL 309L
 
 typedef struct ac_cache ac_cache;
