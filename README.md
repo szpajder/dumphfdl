@@ -1028,6 +1028,16 @@ Basestation feed format contains a squawk (transponder code) field. Unlike ModeS
   - Frequency data HFNPDU
   - ADS-C Basic report
 
+### Sometimes the tail number in the ACARS message does not match the tail number in the "AC info" header. Why is that?
+
+There are three possible reasons:
+
+1. Your basestation.sqb file contains incorrect data - ICAO hex is mapped to a wrong tail number.
+
+2. HFDL messaging unit onboard the aircraft is configured with a wrong ICAO hex. As a result, Logon Request messages contain a hex which belongs to a different aircraft.
+
+3. Two different aircraft have logged on to the same ground station on the same channel and were assigned the same Aircraft ID, however the Logon Confirm uplink message addressed to the second aircraft has not been received. As a result dumphfdl still thinks that that ID is assigned to the first aircraft, while in fact that aircraft has logged off and its ID has been recycled and reassigned to another aicraft. dumphfdl keeps the ICAO-to-aircraft ID mappings in memory for 1 hour by default. On a busy channel it may happen that aircraft IDs are recycled faster than that. The lifetime of the mapping cache can be changed with `--aircraft-cache-ttl <number_of_seconds>` option. If you absolutely don't want any such mismatches in your logs, then reduce this value to 300 seconds. However this will also cause many good mappings to be expired prematurely which will significantly increase the number of messages without AC info and also decrease the number of positions emitted on Basestation feeds (if you use them). And keep in mind that mismatches caused by reason 2 described above will still be present (in fact, aircraft misconfiguration is the most common cause of such mismatches).
+
 ### I don't have a HF reception hardware! Is it possible to decode data from USB audio taken from a web SDR?
 
 No, piping USB (upper-side band) audio is not supported, but you can pipe I/Q data. For example, KiwiSDR receivers can provide I/Q data using stereo audio stream. In order to hook it up to dumphfdl, do the following:
