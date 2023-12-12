@@ -920,6 +920,8 @@ HFDL operates in several sub-bands in the range between 2.8 MHz and 22 MHz (see 
 
 Any software defined radio which supports HF and for which there is a SoapySDR driver available, should do the job. During development the program is tested on Airspy HF+ and SDRPlay RSP1A. Popular RTL-SDR dongles are not suitable, because they can't tune down below 24 MHz. While there exists a hack called direct sampling mode, please be aware that it's no magic - it does not turn the dongle into a proper HF radio. There is no gain control, the sensitivity is rather poor, the dongle is then prone to overload and frequencies above 14.4 MHz are out of reach. You may have some luck and receive something with it, but expect no miracles and please do not report your poor results as a bug in the program.
 
+An exception to the above are RTLSDR Blog V4 dongles from rtl-sdr.com. They support HF natively without direct sampling hacks and are therefore a decent low-budget option.
+
 ### What do these numbers in the message header mean?
 
 ```text
