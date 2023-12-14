@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.6.0 (2023-12-14)
+
+* HFDL system table version updated to 52.
+
 ## Version 1.5.0 (2023-09-10)
 
 * Added `--prettify-json` command line option which enables prettification of
