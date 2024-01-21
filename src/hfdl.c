@@ -297,11 +297,6 @@ static void costas_cccf_reset(costas c) {
  * Descrambler
  **********************************/
 
-#define LFSR_LEN 15
-#define LFSR_GENPOLY 0x8003u
-#define LFSR_INIT 0x6959u
-#define DESCRAMBLER_LEN 120
-
 struct descrambler {
 	msequence ms;
 	uint32_t len;
@@ -331,6 +326,23 @@ static uint32_t descrambler_advance(descrambler d) {
 	}
 	d->pos++;
 	return msequence_advance(d->ms);
+}
+
+// HFDL-specific descrambler
+static descrambler hfdl_descrambler_create(void) {
+	uint32_t numbits = 15;
+	uint32_t seq_len = 120;
+	uint32_t lfsr_init, lfsr_genpoly;
+	// Ugly hack: liquid-dsp 1.6.0 is not backwards-compatible
+	// FIXME: this shall be computed by descrambler_create()
+	if(liquid_libversion_number() < 1006000) {
+		lfsr_genpoly = 0x8002u;
+		lfsr_init = 0x6959u;
+	} else {
+		lfsr_genpoly = 0x4001u;
+		lfsr_init = 0x4d4bu;    // 0x6959u reversed
+	}
+	return descrambler_create(numbits, lfsr_genpoly, lfsr_init, seq_len);
 }
 
 /**********************************
@@ -494,7 +506,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	c->bits = bsequence_create(M1_LEN);
 	c->training_symbols = cbuffercf_create(T_LEN);
 	c->data_symbols = cbuffercf_create(DATA_SYMBOLS_CNT_MAX);
-	c->descrambler = descrambler_create(LFSR_LEN, LFSR_GENPOLY, LFSR_INIT, DESCRAMBLER_LEN);
+	c->descrambler = hfdl_descrambler_create();
 	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
 		c->deinterleaver[i] = deinterleaver_create(i);
 		struct hfdl_params const p = hfdl_frame_params[i];
