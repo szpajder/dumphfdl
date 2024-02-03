@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Version 1.6.1 (2024-02-03)
+
+* Compatibility fix for liquid-dsp 1.6.0 and later
+
 ## Version 1.6.0 (2023-12-14)
 
 * HFDL system table version updated to 52.
