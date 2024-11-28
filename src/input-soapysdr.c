@@ -221,6 +221,7 @@ void soapysdr_input_destroy(struct input *input) {
 }
 
 #define SOAPYSDR_READSTREAM_TIMEOUT_US 1000000L
+#define SOAPYSDR_MAX_ERR_CNT 5
 
 void *soapysdr_input_thread(void *ctx) {
 	ASSERT(ctx);
@@ -238,6 +239,7 @@ void *soapysdr_input_thread(void *ctx) {
 	}
 	usleep(100000);
 
+	int32_t err_cnt = 0;
 	while(do_exit == 0) {
 		int32_t flags;
 		long long timeNs;
@@ -246,9 +248,14 @@ void *soapysdr_input_thread(void *ctx) {
 		if(samples_read < 0) {	// when it's negative, it's the error code
 			fprintf(stderr, "SoapySDR device '%s': readStream failed: %s\n",
 				input->config->source, SoapySDR_errToStr(samples_read));
-			do_exit = 1;
-			break;
+			err_cnt++;
+			if(err_cnt >= SOAPYSDR_MAX_ERR_CNT) {
+				do_exit = 1;
+				break;
+			}
+			continue;
 		}
+		err_cnt = 0;
 		input->convert_sample_buffer(input, inbuf, samples_read * input->bytes_per_sample, outbuf);
 		complex_samples_produce(&input->block.producer.out->circ_buffer, outbuf, samples_read);
 	}
