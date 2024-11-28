@@ -246,7 +246,8 @@ void *soapysdr_input_thread(void *ctx) {
 		if(samples_read < 0) {	// when it's negative, it's the error code
 			fprintf(stderr, "SoapySDR device '%s': readStream failed: %s\n",
 				input->config->source, SoapySDR_errToStr(samples_read));
-			continue;
+			do_exit = 1;
+			break;
 		}
 		input->convert_sample_buffer(input, inbuf, samples_read * input->bytes_per_sample, outbuf);
 		complex_samples_produce(&input->block.producer.out->circ_buffer, outbuf, samples_read);
