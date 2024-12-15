@@ -40,6 +40,7 @@ struct dumphfdl_config {
 
 extern struct dumphfdl_config Config;
 extern int32_t do_exit;
+extern int32_t exitcode;
 
 // version.c
 extern char const * const DUMPHFDL_VERSION;

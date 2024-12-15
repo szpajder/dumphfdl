@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdio.h>              // fprintf()
 #include <stdint.h>
-#include <stdlib.h>             // atof()
+#include <stdlib.h>             // atof(), EXIT_FAILURE
 #include <string.h>             // strcmp()
 #include <unistd.h>             // usleep()
 #include <SoapySDR/Version.h>   // SOAPY_SDR_API_VERSION
 #include <SoapySDR/Types.h>     // SoapySDRKwargs_*
 #include <SoapySDR/Device.h>    // SoapySDRStream, SoapySDRDevice_*
 #include <SoapySDR/Formats.h>   // SoapySDR_formatToSize()
-#include "globals.h"            // do_exit
+#include "globals.h"            // do_exit, exitcode
 #include "block.h"              // block_*
 #include "input-common.h"       // input, sample_format, input_vtable
 #include "input-helpers.h"      // get_sample_full_scale_value, get_sample_size
@@ -251,6 +251,7 @@ void *soapysdr_input_thread(void *ctx) {
 			err_cnt++;
 			if(err_cnt >= SOAPYSDR_MAX_ERR_CNT) {
 				do_exit = 1;
+				exitcode = EXIT_FAILURE;
 				break;
 			}
 			continue;

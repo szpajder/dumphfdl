@@ -17,7 +17,7 @@
 #include <gperftools/profiler.h>
 #endif
 #include "options.h"            // IND(), describe_option
-#include "globals.h"            // do_exit, Systable
+#include "globals.h"            // do_exit, exitcode, Systable
 #include "block.h"              // block_*
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
 #include "fft.h"                // csdr_fft_init, csdr_fft_destroy, fft_create
@@ -820,7 +820,7 @@ int32_t main(int32_t argc, char **argv) {
 	ac_data_destroy(AC_data);
 #endif
 
-	return 0;
+	return exitcode;
 }
 
 static la_list *output_add(la_list *outputs, char *output_spec) {
