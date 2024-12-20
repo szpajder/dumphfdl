@@ -61,7 +61,7 @@ void *file_input_thread(void *ctx) {
 		}
 		input->convert_sample_buffer(input, inbuf, len, outbuf);
 		complex_samples_produce(circ_buffer, outbuf, samples_read);
-	} while(len == bufsize && do_exit == 0);
+	} while(len > 0 && do_exit == 0);
 	fclose(file_input->fh);
 	file_input->fh = NULL;
 	debug_print(D_MISC, "Shutdown ordered, signaling consumer shutdown\n");
