@@ -5,12 +5,11 @@
 #include "util.h"           // NEW
 #include "config.h"         // WITH_FFTW3F_THREADS
 
-#define FFT_THREAD_CNT 4
-
-void csdr_fft_init() {
+void csdr_fft_init(int32_t thread_cnt) {
 #ifdef WITH_FFTW3F_THREADS
 	fftwf_init_threads();
-	fftwf_plan_with_nthreads(FFT_THREAD_CNT);
+	fftwf_plan_with_nthreads(thread_cnt);
+	fprintf(stderr, "Initialized %d FFT threads\n", thread_cnt);
 #endif
 }
 

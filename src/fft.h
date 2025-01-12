@@ -12,13 +12,15 @@ struct fft_plan_s {
 	void *plan;
 };
 
+#define FFT_THREAD_CNT_DEFAULT 4
+
 // FIXME: typedef
 #define FFT_PLAN_T struct fft_plan_s
 
 typedef struct fft_thread_ctx_s *fft_thread_ctx_t;
 
 // fft_fftw.c
-void csdr_fft_init();
+void csdr_fft_init(int32_t thread_cnt);
 void csdr_fft_destroy();
 FFT_PLAN_T* csdr_make_fft_c2c(int32_t size, float complex *input,
 		float complex *output, int32_t forward, int32_t benchmark);

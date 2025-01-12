@@ -20,7 +20,7 @@
 #include "globals.h"            // do_exit, exitcode, Systable
 #include "block.h"              // block_*
 #include "libcsdr.h"            // compute_filter_relative_transition_bw
-#include "fft.h"                // csdr_fft_init, csdr_fft_destroy, fft_create
+#include "fft.h"                // csdr_fft_init, csdr_fft_destroy, fft_create, FFT_THREAD_CNT_DEFAULT
 #include "util.h"               // ASSERT
 #include "ac_cache.h"           // ac_cache_create, ac_cache_destroy
 #include "ac_data.h"            // ac_data_create, ac_data_destroy
@@ -254,6 +254,7 @@ static void usage() {
 #ifdef DEBUG
 	describe_option("--debug <filter_spec>", "Debug message classes to display (default: none) (\"--debug help\" for details)", 1);
 #endif
+	describe_option("--fft-threads <integer>", "Number of FFT threads to start (default: " STR(FFT_THREAD_CNT_DEFAULT) ")", 1);
 #ifdef DATADUMPS
 	describe_option("--datadumps", "Dump sample data to cf32/cr32 files in current directory (one channel only!)", 1);
 #endif
@@ -344,6 +345,7 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_DEVICE_SETTINGS 27
 #define OPT_FREQ_OFFSET 28
 #define OPT_READ_BUFFER_SIZE 29
+#define OPT_FFT_THREAD_CNT 30
 
 #define OPT_OUTPUT 40
 #define OPT_OUTPUT_QUEUE_HWM 41
@@ -396,6 +398,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "device-settings",    required_argument,  NULL,   OPT_DEVICE_SETTINGS },
 		{ "freq-offset",        required_argument,  NULL,   OPT_FREQ_OFFSET },
 		{ "read-buffer-size",   required_argument,  NULL,   OPT_READ_BUFFER_SIZE },
+		{ "fft-threads",        required_argument,  NULL,   OPT_FFT_THREAD_CNT },
 		{ "output",             required_argument,  NULL,   OPT_OUTPUT },
 		{ "output-queue-hwm",   required_argument,  NULL,   OPT_OUTPUT_QUEUE_HWM },
 		{ "utc",                no_argument,        NULL,   OPT_UTC },
@@ -432,6 +435,7 @@ int32_t main(int32_t argc, char **argv) {
 	la_list *outputs = NULL;
 	char const *systable_file = NULL;
 	char const *systable_save_file = NULL;
+	int32_t fft_thread_cnt = FFT_THREAD_CNT_DEFAULT;
 #ifdef WITH_STATSD
 	char *statsd_addr = NULL;
 #endif
@@ -503,6 +507,14 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_READ_BUFFER_SIZE:
 				if(parse_int32(optarg, &input_cfg->read_buffer_size) == false) {
 					return 1;
+				}
+				break;
+			case OPT_FFT_THREAD_CNT:
+				if(parse_int32(optarg, &fft_thread_cnt) == false) {
+					return 1;
+				}
+				if(fft_thread_cnt < 1) {
+					fft_thread_cnt = 1;
 				}
 				break;
 			case OPT_OUTPUT:
@@ -682,7 +694,7 @@ int32_t main(int32_t argc, char **argv) {
 		return 1;
 	}
 
-	csdr_fft_init();
+	csdr_fft_init(fft_thread_cnt);
 
 	int32_t fft_decimation_rate = compute_fft_decimation_rate(input_cfg->sample_rate, HFDL_SYMBOL_RATE * SPS);
 	ASSERT(fft_decimation_rate > 0);
