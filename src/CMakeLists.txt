@@ -61,19 +61,34 @@ set(CMAKE_REQUIRED_LIBRARIES_SAVE ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${LIQUIDDSP_LIBRARIES})
 set(LIQUID_VERSION_MIN "1.3.0")
 set(LIQUID_VERSION_NUMBER_MIN 1003000)
+set(LIQUID_VERSION_NUMBER_MAX 1999999)
 check_c_source_runs("
 #include <stdio.h>
-#include <stdlib.h>
 #include <liquid/liquid.h>
-#if LIQUID_VERSION_NUMBER < ${LIQUID_VERSION_NUMBER_MIN}
-#error LiquidDSP library is too old
+
+int main()
+{
+	int liquid_version_number = 0;
+#if defined LIQUID_VERSION_MAJOR && defined LIQUID_VERSION_MINOR && defined LIQUID_VERSION_PATCH
+	// liquid-dsp v1.7.0 onwards
+	liquid_version_number = LIQUID_VERSION_MAJOR * 1000000 + LIQUID_VERSION_MINOR * 1000 + LIQUID_VERSION_PATCH;
+#else
+	// liquid-dsp < 1.7.0
+	if (LIQUID_VERSION_NUMBER >= 1000000) {
+		liquid_version_number = LIQUID_VERSION_NUMBER;
+	}
 #endif
-int main(void) { LIQUID_VALIDATE_LIBVERSION return 0; }" LIQUIDDSP_VERSION_CHECK)
+	if(liquid_version_number < ${LIQUID_VERSION_NUMBER_MIN} || liquid_version_number > ${LIQUID_VERSION_NUMBER_MAX}) {
+		fprintf(stderr, \\\"Unsupported liquid-dsp version: %d\\\", liquid_version_number);
+		return 1;
+	}
+	return 0;
+}" LIQUIDDSP_VERSION_CHECK)
 if(LIQUIDDSP_VERSION_CHECK)
 	list(APPEND dumphfdl_extra_libs ${LIQUIDDSP_LIBRARIES})
 	list(APPEND dumphfdl_include_dirs ${LIQUIDDSP_INCLUDE_DIR})
 else()
-	message(FATAL_ERROR "LiquidDSP library is too old or missing (min. version required: ${LIQUID_VERSION_MIN})")
+	message(FATAL_ERROR "LiquidDSP library is too old or missing (required version: 1.x.x, minimum ${LIQUID_VERSION_MIN})")
 endif()
 set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES_SAVE})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_SAVE})
