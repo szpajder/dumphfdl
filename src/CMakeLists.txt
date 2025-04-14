@@ -16,6 +16,13 @@ elseif(UNIX)
 	add_definitions(-D_DEFAULT_SOURCE)
 endif()
 
+if(APPLE)
+# libacars gets installed to /usr/local/lib by default,
+# however dyld doesn't search this dir by default.
+# We need to set the RPATH in the installed binary to the full path of the library.
+	set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
 if(UNIX OR MINGW)
 	add_definitions(-D_FILE_OFFSET_BITS=64)
 endif()
