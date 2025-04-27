@@ -18,16 +18,19 @@ void statsd_timing_delta_per_channel_send(int32_t freq, char *timer, struct time
 void statsd_counter_per_msgdir_increment(la_msg_dir msg_dir, char *counter);
 void statsd_counter_increment(char *counter);
 void statsd_gauge_set(char *gauge, size_t value);
+void statsd_gauge_per_channel_set(int32_t freq, char *gauge, size_t value);
 
 #define statsd_increment_per_channel(freq, counter) statsd_counter_per_channel_increment(freq, counter)
 #define statsd_timing_delta_per_channel(freq, timer, start) statsd_timing_delta_per_channel_send(freq, timer, start)
 #define statsd_increment_per_msgdir(counter, msgdir) statsd_counter_per_msgdir_increment(counter, msgdir)
 #define statsd_increment(counter) statsd_counter_increment(counter)
 #define statsd_set(gauge, value) statsd_gauge_set(gauge, value)
+#define statsd_set_per_channel(freq, gauge, value) statsd_gauge_per_channel_set(freq, gauge, value)
 #else
 #define statsd_increment_per_channel(freq, counter) nop()
 #define statsd_timing_delta_per_channel(freq, timer, start) nop()
 #define statsd_increment_per_msgdir(counter, msgdir) nop()
 #define statsd_increment(counter) nop()
 #define statsd_set(gauge, value) nop()
+#define statsd_set_per_channel(freq, gauge, value) nop()
 #endif

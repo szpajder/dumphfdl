@@ -21,6 +21,8 @@ struct dumphfdl_config {
 #endif
 	char *station_id;
 	int32_t output_queue_hwm;
+	int32_t nf_stats_interval;
+	int32_t ac_cache_ttl;
 	enum ac_data_details ac_data_details;
 	bool utc;
 	bool milliseconds;

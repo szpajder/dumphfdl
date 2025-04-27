@@ -1,6 +1,6 @@
 # dumphfdl
 
- dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
+dumphfdl is a multichannel HFDL (High Frequency Data Link) decoder.
 
 HFDL (High Frequency Data Link) is a protocol used for radio communications between aircraft and a network of ground stations using high frequency (HF) radio waves. It is used to carry ACARS and AOC messages as well as CPDLC (Controller-Pilot Data Link Communications) and ADS-C (Automatic Dependent Surveillance - Contract). Thanks to the ability of short waves to propagate over long distances, HFDL is particularly useful in remote areas (eg. over oceans or polar regions) where other ground-based communications services are out of range. While many aircraft prefer satellite communications these days, HFDL is still operational and in use.
 
@@ -15,7 +15,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
   - ground station details - from the system table file
   - aircraft data - from Basestation SQLite database
 - Extracts aircraft position information from decoded messages and provides a data feed for external plane tracking apps (eg. Virtual Radar Server)
-- Produces decoding statistics using [Etsy StatsD](https://github.com/etsy/statsd) protocol
+- Produces statistics using [Etsy StatsD](https://github.com/etsy/statsd) protocol
 - Runs under Linux and MacOS
 
 ## Supported output formats
@@ -77,7 +77,7 @@ Mandatory dependencies:
 - make
 - cmake >= 3.1
 - pkg-config
-- glib2
+- glib2 >= 2.46
 - libconfig++
 - libacars >= 2.1.0
 - liquid-dsp >= 1.3.0
@@ -648,6 +648,8 @@ The following options work globally across all outputs with text format:
 
 - Some ACARS and MIAM CORE messages contain XML data. Use `--prettify-xml` option to enable pretty-printing of such content. XML will then be reformatted with proper indentation for easier reading. This feature requires libacars built with libxml2 library support - otherwise this option has no effect.
 
+- OHMA messages (ie. B737MAX diagnostics) messages contain JSON data. Use `--prettify-json` option to enable pretty-printing of such content. JSON will then be reformatted with proper indentation for easier reading. This feature requires libacars 2.2.0 or later built with jansson library support - otherwise this option has no effect.
+
 ### Additional options for JSON formatting
 
 The following options work globally across all outputs with json format:
@@ -794,11 +796,13 @@ Here is an example of some dumphfdl metrics being graphed by Grafana:
 
 Metrics are quite handy when tuning your receiving installation or monitoring HF propagation or HFDL channel usage patterns.
 
-To enable statistics just give dumphfdl your StatsD collector's hostname (or IP address) and UDP port number, for example:
+To enable decoder statistics specify StatsD collector's hostname (or IP address) and UDP port number, for example:
 
 ```sh
 dumphfdl --statsd 10.10.10.15:1234 ...
 ```
+
+Additionally you may enable periodic reporting of noise floor on each monitored HFDL channel using `--noise-floor-stats-interval <interval_seconds>`.
 
 Refer to the `doc/STATSD_METRICS.md` file for a complete list of currently supported metrics.
 
@@ -916,6 +920,8 @@ HFDL operates in several sub-bands in the range between 2.8 MHz and 22 MHz (see 
 
 Any software defined radio which supports HF and for which there is a SoapySDR driver available, should do the job. During development the program is tested on Airspy HF+ and SDRPlay RSP1A. Popular RTL-SDR dongles are not suitable, because they can't tune down below 24 MHz. While there exists a hack called direct sampling mode, please be aware that it's no magic - it does not turn the dongle into a proper HF radio. There is no gain control, the sensitivity is rather poor, the dongle is then prone to overload and frequencies above 14.4 MHz are out of reach. You may have some luck and receive something with it, but expect no miracles and please do not report your poor results as a bug in the program.
 
+An exception to the above are RTLSDR Blog V4 dongles from rtl-sdr.com. They support HF natively without direct sampling hacks and are therefore a decent low-budget option.
+
 ### What do these numbers in the message header mean?
 
 ```text
@@ -1023,6 +1029,16 @@ Basestation feed format contains a squawk (transponder code) field. Unlike ModeS
   - Performance data HFNPDU
   - Frequency data HFNPDU
   - ADS-C Basic report
+
+### Sometimes the tail number in the ACARS message does not match the tail number in the "AC info" header. Why is that?
+
+There are three possible reasons:
+
+1. Your basestation.sqb file contains incorrect data - ICAO hex is mapped to a wrong tail number.
+
+2. HFDL messaging unit onboard the aircraft is configured with a wrong ICAO hex. As a result, Logon Request messages contain a hex which belongs to a different aircraft.
+
+3. Two different aircraft have logged on to the same ground station on the same channel and were assigned the same Aircraft ID, however the Logon Confirm uplink message addressed to the second aircraft has not been received. As a result dumphfdl still thinks that that ID is assigned to the first aircraft, while in fact that aircraft has logged off and its ID has been recycled and reassigned to another aicraft. dumphfdl keeps the ICAO-to-aircraft ID mappings in memory for 1 hour by default. On a busy channel it may happen that aircraft IDs are recycled faster than that. The lifetime of the mapping cache can be changed with `--aircraft-cache-ttl <number_of_seconds>` option. If you absolutely don't want any such mismatches in your logs, then reduce this value to 300 seconds. However this will also cause many good mappings to be expired prematurely which will significantly increase the number of messages without AC info and also decrease the number of positions emitted on Basestation feeds (if you use them). And keep in mind that mismatches caused by reason 2 described above will still be present (in fact, aircraft misconfiguration is the most common cause of such mismatches).
 
 ### I don't have a HF reception hardware! Is it possible to decode data from USB audio taken from a web SDR?
 

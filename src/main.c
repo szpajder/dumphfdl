@@ -12,10 +12,10 @@
 #include <libacars/libacars.h>  // la_config_set_int
 #include <libacars/acars.h>     // LA_ACARS_BEARER_HFDL
 #include <libacars/list.h>      // la_list
-#ifdef PROFILING
+#include "config.h"
+#ifdef WITH_PROFILING
 #include <gperftools/profiler.h>
 #endif
-#include "config.h"
 #include "options.h"            // IND(), describe_option
 #include "globals.h"            // do_exit, Systable
 #include "block.h"              // block_*
@@ -294,12 +294,15 @@ static void usage() {
 #endif
 	describe_option("--station-id <string>", "Receiver site identifier", 1);
 	fprintf(stderr, "%*sMaximum length: %u characters\n", USAGE_OPT_NAME_COLWIDTH, "", STATION_ID_LEN_MAX);
+	describe_option("--aircraft-cache-ttl <integer>", "How long to keep aircraft ID to ICAO mappings in the cache", 1);
+	fprintf(stderr, "%*sDefault: %ld seconds\n", USAGE_OPT_NAME_COLWIDTH, "", AC_CACHE_TTL_DEFAULT);
 
 	fprintf(stderr, "\nText output formatting options:\n");
 	describe_option("--utc", "Use UTC timestamps in output and file names", 1);
 	describe_option("--milliseconds", "Print milliseconds in timestamps", 1);
 	describe_option("--raw-frames", "Print raw data as hex", 1);
 	describe_option("--prettify-xml", "Pretty-print XML payloads in ACARS and MIAM CORE PDUs", 1);
+	describe_option("--prettify-json", "Pretty-print JSON payloads in OHMA messages", 1);
 
 	fprintf(stderr, "\nBasestation feed options:\n");
 	describe_option("--freq-as-squawk", "(Ab)use squawk field to convey HFDL channel frequency info", 1);
@@ -311,6 +314,7 @@ static void usage() {
 #ifdef WITH_STATSD
 	fprintf(stderr, "\nEtsy StatsD options:\n");
 	describe_option("--statsd <host>:<port>", "Send statistics to Etsy StatsD server <host>:<port>", 1);
+	describe_option("--noise-floor-stats-interval <integer>", "Enable periodic noise floor reporting via StatsD", 1);
 #endif
 }
 
@@ -351,12 +355,15 @@ int32_t main(int32_t argc, char **argv) {
 #define OPT_OUTPUT_MPDUS 49
 #define OPT_OUTPUT_CORRUPTED_PDUS 50
 #define OPT_FREQ_AS_SQUAWK 51
+#define OPT_PRETTIFY_JSON 52
+#define OPT_AC_CACHE_TTL 53
 
 #define OPT_SYSTABLE_FILE 60
 #define OPT_SYSTABLE_SAVE_FILE 61
 
 #ifdef WITH_STATSD
 #define OPT_STATSD 70
+#define OPT_NF_STATS_INTERVAL 71
 #endif
 
 #ifdef WITH_SQLITE
@@ -395,10 +402,12 @@ int32_t main(int32_t argc, char **argv) {
 		{ "milliseconds",       no_argument,        NULL,   OPT_MILLISECONDS },
 		{ "raw-frames",         no_argument,        NULL,   OPT_RAW_FRAMES },
 		{ "prettify-xml",       no_argument,        NULL,   OPT_PRETTIFY_XML },
+		{ "prettify-json",      no_argument,        NULL,   OPT_PRETTIFY_JSON },
 		{ "station-id",         required_argument,  NULL,   OPT_STATION_ID },
 		{ "output-mpdus",       no_argument,        NULL,   OPT_OUTPUT_MPDUS },
 		{ "output-corrupted-pdus", no_argument,     NULL,   OPT_OUTPUT_CORRUPTED_PDUS },
 		{ "freq-as-squawk",     no_argument,        NULL,   OPT_FREQ_AS_SQUAWK },
+		{ "aircraft-cache-ttl", required_argument,  NULL,   OPT_AC_CACHE_TTL },
 #ifdef WITH_SQLITE
 		{ "bs-db",              required_argument,  NULL,   OPT_BS_DB },
 		{ "ac-details",         required_argument,  NULL,   OPT_AC_DETAILS },
@@ -407,6 +416,7 @@ int32_t main(int32_t argc, char **argv) {
 		{ "system-table-save",  required_argument,  NULL,   OPT_SYSTABLE_SAVE_FILE },
 #ifdef WITH_STATSD
 		{ "statsd",             required_argument,  NULL,   OPT_STATSD },
+		{ "noise-floor-stats-interval", required_argument,  NULL,   OPT_NF_STATS_INTERVAL },
 #endif
 		{ 0,                    0,                  0,      0 }
 	};
@@ -414,6 +424,7 @@ int32_t main(int32_t argc, char **argv) {
 	// Initialize default config
 	Config.ac_data_details = AC_DETAILS_NORMAL;
 	Config.output_queue_hwm = OUTPUT_QUEUE_HWM_DEFAULT;
+	Config.ac_cache_ttl = AC_CACHE_TTL_DEFAULT;
 
 	struct input_cfg *input_cfg = input_cfg_create();
 	input_cfg->sfmt = SFMT_UNDEF;
@@ -514,6 +525,9 @@ int32_t main(int32_t argc, char **argv) {
 			case OPT_PRETTIFY_XML:
 				la_config_set_bool("prettify_xml", true);
 				break;
+			case OPT_PRETTIFY_JSON:
+				la_config_set_bool("prettify_json", true);
+				break;
 			case OPT_STATION_ID:
 				if(strlen(optarg) > STATION_ID_LEN_MAX) {
 					fprintf(stderr, "Warning: --station-id argument too long; truncated to %d characters\n",
@@ -529,6 +543,15 @@ int32_t main(int32_t argc, char **argv) {
 				break;
 			case OPT_FREQ_AS_SQUAWK:
 				Config.freq_as_squawk = true;
+				break;
+			case OPT_AC_CACHE_TTL:
+				if(parse_int32(optarg, &Config.ac_cache_ttl) == false) {
+					return 1;
+				}
+				if(Config.ac_cache_ttl < 1) {
+					fprintf(stderr, "Parameter error: aircraft cache TTL value must be expressed as positive number of seconds\n");
+					return 1;
+				}
 				break;
 			case OPT_SYSTABLE_FILE:
 				systable_file = optarg;
@@ -554,7 +577,12 @@ int32_t main(int32_t argc, char **argv) {
 #endif
 #ifdef WITH_STATSD
 			case OPT_STATSD:
-				statsd_addr = strdup(optarg);
+				statsd_addr = optarg;
+				break;
+			case OPT_NF_STATS_INTERVAL:
+				if(parse_int32(optarg, &Config.nf_stats_interval) == false) {
+					return 1;
+				}
 				break;
 #endif
 #ifdef DEBUG
@@ -636,6 +664,7 @@ int32_t main(int32_t argc, char **argv) {
 		fprintf(stderr, "Unable to initialize aircraft address cache\n");
 		return 1;
 	}
+	fprintf(stderr, "Aircraft cache TTL set to %d seconds\n", Config.ac_cache_ttl);
 
 	// no --output given?
 	if(outputs == NULL) {
@@ -679,7 +708,6 @@ int32_t main(int32_t argc, char **argv) {
 			}
 			statsd_initialize_counters_per_msgdir();
 		}
-		XFREE(statsd_addr);
 	}
 #endif
 
@@ -698,11 +726,11 @@ int32_t main(int32_t argc, char **argv) {
 	la_config_set_int("acars_bearer", LA_ACARS_BEARER_HFDL);
 	hfdl_init_globals();
 
-	struct block *channels[channel_cnt];
+	struct block *channel_blocks[channel_cnt];
 	for(int32_t i = 0; i < channel_cnt; i++) {
-		channels[i] = hfdl_channel_create(input_cfg->sample_rate, fft_decimation_rate,
+		channel_blocks[i] = hfdl_channel_create(input_cfg->sample_rate, fft_decimation_rate,
 				fftfilt_transition_bw, input_cfg->centerfreq, frequencies[i]);
-		if(channels[i] == NULL) {
+		if(channel_blocks[i] == NULL) {
 			fprintf(stderr, "Failed to initialize channel %s\n",
 					argv[optind + i]);
 			return 1;
@@ -710,7 +738,7 @@ int32_t main(int32_t argc, char **argv) {
 	}
 
 	if(block_connect_one2one(input, fft) != 1 ||
-			block_connect_one2many(fft, channel_cnt, channels) != channel_cnt) {
+			block_connect_one2many(fft, channel_cnt, channel_blocks) != channel_cnt) {
 		return 1;
 	}
 
@@ -723,15 +751,29 @@ int32_t main(int32_t argc, char **argv) {
 
 	setup_signals();
 
-#ifdef PROFILING
+#ifdef WITH_PROFILING
 	ProfilerStart("dumphfdl.prof");
 #endif
 
-	if(block_set_start(channel_cnt, channels) != channel_cnt ||
+	if(block_set_start(channel_cnt, channel_blocks) != channel_cnt ||
 		block_start(fft) != 1 ||
 		block_start(input) != 1) {
 		return 1;
 	}
+
+#ifdef WITH_STATSD
+	if(Config.nf_stats_interval > 0) {
+		if(statsd_addr != NULL) {
+			if(hfdl_nf_stats_thread_start(channel_blocks, channel_cnt) < 0) {
+				return 1;
+			}
+		} else {
+			fprintf(stderr, "WARNING: --noise-floor-stats-interval option has no effect "
+					"due to missing --statsd option\n");
+		}
+	}
+#endif
+
 	while(!do_exit) {
 		sleep(1);
 	}
@@ -740,23 +782,23 @@ int32_t main(int32_t argc, char **argv) {
 	while(do_exit < 2 && (
 			block_is_running(input) ||
 			block_is_running(fft) ||
-			block_set_is_any_running(channel_cnt, channels) ||
+			block_set_is_any_running(channel_cnt, channel_blocks) ||
 			hfdl_pdu_decoder_is_running() ||
 			output_thread_is_any_running(outputs)
 			)) {
 		usleep(500000);
 	}
 
-#ifdef PROFILING
+#ifdef WITH_PROFILING
 	ProfilerStop();
 #endif
 
 	hfdl_print_summary();
 
-	block_disconnect_one2many(fft, channel_cnt, channels);
+	block_disconnect_one2many(fft, channel_cnt, channel_blocks);
 	block_disconnect_one2one(input, fft);
 	for(int32_t i = 0; i < channel_cnt; i++) {
-		hfdl_channel_destroy(channels[i]);
+		hfdl_channel_destroy(channel_blocks[i]);
 	}
 	input_destroy(input);
 	input_cfg_destroy(input_cfg);

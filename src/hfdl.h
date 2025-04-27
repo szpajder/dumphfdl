@@ -12,3 +12,4 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 		float transition_bw, int32_t centerfreq, int32_t frequency);
 void hfdl_channel_destroy(struct block *channel_block);
 void hfdl_print_summary(void);
+int32_t hfdl_nf_stats_thread_start(struct block **channel_block_list, int32_t channel_cnt);

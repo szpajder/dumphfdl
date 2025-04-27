@@ -111,8 +111,50 @@ void fft_swap_sides(float complex *io, int32_t fft_size)
 	}
 }
 
-decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float complex *output, fastddc_t* ddc, FFT_PLAN_T *plan_inverse, float complex *taps_fft, decimating_shift_addition_status_t shift_stat)
-{
+void multiply_add(float complex const *restrict input,
+		float complex const *restrict kernel,
+		float complex *restrict output,
+		int32_t len) {
+	for(int32_t i = 0; i < len; i++) {
+		output[i] += kernel[i] * input[i];
+	}
+}
+
+static void multiply_and_shift(float complex const *restrict input,
+		float complex const *restrict kernel, int32_t input_len,
+		float complex *restrict output, int32_t output_len, int32_t offset) {
+	ASSERT(input_len % output_len == 0);
+	ASSERT(offset >= -input_len / 2);
+	ASSERT(offset < input_len / 2);
+	int32_t input_idx = 0;
+	int32_t head_output_idx = (input_len - offset + output_len / 2) % output_len;
+	int32_t head_output_len = output_len - head_output_idx;
+	int32_t tail_output_len = output_len - head_output_len;
+
+	memset(output, 0, output_len * sizeof(float complex));
+
+	// Handle block head
+	int32_t output_idx = head_output_idx;
+	multiply_add(input + input_idx, kernel + input_idx, output + output_idx, head_output_len);
+	input_idx += head_output_len;
+
+	// Handle whole blocks
+	int32_t whole_blocks_cnt = input_len / output_len - 1;
+	output_idx = 0;
+	for(int32_t i = 0; i < whole_blocks_cnt; i++) {
+		multiply_add(input + input_idx, kernel + input_idx, output + output_idx, output_len);
+		input_idx += output_len;
+	}
+	// Handle block tail
+	multiply_add(input + input_idx, kernel + input_idx, output + output_idx, tail_output_len);
+}
+
+decimating_shift_addition_status_t fastddc_inv_cc(
+		float complex *restrict input,
+		float complex *restrict output,
+		fastddc_t* ddc, FFT_PLAN_T *plan_inverse,
+		float complex *restrict taps_fft,
+		decimating_shift_addition_status_t shift_stat) {
 	//implements DDC by using the overlap & scrap method
 	//TODO: +/-1s on overlap_size et al
 	//input shoud have ddc->fft_size number of elements
@@ -120,12 +162,7 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	float complex *inv_input = plan_inverse->input;
 	float complex *inv_output = plan_inverse->output;
 
-	memset(inv_input, 0, plan_inverse->size * sizeof(float complex));
 
-	//Alias & shift & filter at once
-
-	//fprintf(stderr, " === fastddc_inv_cc() ===\n");
-	//The problem is, we have to say that the output_index should be the _center_ of the spectrum when i is at startbin! (startbin is at the _center_ of the input to downconvert, not at its first bin!)
 #ifdef FASTDDC_DEBUG
 	static int32_t first = 1;
 	if(first) {
@@ -135,25 +172,7 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 		}
 	}
 #endif
-	for(int32_t i=0;i<ddc->fft_size;i++)
-	{
-		int32_t output_index = (ddc->fft_size+i-ddc->offsetbin+(ddc->fft_inv_size/2))%plan_inverse->size;
-		//fprintf(stderr, "output_index = %d , tap_index = %d, input index = %d\n", output_index, tap_index, i);
-		//cmultadd(inv_input+output_index, input+i, taps_fft+tap_index); //cmultadd(output, input1, input2):   complex output += complex input1 * complex input 2
-		// (a+b*i)*(c+d*i) = (ac-bd)+(ad+bc)*i
-		// a = iof(input,i)
-		// b = qof(input,i)
-		// c = iof(taps_fft,i)
-		// d = qof(taps_fft,i)
-		inv_input[output_index] += input[i] * taps_fft[i];
-#ifdef FASTDDC_DEBUG
-		if(first) {
-			debug_print(D_DSP, "%d -> %d: %f, %f\n", i, output_index, crealf(inv_input[output_index]), cimagf(inv_input[output_index]));
-		}
-#endif
-		//iof(inv_input,output_index) += iof(input,i); //no filter
-		//qof(inv_input,output_index) += qof(input,i);
-	}
+	multiply_and_shift(input, taps_fft, ddc->fft_size, inv_input, plan_inverse->size, ddc->offsetbin);
 #ifdef FASTDDC_DEBUG
 	static int32_t second = 2;
 	if(second == 1) {
@@ -168,19 +187,13 @@ decimating_shift_addition_status_t fastddc_inv_cc(float complex *input, float co
 	}
 #endif
 
-	//Normalize inv fft bins (now our output level is not higher than the input... but we may optimize this into the later loop when we normalize by size)
-	for(int32_t i=0;i<plan_inverse->size;i++)
-	{
-		inv_input[i] /= ddc->pre_decimation;
-	}
-
 	fft_swap_sides(inv_input,plan_inverse->size);
 	csdr_fft_execute(plan_inverse);
 
-	//Normalize data
-	for(int32_t i=0;i<plan_inverse->size;i++) //@fastddc_inv_cc: normalize by size
-	{
-		inv_output[i] /= plan_inverse->size;
+	// Normalize iFFT result
+	float complex const norm = ddc->pre_decimation * plan_inverse->size;
+	for(int32_t i = 0; i < plan_inverse->size; i++) {
+		inv_output[i] /= norm;
 	}
 #ifdef FASTDDC_DEBUG
 	if(second==1) {

@@ -137,6 +137,11 @@ static struct hfdl_params const hfdl_frame_params[M_SHIFT_CNT] = {
 	}
 };
 
+struct nf_stats_thread_ctx {
+	struct block **channel_block_list;
+	int32_t channel_cnt;
+};
+
 #define SYMSYNC_PFB_CNT 16          // number of filter in symsync polyphase filterbank
 #define HFDL_MF_SYMBOL_DELAY 3      // delay introduced by matched filter (measured in symbols)
 #define HFDL_MF_TAPS_CNT 19         // SPS * 3 symbols of delay * 2 + 1
@@ -193,6 +198,7 @@ static void decode_user_data(struct hfdl_channel *c);
 static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len);
 static void sampler_reset(struct hfdl_channel *c);
 static void framer_reset(struct hfdl_channel *c);
+static void *noise_floor_stats_thread(void *ctx);
 
 struct hfdl_channel {
 	struct block block;
@@ -291,11 +297,6 @@ static void costas_cccf_reset(costas c) {
  * Descrambler
  **********************************/
 
-#define LFSR_LEN 15
-#define LFSR_GENPOLY 0x8003u
-#define LFSR_INIT 0x6959u
-#define DESCRAMBLER_LEN 120
-
 struct descrambler {
 	msequence ms;
 	uint32_t len;
@@ -325,6 +326,23 @@ static uint32_t descrambler_advance(descrambler d) {
 	}
 	d->pos++;
 	return msequence_advance(d->ms);
+}
+
+// HFDL-specific descrambler
+static descrambler hfdl_descrambler_create(void) {
+	uint32_t numbits = 15;
+	uint32_t seq_len = 120;
+	uint32_t lfsr_init, lfsr_genpoly;
+	// Ugly hack: liquid-dsp 1.6.0 is not backwards-compatible
+	// FIXME: this shall be computed by descrambler_create()
+	if(liquid_libversion_number() < 1006000) {
+		lfsr_genpoly = 0x8002u;
+		lfsr_init = 0x6959u;
+	} else {
+		lfsr_genpoly = 0x4001u;
+		lfsr_init = 0x4d4bu;    // 0x6959u reversed
+	}
+	return descrambler_create(numbits, lfsr_genpoly, lfsr_init, seq_len);
 }
 
 /**********************************
@@ -488,7 +506,7 @@ struct block *hfdl_channel_create(int32_t sample_rate, int32_t pre_decimation_ra
 	c->bits = bsequence_create(M1_LEN);
 	c->training_symbols = cbuffercf_create(T_LEN);
 	c->data_symbols = cbuffercf_create(DATA_SYMBOLS_CNT_MAX);
-	c->descrambler = descrambler_create(LFSR_LEN, LFSR_GENPOLY, LFSR_INIT, DESCRAMBLER_LEN);
+	c->descrambler = hfdl_descrambler_create();
 	for(int32_t i = 0; i < M_SHIFT_CNT; i++) {
 		c->deinterleaver[i] = deinterleaver_create(i);
 		struct hfdl_params const p = hfdl_frame_params[i];
@@ -551,6 +569,15 @@ void hfdl_print_summary(void) {
 	fprintf(stderr, "train_bits_bad/total:\t%d/%d (%f%%)\n", S.train_bits_bad, S.train_bits_total,
 			(float)S.train_bits_bad / (float)S.train_bits_total * 100.f);
 #endif
+}
+
+int32_t hfdl_nf_stats_thread_start(struct block **channel_block_list, int32_t channel_cnt) {
+	pthread_t nfstats_th;
+	NEW(struct nf_stats_thread_ctx, ctx);
+	ctx->channel_block_list = channel_block_list;
+	ctx->channel_cnt = channel_cnt;
+	int32_t ret = start_thread(&nfstats_th, noise_floor_stats_thread, ctx);
+	return ret;
 }
 
 /**********************************
@@ -1049,4 +1076,29 @@ static void dispatch_pdu(struct hfdl_channel *c, uint8_t *buf, size_t len) {
 	uint8_t *copy = XCALLOC(len, sizeof(uint8_t));
 	memcpy(copy, buf, len);
 	pdu_decoder_queue_push(m, octet_string_new(copy, len), flags);
+}
+
+static void *noise_floor_stats_thread(void *ctx) {
+	ASSERT(ctx != NULL);
+	struct nf_stats_thread_ctx *nfctx = ctx;
+	int32_t channel_cnt = nfctx->channel_cnt;
+	struct hfdl_channel *channels[channel_cnt];
+	for(int32_t i = 0; i < channel_cnt; i++) {
+		channels[i] = container_of(nfctx->channel_block_list[i], struct hfdl_channel, block);
+	}
+	while(true) {
+		sleep(Config.nf_stats_interval);
+		for(int32_t i = 0; i < channel_cnt; i++) {
+			float nf = LEVEL_TO_DB(channels[i]->noise_floor);
+			// Can't report float as a StatsD gauge - only integers are supported.
+			// What's more, submitting a negative value causes the gauge to be
+			// subtracted from the current value, rather than set to the given value.
+			// As a workaround, noise floor is report in tenths of dBFS, positive.
+			if(nf <= 0.f) {
+				statsd_set_per_channel(channels[i]->chan_freq, "noise_floor",
+						(size_t)fabsf(roundf(nf * 10.f)));
+			}
+		}
+	}
+	return NULL;
 }

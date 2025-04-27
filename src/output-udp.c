@@ -75,23 +75,33 @@ static int out_udp_init(void *selfptr) {
 	return 0;
 }
 
-static void out_udp_produce_text(out_udp_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
+static int out_udp_produce_text(out_udp_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
 	UNUSED(metadata);
 	ASSERT(msg != NULL);
 	ASSERT(self->sockfd != 0);
 	if(msg->len < 2) {
-		return;
+		return 0;
 	}
 	if(write(self->sockfd, msg->buf, msg->len) < 0) {
-		debug_print(D_OUTPUT, "output_udp: error while writing to the network socket: %s", strerror(errno));
+		return -1;
 	}
+	return 0;
 }
 
 static int out_udp_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
 	ASSERT(selfptr != NULL);
 	out_udp_ctx_t *self = selfptr;
+	int32_t result = 0;
 	if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
-		out_udp_produce_text(self, metadata, msg);
+		result = out_udp_produce_text(self, metadata, msg);
+	}
+	if(result < 0) {
+		// UDP output is fire-and-forget by definition.
+		// Return 0 regardless of whether the send succeeded or not,
+		// but print an error to help with diagnosing common issues,
+		// (eg. nothing listening on the receiver port).
+		fprintf(stderr, "output_udp(%s:%s): send error: %s\n", self->address,
+			self->port,	strerror(errno));
 	}
 	return 0;
 }

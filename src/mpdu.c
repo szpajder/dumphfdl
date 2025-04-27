@@ -104,7 +104,7 @@ la_list *mpdu_parse(struct octet_string *pdu, la_reasm_ctx *reasm_ctx,
 		mpdu_header.dst_id = 0;                 // See comment in mpdu_format_text()
 		uint8_t *hdrptr = buf + 2;              // First AC ID octet
 		int32_t consumed_octets = 0;
-		for(uint32_t i = 0; i < aircraft_cnt; i++, hdrptr++, dataptr += consumed_octets) {
+		for(uint32_t i = 0; i < aircraft_cnt; i++, hdrptr += lpdu_cnt, dataptr += consumed_octets) {
 			mpdu_header.dst_id = *hdrptr++;
 			lpdu_cnt = (*hdrptr++ >> 4) & 0xF;
 			if(Config.output_mpdus == true) {
