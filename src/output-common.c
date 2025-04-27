@@ -18,6 +18,9 @@
 #ifdef WITH_ZMQ
 #include "output-zmq.h"         // out_DEF_zmq
 #endif
+#ifdef WITH_RDKAFKA
+#include "output-rdkafka.h"         // out_DEF_rdkafka
+#endif
 
 static la_dict const fmtr_intype_names[] = {
 	{
@@ -53,6 +56,9 @@ static output_descriptor_t * output_descriptors[] = {
 	&out_DEF_udp,
 #ifdef WITH_ZMQ
 	&out_DEF_zmq,
+#endif
+#ifdef WITH_RDKAFKA
+	&out_DEF_rdkafka,
 #endif
 	NULL
 };
