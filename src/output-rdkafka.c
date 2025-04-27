@@ -109,13 +109,14 @@ static int out_rdkafka_init(void *selfptr) {
     }
 
     /* Create Kafka producer handle */
-    //rd_kafka_t self->rk;
+	  fprintf(stderr, "output_rdkafka(%s): creating producer...\n", self->brokers);
     if (!(self->rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf,
                             errstr, sizeof(errstr)))) {
       fprintf(stderr, "%% Failed to create new producer: %s\n", errstr);
       exit(1);
     }
 
+	  fprintf(stderr, "output_rdkafka(%s): connecting...\n", self->brokers);
     self->rdkafka_ctx = rd_kafka_new(RD_KAFKA_PRODUCER,
             conf,
             errstr,
@@ -125,6 +126,7 @@ static int out_rdkafka_init(void *selfptr) {
         fprintf(stderr, "output_rdkafka(%s): failed to set up Kafka producer context\n", self->brokers);
         return -1;
     }
+	  fprintf(stderr, "output_rdkafka(%s): connection established\n", self->brokers);
     return 0;
 }
 
@@ -137,6 +139,8 @@ static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *m
     if(msg->len < 2) {
         return;
     }
+
+	  fprintf(stderr, "output_rdkafka(%s): producing message...\n", self->brokers);
 
     rd_kafka_resp_err_t err;
 
