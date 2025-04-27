@@ -30,6 +30,7 @@ HFDL (High Frequency Data Link) is a protocol used for radio communications betw
 - reliable network messaging via [ZeroMQ](https://zeromq.org/) - client and server mode
 - TCP connection - client mode
 - UDP socket
+- Apache Kafka
 
 ## Example
 
@@ -90,6 +91,7 @@ Optional dependencies:
 - statsd-c-client (for Etsy StatsD statistics)
 - libzmq 3.2.0 or later (for ZeroMQ networked output)
 - google-perftools (for profiling)
+- librdkafka 1.8.0 or later (to enable rdkafka output types)
 
 Install necessary dependencies. Most of them are probably packaged in your Linux distribution. Example for Debian / RaspberryPi OS:
 
@@ -245,6 +247,22 @@ MacOS:
 brew install zeromq
 ```
 
+#### Apache Kafka networked output support (optional)
+
+Apache Kafka is a populated distributed log that provides topic-based persistent/durable messages.  dumphfdl can publish messages to an Apache Kafka cluster.  To enable this feature, install the librdkafka library.
+
+Linux:
+
+```sh
+sudo apt install librdkafka-dev
+```
+
+MacOS:
+
+```sh
+brew install librdkafka
+```
+
 ### Compiling dumphfdl
 
 - Download a stable release package from [here](https://github.com/szpajder/dumphfdl/releases) and unpack it...
@@ -310,6 +328,7 @@ Disabling optional features:
 - `-DSQLITE=FALSE`
 - `-DETSY_STATSD=FALSE`
 - `-DZMQ=FALSE`
+- `-DRDKAFKA=FALSE`
 
 Setting build type:
 
@@ -520,6 +539,7 @@ where:
   - `tcp` - output to a remote server via TCP
   - `udp` - output to a remote host via UDP network socket
   - `zmq` - output to a ZeroMQ publisher socket
+  - `rdkafka` - output to an Apache Kafka cluster
 
 - `<output_parameters>` - specifies options for this output. The syntax is as follows:
 
@@ -606,6 +626,32 @@ Examples:
 - `mode=server,endpoint=tcp://10.1.1.1:6666` - listen on TCP port 6666 on address 10.1.1.1 (it must be a local address).
 
 - `mode=client,endpoint=tcp://host.example.com:1234` - connect to port 1234 on host.example.com.
+
+#### `rdkafka`
+
+Opens a connection to an Apache Kafka cluster.
+
+Supported formats: `text`, `json`, `basestation`
+
+Parameters:
+
+- `brokers` (required) - a comma-separated list of hostname:port pairs, specifying the brokers to connect to.
+
+- `topic` (required) - the name of an existing Kafka topic to write events to.
+
+- `security_protocol` (optional) - specify the security protocol, default is `plaintext`.
+
+- `sasl_mechanism` (optional) - if SASL authentication is enabled via security_protocol, specify the mechanism.
+
+- `sasl_username` (optional) - if SASL authentication is enabled, specify the username.
+
+- `sasl_password` (optional) - if SASL authentication is enabled, specify the password.
+
+See [the librdkafka manual](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md) for more details on configuring security.
+
+Examples:
+
+- `brokers=localhost:9092,topic=airplanes` - Connect to a Kafka broker on the local host, and write to the airplanes topic.
 
 ### Diagnosing problems with outputs
 
