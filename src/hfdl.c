@@ -333,9 +333,10 @@ static descrambler hfdl_descrambler_create(void) {
 	uint32_t numbits = 15;
 	uint32_t seq_len = 120;
 	uint32_t lfsr_init, lfsr_genpoly;
-	// Ugly hack: liquid-dsp 1.6.0 is not backwards-compatible
+	// Ugly hack #1: liquid-dsp 1.6.0 broke backwards compatibility of msequence_create arguments
+	// Ugly hack #2: liquid-dsp 1.7.0 broke backwards compatibility of values returned by liquid_libversion_number()
 	// FIXME: this shall be computed by descrambler_create()
-	if(liquid_libversion_number() < 1006000) {
+	if(liquid_libversion_number() > 1000000 && liquid_libversion_number() < 1006000) {
 		lfsr_genpoly = 0x8002u;
 		lfsr_init = 0x6959u;
 	} else {
