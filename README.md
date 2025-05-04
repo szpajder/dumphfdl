@@ -647,6 +647,10 @@ Parameters:
 
 - `sasl_password` (optional) - if SASL authentication is enabled, specify the password.
 
+- `acks` (optional) - set the number of required brokers to ack (default: all).
+
+- `verbose_log` (optional) - write a log message to stderr for each message produced to Kafka.
+
 Kafka supports other modes of authentication (eg. client certificates), but these are not supported today.
 
 See [the librdkafka manual](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md) for more details on configuring security.

@@ -16,6 +16,8 @@ typedef struct {
     char *sasl_password;
     char *sasl_mechanism;
     char *security_protocol;
+    char *acks;
+    bool verbose_log;
     void *rdkafka_ctx;
     void *rdkafka_sock;
     void *rk;
@@ -53,10 +55,36 @@ static void *out_rdkafka_configure(kvargs *kv) {
       cfg->security_protocol = strdup(kvargs_get(kv, "security_protocol"));
     }
 
+    if (kvargs_get(kv, "acks") != NULL) {
+      cfg->acks = strdup(kvargs_get(kv, "acks"));
+    } else {
+      cfg->acks = "all";
+    }
+
+    // Output a log message to stderr for each message produced to Kafka
+    if (kvargs_get(kv, "verbose_log") != NULL &&
+        strcmp(strdup(kvargs_get(kv, "verbose_log")), "true") == 0)  {
+      fprintf(stderr, "output_rdkafka: verbose kafka logging enabled\n");
+      cfg->verbose_log = true;
+    } else {
+      cfg->verbose_log = false;
+    }
+
     return cfg;
 fail:
     XFREE(cfg);
     return NULL;
+}
+
+static void rdkafka_conf_set(rd_kafka_conf_t *conf, char *key, char *val) {
+  ASSERT(conf != null);
+
+  char errstr[512];
+  if (rd_kafka_conf_set(conf, key, val,
+                        errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "%% rdkafka config error: %s\n", errstr);
+    exit(1);
+  }
 }
 
 static int out_rdkafka_init(void *selfptr) {
@@ -67,45 +95,18 @@ static int out_rdkafka_init(void *selfptr) {
 
     char errstr[512];
 
-    if (rd_kafka_conf_set(conf, "bootstrap.servers", self->brokers,
-                          errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-      fprintf(stderr, "%% %s\n", errstr);
-      exit(1);
-    }
-
-    rd_kafka_topic_conf_t *topic_conf = rd_kafka_topic_conf_new();
-
-    if (rd_kafka_topic_conf_set(topic_conf, "acks", "all",
-                          errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-      fprintf(stderr, "%% %s\n", errstr);
-      exit(1);
-    }
+    rdkafka_conf_set(conf, "bootstrap.servers", self->brokers);
+    rdkafka_conf_set(conf, "acks", self->acks);
 
     // Enable authentication if configured
     if (self->sasl_username != NULL &&
         self->sasl_password != NULL &&
         self->sasl_mechanism != NULL &&
         self->security_protocol != NULL) {
-          if (rd_kafka_conf_set(conf, "sasl.mechanism", self->sasl_mechanism,
-                            errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-              fprintf(stderr, "%% %s\n", errstr);
-              exit(1);
-          }
-          if (rd_kafka_conf_set(conf, "sasl.username", self->sasl_username,
-                            errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-              fprintf(stderr, "%% %s\n", errstr);
-              exit(1);
-          }
-          if (rd_kafka_conf_set(conf, "sasl.password", self->sasl_password,
-                            errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-              fprintf(stderr, "%% %s\n", errstr);
-              exit(1);
-          }
-          if (rd_kafka_conf_set(conf, "security.protocol", self->security_protocol,
-                            errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-              fprintf(stderr, "%% %s\n", errstr);
-              exit(1);
-          }
+          rdkafka_conf_set(conf, "sasl.mechanism", self->sasl_mechanism);
+          rdkafka_conf_set(conf, "sasl.username", self->sasl_username);
+          rdkafka_conf_set(conf, "sasl.password", self->sasl_password);
+          rdkafka_conf_set(conf, "security.protocol", self->security_protocol);
     }
 
     /* Create Kafka producer handle */
@@ -116,16 +117,6 @@ static int out_rdkafka_init(void *selfptr) {
       exit(1);
     }
 
-	  fprintf(stderr, "output_rdkafka(%s): connecting...\n", self->brokers);
-    self->rdkafka_ctx = rd_kafka_new(RD_KAFKA_PRODUCER,
-            conf,
-            errstr,
-            sizeof(errstr));
-
-    if(self->rdkafka_ctx == NULL) {
-        fprintf(stderr, "output_rdkafka(%s): failed to set up Kafka producer context\n", self->brokers);
-        return -1;
-    }
 	  fprintf(stderr, "output_rdkafka(%s): connection established\n", self->brokers);
     return 0;
 }
@@ -139,8 +130,6 @@ static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *m
     if(msg->len < 2) {
         return;
     }
-
-	  fprintf(stderr, "output_rdkafka(%s): producing message...\n", self->brokers);
 
     rd_kafka_resp_err_t err;
 
@@ -193,6 +182,30 @@ static const option_descr_t out_rdkafka_options[] = {
     {
         .name= "topic",
         .description = "Kafka topic (required)"
+    },
+    {
+        .name= "sasl_username",
+        .description = "SASL Username"
+    },
+    {
+        .name= "sasl_password",
+        .description = "SASL Password"
+    },
+    {
+        .name= "sasl_mechanism",
+        .description = "SASL Mechanism - Accepted values: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512"
+    },
+    {
+        .name= "security_protocol",
+        .description = "Security Protocol - Accepted values: plaintext, ssl, sasl_plaintext, sasl_ssl"
+    },
+    {
+        .name= "acks",
+        .description = "Required number of acks - Default: all"
+    },
+    {
+        .name= "verbose_log",
+        .description = "Print verbose log messages for each produced message - Default: false"
     },
     {
         .name = NULL,
