@@ -133,6 +133,10 @@ static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *m
 
     rd_kafka_resp_err_t err;
 
+    if (self->verbose_log) {
+      fprintf(stderr, "output_rdkafka: producing message to kafka topic %s", self->topic);
+    }
+
     err = rd_kafka_producev(
         self->rk,
         RD_KAFKA_V_TOPIC(self->topic),
@@ -142,7 +146,7 @@ static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *m
         RD_KAFKA_V_OPAQUE(&delivery_counter),
         RD_KAFKA_V_END);
     if (err) {
-        fprintf(stderr, "Produce failed: %s\n",
+        fprintf(stderr, "output_rdkafka: Produce failed: %s\n",
                 rd_kafka_err2str(err));
     }
 
