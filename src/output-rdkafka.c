@@ -134,7 +134,7 @@ static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *m
     rd_kafka_resp_err_t err;
 
     if (self->verbose_log) {
-      fprintf(stderr, "output_rdkafka: producing message to kafka topic %s", self->topic);
+      fprintf(stderr, "output_rdkafka: producing message to kafka topic: %s\n", self->topic);
     }
 
     err = rd_kafka_producev(
