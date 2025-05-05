@@ -81,11 +81,37 @@ static void rdkafka_conf_set(rd_kafka_conf_t *conf, char *key, char *val) {
   }
 }
 
+// Error callback handler
+static void rdkafka_error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+    out_rdkafka_ctx_t *self = opaque;
+
+    // Determine if the error is fatal, or retryable. If fatal, give up and exit,
+    // if transient send a warning and allow the driver to retry.
+    char errstr[512];
+    rd_kafka_resp_err_t fatal_error = rd_kafka_fatal_error(rk, errstr, sizeof(errstr));
+
+    if (fatal_error != RD_KAFKA_RESP_ERR_NO_ERROR) {
+        fprintf(stderr, "output_rdkafka(%s): FATAL ERROR (%d: %s): %s\n",
+                self->brokers, fatal_error, rd_kafka_err2name(fatal_error), errstr);
+        exit(1);
+    } else {
+        // (probable) Transient error
+        fprintf(stderr, "output_rdkafka(%s) warning: (%d: %s): %s\n",
+                self->brokers, err, rd_kafka_err2name(err), reason);
+    }
+}
+
 static int out_rdkafka_init(void *selfptr) {
     ASSERT(selfptr != NULL);
     out_rdkafka_ctx_t *self = selfptr;
 
     rd_kafka_conf_t *conf = rd_kafka_conf_new();
+
+    // Register an error callback handler.
+    rd_kafka_conf_set_error_cb(conf, rdkafka_error_cb);
+
+    // Pass in pointer to our config struct so we can use some values for logging.
+    rd_kafka_conf_set_opaque(conf, self);
 
     char errstr[512];
 
