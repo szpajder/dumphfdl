@@ -1,10 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <stdio.h>                      // fprintf
 #include <string.h>                     // strdup, strerror
-#include <errno.h>                      // errno
 #include <librdkafka/rdkafka.h>
 #include "output-common.h"              // output_descriptor_t, output_qentry_t, output_queue_drain
-#include "config.h"                     // Uhh
 #include "kvargs.h"                     // kvargs
 #include "options.h"                    // option_descr_t
 #include "util.h"                       // ASSERT, NEW
@@ -17,9 +15,6 @@ typedef struct {
     char *sasl_mechanism;
     char *security_protocol;
     char *acks;
-    bool verbose_log;
-    void *rdkafka_ctx;
-    void *rdkafka_sock;
     void *rk;
 } out_rdkafka_ctx_t;
 
@@ -61,15 +56,6 @@ static void *out_rdkafka_configure(kvargs *kv) {
       cfg->acks = "all";
     }
 
-    // Output a log message to stderr for each message produced to Kafka
-    if (kvargs_get(kv, "verbose_log") != NULL &&
-        strcmp(strdup(kvargs_get(kv, "verbose_log")), "true") == 0)  {
-      fprintf(stderr, "output_rdkafka: verbose kafka logging enabled\n");
-      cfg->verbose_log = true;
-    } else {
-      cfg->verbose_log = false;
-    }
-
     return cfg;
 fail:
     XFREE(cfg);
@@ -77,7 +63,7 @@ fail:
 }
 
 static void rdkafka_conf_set(rd_kafka_conf_t *conf, char *key, char *val) {
-  ASSERT(conf != null);
+  ASSERT(conf != NULL);
 
   char errstr[512];
   if (rd_kafka_conf_set(conf, key, val,
@@ -121,21 +107,17 @@ static int out_rdkafka_init(void *selfptr) {
     return 0;
 }
 
-static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
+static int out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *metadata, struct octet_string *msg) {
     UNUSED(metadata);
     ASSERT(msg != NULL);
 
     long delivery_counter;
 
     if(msg->len < 2) {
-        return;
+        return 0;
     }
 
     rd_kafka_resp_err_t err;
-
-    if (self->verbose_log) {
-      fprintf(stderr, "output_rdkafka: producing message to kafka topic: %s\n", self->topic);
-    }
 
     err = rd_kafka_producev(
         self->rk,
@@ -145,21 +127,26 @@ static void out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *m
         RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
         RD_KAFKA_V_OPAQUE(&delivery_counter),
         RD_KAFKA_V_END);
-    if (err) {
-        fprintf(stderr, "output_rdkafka: Produce failed: %s\n",
-                rd_kafka_err2str(err));
+    if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+        fprintf(stderr, "output_rdkafka(%s): Produce message failed: %s\n",
+                self->brokers, rd_kafka_err2str(err));
+        return -1;
     }
 
     /* Poll for delivery report callbacks to know the final
      * delivery status of previously produced messages. */
     rd_kafka_poll(self->rk, 0);
+
+    return 0;
 }
 
 static int out_rdkafka_produce(void *selfptr, output_format_t format, struct metadata *metadata, struct octet_string *msg) {
     ASSERT(selfptr != NULL);
     out_rdkafka_ctx_t *self = selfptr;
     if(format == OFMT_TEXT || format == OFMT_JSON || format == OFMT_BASESTATION) {
-        out_rdkafka_produce_text(self, metadata, msg);
+        if (out_rdkafka_produce_text(self, metadata, msg) < 0) {
+          return -1;
+        }
     }
     return 0;
 }
@@ -206,10 +193,6 @@ static const option_descr_t out_rdkafka_options[] = {
     {
         .name= "acks",
         .description = "Required number of acks - Default: all"
-    },
-    {
-        .name= "verbose_log",
-        .description = "Print verbose log messages for each produced message - Default: false"
     },
     {
         .name = NULL,
