@@ -16,6 +16,7 @@ typedef struct {
     char *security_protocol;
     char *acks;
     void *rk;
+    int kafka_metadata_timeout_ms;
 } out_rdkafka_ctx_t;
 
 static bool out_rdkafka_supports_format(output_format_t format) {
@@ -54,6 +55,13 @@ static void *out_rdkafka_configure(kvargs *kv) {
       cfg->acks = strdup(kvargs_get(kv, "acks"));
     } else {
       cfg->acks = "all";
+    }
+
+    if (kvargs_get(kv, "kafka_connect_timeout_secs") != NULL) {
+      cfg->kafka_metadata_timeout_ms = atoi(strdup(kvargs_get(kv, "kafka_connect_timeout_secs"))) * 1000;
+    } else {
+      // Set default metadata query timeout to 10 seconds.
+      cfg->kafka_metadata_timeout_ms = 10 * 1000;
     }
 
     return cfg;
@@ -103,6 +111,16 @@ static int out_rdkafka_init(void *selfptr) {
       exit(1);
     }
 
+    const struct rd_kafka_metadata *metadata;
+    rd_kafka_resp_err_t err = rd_kafka_metadata(self->rk, 0, NULL, &metadata, self->kafka_metadata_timeout_ms);
+    if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+        fprintf(stderr, "output_rdkafka(%s): failed to fetch metadata - check Kafka configuration: %s\n",
+            self->brokers, rd_kafka_err2str(err));
+        rd_kafka_destroy(self->rk);
+        exit(1);
+    }
+    rd_kafka_metadata_destroy(metadata);
+
 	  fprintf(stderr, "output_rdkafka(%s): connection established\n", self->brokers);
     return 0;
 }
@@ -117,9 +135,7 @@ static int out_rdkafka_produce_text(out_rdkafka_ctx_t *self, struct metadata *me
         return 0;
     }
 
-    rd_kafka_resp_err_t err;
-
-    err = rd_kafka_producev(
+    rd_kafka_resp_err_t err = rd_kafka_producev(
         self->rk,
         RD_KAFKA_V_TOPIC(self->topic),
         RD_KAFKA_V_KEY(NULL, 0),
@@ -193,6 +209,10 @@ static const option_descr_t out_rdkafka_options[] = {
     {
         .name= "acks",
         .description = "Required number of acks - Default: all"
+    },
+    {
+        .name= "kafka_connect_timeout_secs",
+        .description = "Seconds to wait for metadata query on connect - Default: 10 (seconds)"
     },
     {
         .name = NULL,
