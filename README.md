@@ -649,6 +649,8 @@ Parameters:
 
 - `acks` (optional) - set the number of required brokers to ack (default: all).
 
+- `kafka_connect_timeout_secs` (optional) - number of seconds before giving up during initial connect phase (default: 10 seconds).
+
 Kafka supports other modes of authentication (eg. client certificates), but these are not supported today.
 
 See [the librdkafka manual](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md) for more details on configuring security.
