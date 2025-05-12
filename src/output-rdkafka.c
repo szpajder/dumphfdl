@@ -169,10 +169,11 @@ static int out_rdkafka_init(void *selfptr) {
             self->brokers, rd_kafka_err2str(err));
         rd_kafka_destroy(self->rk);
         return -1;
+    } else {
+	      fprintf(stderr, "output_rdkafka(%s): connection established\n", self->brokers);
     }
     rd_kafka_metadata_destroy(metadata);
 
-	  fprintf(stderr, "output_rdkafka(%s): connection established\n", self->brokers);
     return 0;
 }
 
