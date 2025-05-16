@@ -17,6 +17,7 @@ typedef struct {
     char *acks;
     void *rk;
     int kafka_metadata_timeout_ms;
+    char *ssl_ca_location;
 } out_rdkafka_ctx_t;
 
 static bool out_rdkafka_supports_format(output_format_t format) {
@@ -49,6 +50,11 @@ static void *out_rdkafka_configure(kvargs *kv) {
       cfg->sasl_password = strdup(kvargs_get(kv, "sasl_password"));
       cfg->sasl_mechanism = strdup(kvargs_get(kv, "sasl_mechanism"));
       cfg->security_protocol = strdup(kvargs_get(kv, "security_protocol"));
+    }
+
+    if (kvargs_get(kv, "ssl_ca_location") != NULL) {
+      cfg->ssl_ca_location = strdup(kvargs_get(kv, "ssl_ca_location"));
+      fprintf(stderr, "output_rdkafka: Configuring SSL CA certificate: %s\n", cfg->ssl_ca_location);
     }
 
     if (kvargs_get(kv, "acks") != NULL) {
@@ -142,6 +148,12 @@ static int out_rdkafka_init(void *selfptr) {
 
     if (rdkafka_conf_set(conf, "bootstrap.servers", self->brokers) < 0) { return -1; }
     if (rdkafka_conf_set(conf, "acks", self->acks) < 0) { return -1; }
+
+    // Optionally configure a custom SSL CA certificate to verify the servers certificate
+    // against. If this file path is wrong or inaccessible, librdkafka will return an error.
+    if (self->ssl_ca_location != NULL) {
+      if (rdkafka_conf_set(conf, "ssl.ca.location", self->ssl_ca_location) < 0) { return -1; }
+    }
 
     // Enable authentication if configured
     if (self->sasl_username != NULL &&
@@ -257,6 +269,10 @@ static const option_descr_t out_rdkafka_options[] = {
     {
         .name= "security_protocol",
         .description = "Security Protocol - Accepted values: plaintext, ssl, sasl_plaintext, sasl_ssl"
+    },
+    {
+        .name= "ssl_ca_location",
+        .description = "SSL CA certificate PEM file path (if not specified, uses the system root CA pack)"
     },
     {
         .name= "acks",

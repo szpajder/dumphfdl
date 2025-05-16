@@ -647,11 +647,21 @@ Parameters:
 
 - `sasl_password` (optional) - if SASL authentication is enabled, specify the password.
 
+- `ssl_ca_location` (optional) - file path to root CA (PEM) certificate to validate broker hostnames. Uses default system CA root pack if not specified.
+
 - `acks` (optional) - set the number of required brokers to ack (default: all).
 
 - `kafka_connect_timeout_secs` (optional) - number of seconds before giving up during initial connect phase (default: 10 seconds).
 
 Kafka supports other modes of authentication (eg. client certificates), but these are not supported today.
+
+Note that to use SSL (eg. the `SASL_SSL` security mechanism), your librdkafka must be compiled with support for OpenSSL. If you receive an error such as:
+
+```text
+% rdkafka config error: Unsupported value "SASL_SSL" for configuration property "security.protocol": OpenSSL not available at build time
+```
+
+then you should ensure you have the appropriate OpenSSL development libraries installed for your operating system, and then rebuild.
 
 See [the librdkafka manual](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md) for more details on configuring security.
 
