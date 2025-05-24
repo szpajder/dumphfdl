@@ -97,17 +97,9 @@ static void rdkafka_delivery_report_cb(rd_kafka_t *rk,
     out_rdkafka_ctx_t *self = opaque;
 
     if (rkmessage->err) {
-        // If the failure is due to a missing topic, then this is a permanent failure until the user
-        // creates a topic, as it indicates that auto topic creation is disabled on the cluster.
-        if (rkmessage->err == RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART) {
-            fprintf(stderr, "output_rdkafka(%s): ERROR: delivery failed, topic %s does not exist and should be created manually.\n",
-                self->brokers,
-                self->topic);
-        } else {
-            fprintf(stderr, "output_rdkafka(%s): ERROR: message delivery failed: %s\n",
-                self->brokers,
-                rd_kafka_message_errstr(rkmessage));
-        }
+        fprintf(stderr, "output_rdkafka(%s): ERROR: message delivery failed: %s\n",
+            self->brokers,
+            rd_kafka_err2str(rkmessage->err));
     }
 }
 
