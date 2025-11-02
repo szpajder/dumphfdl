@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## Version 1.7.0 (2025-11-02)
+
+* Added `rdkafka` output driver which allows sending decoded messages (text,
+  Basestation or JSON format) to Apache Kafka cluster. librdkafka 1.8.0 or
+  later is a new optional dependency, which is required to use this driver.
+  Refer to "Apache Kafka networked output support" and "rdkafka" sections in
+  the README.md file for details on how to use it. (thx @erikbeebe)
+
+* The program will now exit after 5 consecutive errors returned by SoapySDR
+  `readStream()` function. This often happens when the communication with the
+  radio fails (eg. due to USB disconnection). If the problem was temporary in
+  nature, the program should resume decoding after being restarted by systemd
+  (provided that the service has been configured with `Restart=on-failure`).
+
+* The number of FFT threads is now configurable with `--fft-threads <num>`
+  command line option. The default value is 4 as before and is suitable for
+  low power hardware, eg. small single board computers. When running on a high
+  performance CPU, reducing this to 1 might often result in a slightly lower
+  overall CPU usage.
+
+* Fixed compatibility issue with liquid-dsp 1.7.0.
+
+* Fixed compatibility issue with recent versions of CMake.
+
 ## Version 1.6.1 (2024-02-03)
 
 * Compatibility fix for liquid-dsp 1.6.0 and later
